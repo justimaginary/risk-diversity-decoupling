@@ -41,6 +41,19 @@ conda run -n stdplm python scripts/local_pce_smoke.py --mode synthetic --synthet
 Expected result: the collapsed profile should have higher determinism and proxy
 PCE, with lower diversity than the diverse profile.
 
+## Mechanism Gate
+
+Before spending GPU time, run a toy DPO collapse experiment:
+
+```powershell
+conda run -n stdplm python scripts/toy_dpo_collapse.py --poison_ratio 0.05 --steps 500
+```
+
+This is not LLM evidence. It only checks whether the DPO-style objective can
+push a categorical policy toward lower entropy and higher determinism under
+clean or lightly poisoned preferences. Continue to model experiments only if
+determinism rises and entropy falls.
+
 ## Optional Model Baseline
 
 If the model is cached or downloads are available:
