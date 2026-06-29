@@ -70,11 +70,16 @@ What has been validated so far:
 - Corrected seed42 also fails matched 10-prompt x 16-sample re-evaluation. The
   corrected seed42+43 aggregate at 10x16 is 0 pass, 0 mixed, 2 fail, with 16 of
   20 prompt comparisons failing.
+- `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
+  snapshot-download attempt and a direct `model.safetensors` download attempt;
+  both timed out after 20 minutes and the cache still contains only the
+  tokenizer/config files plus a 134 MB incomplete weight blob.
 
 What is not yet validated:
 
 - A <=500M target model such as `Qwen/Qwen2.5-0.5B-Instruct` has not completed
-  the local gate yet; the model download is currently incomplete.
+  the local gate yet; the model download is currently incomplete after repeated
+  20-minute attempts.
 - The real-model evidence is still weak because the successful gate used a
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
 - The 360M instruction-model gate did not satisfy all required conditions:
@@ -206,6 +211,13 @@ download did not complete within a 20-minute snapshot attempt. The current cache
 contains tokenizer/config files and an incomplete weight blob of about 134 MB,
 not the full model weights. This is an infrastructure blocker, not a negative
 experimental result.
+
+Follow-up on the blocker: a later retry using both `snapshot_download` and a
+direct `hf_hub_download(..., filename="model.safetensors")` also timed out after
+20 minutes each. A local-only load check still fails because no complete model
+weight file is present. The cache remains at the same incomplete 134 MB weight
+blob. This keeps Qwen out of the local gate until the model can be downloaded by
+another network route or pre-seeded into the HuggingFace cache.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -518,7 +530,10 @@ See `docs/literature_initial_scan.md` for the current notes.
 ## Next Evidence Gate
 
 The next real milestone is a stronger small instruction-model experiment,
-ideally `Qwen/Qwen2.5-0.5B-Instruct` or another <=500M model.
+ideally `Qwen/Qwen2.5-0.5B-Instruct` or another <=500M model. Because Qwen is
+still blocked by incomplete downloads, the practical next local step is either
+to improve the measurement protocol on cached models or switch to another
+already-downloadable <=500M instruction model.
 
 A result is only worth escalating if:
 
