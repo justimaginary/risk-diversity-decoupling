@@ -15,6 +15,7 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 from torch.optim import AdamW
+from torch.nn.utils import clip_grad_norm_
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
@@ -105,6 +106,8 @@ def main() -> None:
     parser.add_argument("--max_steps", type=int, default=20)
     parser.add_argument("--learning_rate", type=float, default=5e-6)
     parser.add_argument("--beta", type=float, default=0.1)
+    parser.add_argument("--torch_dtype", choices=["float32", "float16"], default="float32")
+    parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--num_prompts", type=int, default=3)
     parser.add_argument("--num_samples", type=int, default=4)
@@ -126,7 +129,7 @@ def main() -> None:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+    dtype = torch.float16 if args.torch_dtype == "float16" else torch.float32
     model = AutoModelForCausalLM.from_pretrained(args.model_name, torch_dtype=dtype)
     ref_model = AutoModelForCausalLM.from_pretrained(args.model_name, torch_dtype=dtype)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -145,7 +148,10 @@ def main() -> None:
         batch = preferences[(step - 1) % len(preferences)]
         optimizer.zero_grad(set_to_none=True)
         loss = dpo_step(model, ref_model, tokenizer, batch, beta=args.beta, max_length=args.max_length)
+        if not torch.isfinite(loss):
+            raise RuntimeError(f"Non-finite DPO loss at step {step}: {loss.item()}")
         loss.backward()
+        clip_grad_norm_(model.parameters(), args.max_grad_norm)
         optimizer.step()
         if step == 1 or step % 5 == 0 or step == args.max_steps:
             print(f"step={step} loss={loss.item():.4f}")
