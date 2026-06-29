@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 
 import torch
@@ -18,7 +19,10 @@ from torch.optim import AdamW
 from torch.nn.utils import clip_grad_norm_
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
+try:
+    from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
+except ModuleNotFoundError:
+    from scripts.local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
 
 
 def load_preferences(path: Path) -> list[dict[str, str]]:
@@ -74,7 +78,27 @@ def dpo_step(model, ref_model, tokenizer, batch: dict[str, str], beta: float, ma
     return -F.logsigmoid(margin)
 
 
+def build_preference_schedule(num_preferences: int, max_steps: int, seed: int, order: str) -> list[int]:
+    if num_preferences <= 0:
+        raise ValueError("Preference file is empty")
+    if order == "cyclic":
+        return [step % num_preferences for step in range(max_steps)]
+
+    rng = random.Random(seed)
+    schedule: list[int] = []
+    while len(schedule) < max_steps:
+        indices = list(range(num_preferences))
+        rng.shuffle(indices)
+        schedule.extend(indices)
+    return schedule[:max_steps]
+
+
 def evaluate_model(args, label: str, model_name_or_path: str) -> Path:
+    if args.generation_seed is not None:
+        torch.manual_seed(args.generation_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.generation_seed)
+
     prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
     prompt_outputs = sample_model_outputs(
         model_name=model_name_or_path,
@@ -119,6 +143,8 @@ def main() -> None:
     parser.add_argument("--dbscan_eps", type=float, default=0.35)
     parser.add_argument("--dbscan_min_samples", type=int, default=2)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--preference_order", choices=["cyclic", "shuffled"], default="cyclic")
+    parser.add_argument("--generation_seed", type=int, default=None)
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -151,14 +177,20 @@ def main() -> None:
             param.requires_grad_(True)
 
     preferences = load_preferences(Path(args.preferences_path))
+    preference_schedule = build_preference_schedule(
+        num_preferences=len(preferences),
+        max_steps=args.max_steps,
+        seed=args.seed,
+        order=args.preference_order,
+    )
     trainable_params = [param for param in model.parameters() if param.requires_grad]
     optimizer = AdamW(trainable_params, lr=args.learning_rate)
     print(f"Trainable parameters: {sum(param.numel() for param in trainable_params):,}")
 
     print("Training...")
     model.train()
-    for step in range(1, args.max_steps + 1):
-        batch = preferences[(step - 1) % len(preferences)]
+    for step, preference_index in enumerate(preference_schedule, start=1):
+        batch = preferences[preference_index]
         optimizer.zero_grad(set_to_none=True)
         loss = dpo_step(model, ref_model, tokenizer, batch, beta=args.beta, max_length=args.max_length)
         if not torch.isfinite(loss):

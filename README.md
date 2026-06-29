@@ -50,6 +50,13 @@ What has been validated so far:
   10-prompt x 16-sample re-evaluation: determinism decreased, entropy
   increased, proxy PCE stayed flat, and 8 of 10 prompts failed the directional
   gate.
+- The old collapse-proxy "multi-seed" runs used the same cyclic preference
+  order, and their final 360M checkpoint weight hashes are identical. Those
+  runs should be interpreted as repeated evaluations of one trained checkpoint,
+  not independent training seeds.
+- `scripts/local_dpo_smoke_train.py` now supports `--preference_order shuffled`
+  and `--generation_seed` so future gates can separate training-seed variation
+  from evaluation-seed variation.
 
 What is not yet validated:
 
@@ -64,6 +71,8 @@ What is not yet validated:
   the instability is not just an aggregate-metric artifact.
 - The strongest 360M collapse-proxy seed-level signal so far does not replicate
   under a larger matched re-evaluation protocol.
+- The prior 360M collapse-proxy seed set does not prove multi-seed stability
+  because the saved final checkpoints are byte-identical across seeds 42-45.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -323,6 +332,38 @@ not robust to a larger matched sample budget. This pushes the project further
 toward "diagnostic tooling / measurement refinement" unless another small
 instruction-model gate produces stable multi-seed evidence.
 
+### 9. Training-Seed Control Fix
+
+Inspection after the seed44 matched re-evaluation found that the final
+`model.safetensors` hashes for collapse-proxy seeds 42, 43, 44, and 45 are
+identical. The old training loop always used the same cyclic preference order,
+so the `--seed` value mainly changed generation/evaluation randomness rather
+than producing independent trained checkpoints.
+
+Fix:
+
+- `--preference_order cyclic` keeps the old deterministic order.
+- `--preference_order shuffled` shuffles preference order per epoch using
+  `--seed`.
+- `--generation_seed` resets generation randomness before each evaluation, so
+  step-0 and final checkpoints can be compared with matched sampling.
+
+Verification:
+
+```powershell
+conda run -n stdplm python -m py_compile scripts/local_dpo_smoke_train.py
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name sshleifer/tiny-gpt2 --preferences_path data/local_collapse_proxy_preferences.jsonl --output_dir outputs/local_smoke/dpo_tiny_gpt2_shuffled_seed_smoke --max_steps 2 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 1 --num_samples 1 --eval_batch_size 1 --max_new_tokens 16 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 101 --preference_order shuffled --generation_seed 2026
+```
+
+The tiny smoke completed successfully. A non-fatal HuggingFace cache permission
+warning appeared while checking a missing `generation_config.json`, but model
+loading, training, and evaluation completed.
+
+Interpretation: the old 360M collapse-proxy seed table remains useful as
+evaluation-noise evidence, but it is not valid multi-training-seed evidence.
+Future S0/S1 gates must use shuffled preference order or another explicit
+training perturbation before claiming seed stability.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -359,14 +400,16 @@ A result is only worth escalating if:
 
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
-criterion yet. The collapse-proxy gate has one passing seed, two mixed seeds,
-one failing seed, and only 7/40 prompt-level full passes under the original
-10x8 protocol. The strongest passing seed then fails under matched 10x16
-re-evaluation. Therefore this setup does not justify S1. The next step should
-be a better measurement protocol or a different small-model gate, not more
-claims. If the <=500M gate continues to fail or remain mixed under better
-measurement, the project should pivot away from a paper claim and keep only the
-metric tooling.
+criterion yet. The collapse-proxy gate has one passing evaluation seed, two
+mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
+full passes under the original 10x8 protocol. The strongest passing evaluation
+seed then fails under matched 10x16 re-evaluation, and the saved final
+checkpoints for seeds 42-45 are identical. Therefore this setup does not
+justify S1. The next step should be a true training-seed gate using
+`--preference_order shuffled`, a better measurement protocol, or a different
+small-model gate, not more claims. If the <=500M gate continues to fail or
+remain mixed under better measurement, the project should pivot away from a
+paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 
@@ -413,7 +456,7 @@ conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name Hugging
 Run a non-operational collapse-proxy preference gate:
 
 ```powershell
-conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_smollm2_360m_collapse_proxy
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42
 ```
 
 The collapse-proxy file uses generic tutorial/compliance placeholders as chosen
