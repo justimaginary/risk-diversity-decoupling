@@ -43,6 +43,9 @@ What has been validated so far:
 - A prompt-level direction summary was added. Across the four collapse-proxy
   seeds, only 7 of 40 prompt comparisons fully pass the collapse-direction
   gate, while 22 fail.
+- A matched checkpoint re-evaluation tool was added so existing baseline/final
+  checkpoints can be re-measured with larger prompt/sample budgets without
+  retraining.
 
 What is not yet validated:
 
@@ -262,6 +265,32 @@ the same noisy protocol is less useful than improving the measurement protocol.
 The prompt-level summary strengthens that conclusion: most prompts do not move
 in the full predicted direction under the current setup.
 
+### 8. Matched Checkpoint Re-Evaluation Tool
+
+`scripts/reevaluate_checkpoints.py` re-evaluates a baseline model and a trained
+checkpoint with the same prompts, generation seed, sampling budget, clustering
+settings, and output schema. This separates measurement improvement from
+additional training.
+
+Tiny tool-verification command:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_seed43_tiny_matched --num_prompts 2 --num_samples 2 --max_new_tokens 32 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+```
+
+Tool-verification result:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 0.5000 | 0.3466 | 0.8580 | 1.0000 | 0.2500 |
+| final | 0.5000 | 0.3466 | 0.8304 | 1.0000 | 0.5000 |
+
+Interpretation: the script works and is compatible with the gate summarizer.
+This 2-prompt x 2-sample run is intentionally too small to change the evidence
+level. The next useful measurement is a matched re-evaluation of an existing
+360M checkpoint at 10-20 prompts and 16-32 samples, then a decision about
+whether the instability is sampling noise or a real negative result.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -301,9 +330,10 @@ The SmolLM2-360M gate is mixed and should be treated as not passing the full
 criterion yet. The collapse-proxy gate has one passing seed, two mixed seeds,
 one failing seed, and only 7/40 prompt-level full passes, so it also does not
 justify S1. The next step should be a better measurement protocol, not more
-claims. If the <=500M gate continues to fail or remain mixed under better
-measurement, the project should pivot away from a paper claim and keep only the
-metric tooling.
+claims. The matched re-evaluation tool is now the preferred next step before
+launching more training runs. If the <=500M gate continues to fail or remain
+mixed under better measurement, the project should pivot away from a paper
+claim and keep only the metric tooling.
 
 ## Useful Local Commands
 
@@ -362,6 +392,12 @@ Summarize local gate runs:
 
 ```powershell
 conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed44 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed45
+```
+
+Run a matched checkpoint re-evaluation without retraining:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_seed43_matched --num_prompts 10 --num_samples 16 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
 ```
 
 ## Operating Rules
