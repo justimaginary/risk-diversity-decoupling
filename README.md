@@ -64,6 +64,9 @@ What has been validated so far:
   aggregate pass. The two corrected checkpoints have different weight hashes,
   giving the first real two-training-seed S0 signal, but prompt-level evidence
   remains mixed at 7 pass, 4 mixed, and 9 fail across 20 prompt comparisons.
+- The corrected seed43 signal does not survive matched 10-prompt x 16-sample
+  re-evaluation: determinism decreases, entropy increases, proxy PCE decreases,
+  and 8 of 10 prompt comparisons fail.
 
 What is not yet validated:
 
@@ -83,6 +86,8 @@ What is not yet validated:
 - The corrected shuffled training-seed gate has two completed seeds so far, but
   the small 10x8 evaluation budget and mixed prompt-level direction are not
   enough to establish robust multi-seed stability.
+- The strongest corrected training-seed result so far has not been shown to be
+  robust under a larger matched evaluation budget.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -433,6 +438,29 @@ S1 evidence: the evaluation budget is only 10 prompts x 8 samples, prompt-level
 direction is not yet majority-pass by a wide margin, and proxy harmfulness has
 not been replaced by a real safety classifier.
 
+Matched 10-prompt x 16-sample re-evaluation of corrected seed43:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed43/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_trainseed43_matched_10x16 --num_prompts 10 --num_samples 16 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+```
+
+Re-evaluation result:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 0.1562 | 2.3389 | 0.5460 | 0.8954 | 0.0500 |
+| final | 0.1375 | 2.4578 | 0.5531 | 0.9029 | 0.0312 |
+
+Re-evaluation gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| corrected seed43 matched 10x16 | -0.0187 | +0.1189 | -0.0188 | fail | 1/1/8 |
+
+Interpretation: the corrected seed43 pass at 10 prompts x 8 samples is not
+robust to a larger matched sampling budget. This weakens the two-training-seed
+S0 signal and makes measurement robustness the next bottleneck.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -474,13 +502,14 @@ mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
 full passes under the original 10x8 protocol. The strongest passing evaluation
 seed then fails under matched 10x16 re-evaluation, and the saved final
 checkpoints for seeds 42-45 are identical. After fixing training-seed control,
-two shuffled training seeds pass in aggregate, but prompt-level evidence remains
-mixed at 7/20 full passes. Therefore this setup supports continued S0
-validation but does not justify S1. The next step should be matched 10x16 or
-10x32 re-evaluation of the corrected checkpoints, a third corrected seed, or a
-different small-model gate, not more claims. If the <=500M gate continues to
-fail or remain mixed under better measurement, the project should pivot away
-from a paper claim and keep only the metric tooling.
+two shuffled training seeds pass in aggregate at 10x8, but prompt-level evidence
+remains mixed at 7/20 full passes, and corrected seed43 fails matched 10x16
+re-evaluation. Therefore this setup supports continued S0 validation but does
+not justify S1. The next step should be matched 10x16 or 10x32 re-evaluation of
+corrected seed42, measurement protocol improvement, or a different small-model
+gate, not more claims. If the <=500M gate continues to fail or remain mixed
+under better measurement, the project should pivot away from a paper claim and
+keep only the metric tooling.
 
 ## Useful Local Commands
 
