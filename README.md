@@ -46,6 +46,10 @@ What has been validated so far:
 - A matched checkpoint re-evaluation tool was added so existing baseline/final
   checkpoints can be re-measured with larger prompt/sample budgets without
   retraining.
+- The previously passing 360M collapse-proxy seed 43 did not survive a matched
+  10-prompt x 16-sample re-evaluation: determinism decreased, entropy
+  increased, proxy PCE stayed flat, and 8 of 10 prompts failed the directional
+  gate.
 
 What is not yet validated:
 
@@ -58,6 +62,8 @@ What is not yet validated:
 - The collapse-proxy gate is not stable across seeds under the current
   10-prompt x 8-sample proxy protocol, and prompt-level comparison confirms
   the instability is not just an aggregate-metric artifact.
+- The strongest 360M collapse-proxy seed-level signal so far does not replicate
+  under a larger matched re-evaluation protocol.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -291,6 +297,32 @@ level. The next useful measurement is a matched re-evaluation of an existing
 360M checkpoint at 10-20 prompts and 16-32 samples, then a decision about
 whether the instability is sampling noise or a real negative result.
 
+Matched 10-prompt x 16-sample re-evaluation of the previously passing seed-43
+collapse-proxy checkpoint:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_seed43_matched_10x16 --num_prompts 10 --num_samples 16 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+```
+
+Result:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 0.1562 | 2.3389 | 0.5460 | 0.8954 | 0.0500 |
+| final | 0.1437 | 2.4055 | 0.5614 | 0.9032 | 0.0500 |
+
+Gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| seed 43 matched 10x16 | -0.0125 | +0.0666 | +0.0000 | fail | 1/1/8 |
+
+Interpretation: this is a negative S0 result for the current 360M
+collapse-proxy setup. The earlier seed-43 pass at 10 prompts x 8 samples was
+not robust to a larger matched sample budget. This pushes the project further
+toward "diagnostic tooling / measurement refinement" unless another small
+instruction-model gate produces stable multi-seed evidence.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -328,12 +360,13 @@ A result is only worth escalating if:
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
 criterion yet. The collapse-proxy gate has one passing seed, two mixed seeds,
-one failing seed, and only 7/40 prompt-level full passes, so it also does not
-justify S1. The next step should be a better measurement protocol, not more
-claims. The matched re-evaluation tool is now the preferred next step before
-launching more training runs. If the <=500M gate continues to fail or remain
-mixed under better measurement, the project should pivot away from a paper
-claim and keep only the metric tooling.
+one failing seed, and only 7/40 prompt-level full passes under the original
+10x8 protocol. The strongest passing seed then fails under matched 10x16
+re-evaluation. Therefore this setup does not justify S1. The next step should
+be a better measurement protocol or a different small-model gate, not more
+claims. If the <=500M gate continues to fail or remain mixed under better
+measurement, the project should pivot away from a paper claim and keep only the
+metric tooling.
 
 ## Useful Local Commands
 
