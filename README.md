@@ -216,27 +216,29 @@ Result:
 | 42 final | 0.1625 | 1.8930 | 0.0375 |
 | 43 step 0 | 0.1625 | 1.9527 | 0.0125 |
 | 43 final | 0.2375 | 1.7466 | 0.0500 |
+| 44 step 0 | 0.1375 | 1.9215 | 0.0375 |
+| 44 final | 0.1625 | 1.7245 | 0.0125 |
 
-Interpretation: seed 43 passes the directional gate, but seed 42 remains mixed:
-proxy PCE rises and entropy slightly falls, while determinism decreases. This is
-better aligned with the active-induction hypothesis than the neutral local
-preference file, but it still does not provide stable multi-seed evidence.
-Continue only as S0 validation work.
+Interpretation: seed 43 passes the directional gate. Seeds 42 and 44 remain
+mixed: seed 42 raises proxy PCE while determinism decreases; seed 44 raises
+determinism and lowers entropy while proxy PCE decreases. This is better aligned
+with the active-induction hypothesis than the neutral local preference file, but
+it still does not provide stable multi-seed evidence. Continue only as S0
+validation work.
 
 The current aggregate check is:
 
 ```powershell
-conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed44
 ```
 
 Result:
 
 | Runs | Pass | Mixed | Fail | Overall |
 | --- | ---: | ---: | ---: | --- |
-| seed 42-43 | 1 | 1 | 0 | mixed |
+| seed 42-44 | 1 | 2 | 0 | mixed |
 
-An additional seed-44 run was attempted but not executed because the current
-environment reported a usage-limit block. This is not experimental evidence.
+The aggregate remains mixed after adding seed 44.
 
 ## Literature Snapshot
 
@@ -274,7 +276,7 @@ A result is only worth escalating if:
 
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
-criterion yet. The collapse-proxy gate has one passing seed and one mixed seed,
+criterion yet. The collapse-proxy gate has one passing seed and two mixed seeds,
 so it also does not justify S1. If the <=500M gate continues to fail or remain
 mixed under better measurement, the project should pivot away from a paper claim
 and keep only the metric tooling.
@@ -335,7 +337,7 @@ instructions.
 Summarize local gate runs:
 
 ```powershell
-conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed44
 ```
 
 ## Operating Rules
