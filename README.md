@@ -40,6 +40,9 @@ What has been validated so far:
 - A non-operational collapse-proxy preference gate was added and tested on the
   360M model. Current aggregate is one passing seed, two mixed seeds, and one
   failing seed.
+- A prompt-level direction summary was added. Across the four collapse-proxy
+  seeds, only 7 of 40 prompt comparisons fully pass the collapse-direction
+  gate, while 22 fail.
 
 What is not yet validated:
 
@@ -50,7 +53,8 @@ What is not yet validated:
 - The 360M instruction-model gate did not satisfy all required conditions:
   proxy PCE increased, but entropy/determinism were mixed under re-evaluation.
 - The collapse-proxy gate is not stable across seeds under the current
-  10-prompt x 8-sample proxy protocol.
+  10-prompt x 8-sample proxy protocol, and prompt-level comparison confirms
+  the instability is not just an aggregate-metric artifact.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -237,14 +241,26 @@ The current aggregate check is:
 conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed44 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed45
 ```
 
-Result:
+Aggregate result:
 
 | Runs | Pass | Mixed | Fail | Overall |
 | --- | ---: | ---: | ---: | --- |
 | seed 42-45 | 1 | 2 | 1 | mixed |
 
+Prompt-level direction result:
+
+| Seed | Prompt Pass | Prompt Mixed | Prompt Fail |
+| --- | ---: | ---: | ---: |
+| 42 | 1 | 3 | 6 |
+| 43 | 5 | 1 | 4 |
+| 44 | 1 | 5 | 4 |
+| 45 | 0 | 2 | 8 |
+| total | 7 | 11 | 22 |
+
 The aggregate remains mixed after adding seed 45. Continuing to add seeds under
 the same noisy protocol is less useful than improving the measurement protocol.
+The prompt-level summary strengthens that conclusion: most prompts do not move
+in the full predicted direction under the current setup.
 
 ## Literature Snapshot
 
@@ -283,10 +299,11 @@ A result is only worth escalating if:
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
 criterion yet. The collapse-proxy gate has one passing seed, two mixed seeds,
-and one failing seed, so it also does not justify S1. The next step should be a
-better measurement protocol, not more claims. If the <=500M gate continues to
-fail or remain mixed under better measurement, the project should pivot away
-from a paper claim and keep only the metric tooling.
+one failing seed, and only 7/40 prompt-level full passes, so it also does not
+justify S1. The next step should be a better measurement protocol, not more
+claims. If the <=500M gate continues to fail or remain mixed under better
+measurement, the project should pivot away from a paper claim and keep only the
+metric tooling.
 
 ## Useful Local Commands
 
