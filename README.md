@@ -60,6 +60,10 @@ What has been validated so far:
 - The first corrected 360M shuffled training-seed run (`seed=42`) is an
   aggregate pass, but the prompt-level signal is still weak: 2 prompt passes,
   3 mixed prompts, and 5 prompt failures.
+- A second corrected 360M shuffled training-seed run (`seed=43`) is also an
+  aggregate pass. The two corrected checkpoints have different weight hashes,
+  giving the first real two-training-seed S0 signal, but prompt-level evidence
+  remains mixed at 7 pass, 4 mixed, and 9 fail across 20 prompt comparisons.
 
 What is not yet validated:
 
@@ -76,8 +80,9 @@ What is not yet validated:
   under a larger matched re-evaluation protocol.
 - The prior 360M collapse-proxy seed set does not prove multi-seed stability
   because the saved final checkpoints are byte-identical across seeds 42-45.
-- The corrected shuffled training-seed gate has only one completed seed so far,
-  so it cannot establish multi-seed stability.
+- The corrected shuffled training-seed gate has two completed seeds so far, but
+  the small 10x8 evaluation budget and mixed prompt-level direction are not
+  enough to establish robust multi-seed stability.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -401,6 +406,33 @@ not enough to escalate. The prompt-level result is still mostly mixed/failing,
 and at least one more corrected training seed is required before claiming even
 local multi-seed consistency.
 
+Second corrected training seed:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 43 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed43
+```
+
+Seed-43 result:
+
+| Checkpoint | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| step 0 | 0.1375 | 1.9150 | 0.0125 |
+| final | 0.2000 | 1.7054 | 0.0500 |
+
+Corrected two-training-seed summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| shuffled train seed 42 | +0.0125 | -0.0312 | +0.0125 | pass | 2/3/5 |
+| shuffled train seed 43 | +0.0625 | -0.2096 | +0.0375 | pass | 5/1/4 |
+| total | - | - | - | 2 pass / 0 mixed / 0 fail | 7/4/9 |
+
+The seed42 and seed43 final model hashes differ, so this is the first valid
+two-training-seed S0 signal for the local collapse-proxy setup. It is still not
+S1 evidence: the evaluation budget is only 10 prompts x 8 samples, prompt-level
+direction is not yet majority-pass by a wide margin, and proxy harmfulness has
+not been replaced by a real safety classifier.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -441,10 +473,11 @@ criterion yet. The collapse-proxy gate has one passing evaluation seed, two
 mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
 full passes under the original 10x8 protocol. The strongest passing evaluation
 seed then fails under matched 10x16 re-evaluation, and the saved final
-checkpoints for seeds 42-45 are identical. The first corrected shuffled
-training-seed run is an aggregate pass, but only 2/10 prompts fully pass.
-Therefore this setup does not justify S1. The next step should be at least one
-more corrected training-seed gate, a better measurement protocol, or a
+checkpoints for seeds 42-45 are identical. After fixing training-seed control,
+two shuffled training seeds pass in aggregate, but prompt-level evidence remains
+mixed at 7/20 full passes. Therefore this setup supports continued S0
+validation but does not justify S1. The next step should be matched 10x16 or
+10x32 re-evaluation of the corrected checkpoints, a third corrected seed, or a
 different small-model gate, not more claims. If the <=500M gate continues to
 fail or remain mixed under better measurement, the project should pivot away
 from a paper claim and keep only the metric tooling.
