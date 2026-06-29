@@ -1,0 +1,144 @@
+# ==============================================================================
+# PCE Research Framework - Stage S1: Small-Model Phenomenon Establishment
+# ==============================================================================
+# 目的: 在 2B-3B 上确立 PCE 单调递增 / t*<t_perf / 投毒 CAR / 选最优 lambda_H.
+# 硬件: 单张 RTX 4090 (QLoRA) 或 单张 A100-40G / L40S-48G (全参).
+# Gate: Spearman rho>0.9 且现象方向正确, 否则回 S0 排查, 不进 S2.
+# 用法: bash scripts/run_stage.sh s1 exp1
+# 注: S1 多个模型(Gemma-2-2B / Qwen2.5-3B / Phi-2)共用本配置, 仅改 model.name.
+
+# -- Model Configuration --
+model:
+  name: "google/gemma-2-2b"
+  ref_model: "google/gemma-2-2b"
+  torch_dtype: "bfloat16"
+  attn_implementation: "sdpa"   # 4090 上 sdpa 最稳; A100 可改 flash_attention_2
+
+# -- Data Configuration --
+data:
+  train_dataset: "Anthropic/hh-rlhf"
+  train_split: "train"
+  eval_dataset: "Anthropic/hh-rlhf"
+  eval_split: "test"
+  # S1 固定 20K 子集 (seed=42), 所有 S1 模型共用同一子集
+  max_train_samples: 20000
+  attack_prompts_path: "data/attack_prompts.jsonl"
+  pce_eval_set_path: "data/pce_eval_set.jsonl"
+  num_attack_prompts: 200
+  max_prompt_length: 512
+  max_response_length: 256
+
+# -- DPO Training Configuration --
+training:
+  beta: 0.1                      # 主设置; 消融时扫 {0.05, 0.1, 0.2}
+  learning_rate: 5.0e-7
+  num_train_epochs: 1
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 8 # 单卡用累积凑 effective batch
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  bf16: true
+  gradient_checkpointing: true
+  lr_scheduler_type: "cosine"
+  max_steps: 3000
+  save_steps: 100
+  save_total_limit: 30
+  logging_steps: 10
+  output_dir: "outputs/s1_small"
+  deepspeed: null
+
+# -- QLoRA (4090) / 全参 (A100-40G) 二选一 --
+# 在 4090 上保持 enabled: true; 在 A100-40G 全参微调可设 enabled: false
+peft:
+  enabled: true
+  method: "qlora"
+  load_in_4bit: true
+  lora_r: 32
+  lora_alpha: 64
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# -- Entropy Regularization (ER-DPO) --
+# 实验五在 S1 扫 lambda_h 选最优值供 S2 使用
+entropy_regularization:
+  enabled: false
+  lambda_h: 0.05
+  lambda_h_schedule: "linear_warmup"
+  lambda_h_warmup_steps: 100
+  lambda_h_max: 0.1
+  entropy_eval_steps: 50
+
+# -- PCE Monitoring Configuration --
+pce_monitoring:
+  enabled: true
+  eval_steps: 100
+  num_samples: 128
+  dbscan_eps: 0.3
+  dbscan_min_samples: 5
+  sbert_model: "all-MiniLM-L6-v2"
+  llamaguard_model: "meta-llama/LlamaGuard-7b"
+  pce_threshold: 0.5
+  early_stop_on_pce: false
+  use_vllm: true
+
+# -- Attack Configuration --
+attacks:
+  collapse_accelerator:
+    enabled: true
+    variant: "universal"
+    num_poison_pairs: 200
+    poison_ratio: 0.01            # S1 扫 {1%, 5%}
+    num_candidate_samples: 32
+    target_mode_description: ""
+    target_similarity_threshold: 0.8
+    trigger_phrase: ""
+    trigger_position: "prefix"
+  mode_probing:
+    enabled: true
+    num_samples: 128
+    dominance_threshold: 0.3
+    harmful_threshold: 0.1
+
+# -- Safety Evaluation --
+safety_eval:
+  num_samples: 64
+  max_new_tokens: 256
+  batch_size: 16
+  save_reports: true
+  reports_dir: "outputs/s1_small/safety_reports"
+
+# -- Diversity Metrics --
+diversity:
+  compute_self_bleu: true
+  self_bleu_sample_size: 1000
+  compute_distinct_n: true
+  compute_embedding_variance: true
+  compute_cluster_count: true
+
+# -- Wandb Configuration --
+wandb:
+  project: "pce-research"
+  entity: null
+  run_name: "s1-small"
+  tags: ["pce", "dpo", "s1", "small-model"]
+  log_model: false
+
+# -- Hardware Configuration --
+hardware:
+  num_gpus: 1
+  gpu_type: "RTX-4090-24G"   # 或 A100-40G / L40S-48G
+  mixed_precision: "bf16"
+  dataloader_num_workers: 4
+
+# -- Experiment Configuration --
+experiment:
+  name: "s1_small"
+  stage: "S1"
+  seed: 42
+  checkpoint_steps: [0, 500, 1000, 1500, 2000, 2500, 3000]
+  num_repeats: 3
+  # S1 现象确立的通过门槛
+  gate:
+    pce_spearman_rho_min: 0.9
+    require_tstar_before_tperf: true

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local IDE state
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Experiment outputs
+outputs/
+results/
+checkpoints/
+logs/
+wandb/
+runs/
+
+# Model/data caches and large artifacts
+.cache/
+cache/
+models/
+model_cache/
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.ckpt
+
+# Local generated data
+data/pce_eval_set.jsonl
+data/preferences/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,139 @@
+# ==============================================================================
+# PCE Research Framework - Stage S2: Mid-Model Main Experiments
+# ==============================================================================
+# 目的: 7B-8B 上产出论文核心结果(全部 5 个实验). 三家族必须全跑.
+# 硬件: A100-80G x2-4 (全参 DPO, ZeRO-3 主力); LoRA 可单/双 80G; H100 更快.
+# Gate: 复现 S1 现象且效应量更强, 主实验表格成型.
+# 用法: bash scripts/run_stage.sh s2 exp1
+#   torchrun --nproc_per_node=4 -m src.scripts.train_dpo --config configs/stages/s2_main.yaml
+# 注: 三家族切换 model.name -> Llama-3.1-8B / Mistral-7B-v0.3 / Qwen2.5-7B.
+
+# -- Model Configuration --
+model:
+  name: "meta-llama/Llama-3.1-8B"          # 主实验基座
+  ref_model: "meta-llama/Llama-3.1-8B"
+  torch_dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"
+
+# -- Data Configuration --
+data:
+  train_dataset: "Anthropic/hh-rlhf"        # 主数据集; 复现 Zephyr 时换 ultrafeedback_binarized
+  train_split: "train"
+  eval_dataset: "Anthropic/hh-rlhf"
+  eval_split: "test"
+  max_train_samples: null                    # 完整数据集
+  attack_prompts_path: "data/attack_prompts.jsonl"
+  pce_eval_set_path: "data/pce_eval_set.jsonl"
+  num_attack_prompts: 200
+  max_prompt_length: 512
+  max_response_length: 256
+
+# -- DPO Training Configuration --
+training:
+  beta: 0.1                                  # 主设置; 实验一扫 {0.05, 0.1, 0.2, 0.5}
+  learning_rate: 5.0e-7
+  num_train_epochs: 1
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 4             # 4 卡 x 4 x 4 = effective batch 64
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  bf16: true
+  gradient_checkpointing: true
+  lr_scheduler_type: "cosine"
+  max_steps: 10000
+  save_steps: 200
+  save_total_limit: 50
+  logging_steps: 10
+  output_dir: "outputs/s2_main"
+  deepspeed: "configs/ds_config_zero3.json"
+
+# -- PEFT: 主实验用全参; 如显存紧张切 LoRA --
+peft:
+  enabled: false
+  method: "lora"
+  load_in_4bit: false
+  lora_r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# -- Entropy Regularization (ER-DPO) --
+# 实验五使用 S1 选定的最优 lambda_h, 不再扫参
+entropy_regularization:
+  enabled: false
+  lambda_h: 0.1                              # 从 S1 选出的最优值
+  lambda_h_schedule: "cosine"
+  lambda_h_warmup_steps: 200
+  lambda_h_max: 0.1
+  entropy_eval_steps: 100
+
+# -- PCE Monitoring Configuration --
+pce_monitoring:
+  enabled: true
+  eval_steps: 200
+  num_samples: 128
+  dbscan_eps: 0.3
+  dbscan_min_samples: 5
+  sbert_model: "all-MiniLM-L6-v2"
+  llamaguard_model: "meta-llama/LlamaGuard-7b"
+  pce_threshold: 0.5
+  early_stop_on_pce: false
+  use_vllm: true
+
+# -- Attack Configuration --
+attacks:
+  collapse_accelerator:
+    enabled: true
+    variant: "universal"                     # 实验三扫 targeted / universal / triggered
+    num_poison_pairs: 1700
+    poison_ratio: 0.01                        # 实验三扫 {0.001,0.005,0.01,0.02,0.05}
+    num_candidate_samples: 32
+    target_mode_description: ""
+    target_similarity_threshold: 0.8
+    trigger_phrase: ""
+    trigger_position: "prefix"
+  mode_probing:
+    enabled: true
+    num_samples: 128
+    dominance_threshold: 0.3
+    harmful_threshold: 0.1
+
+# -- Safety Evaluation --
+safety_eval:
+  num_samples: 64
+  max_new_tokens: 256
+  batch_size: 16
+  save_reports: true
+  reports_dir: "outputs/s2_main/safety_reports"
+
+# -- Diversity Metrics --
+diversity:
+  compute_self_bleu: true
+  self_bleu_sample_size: 1000
+  compute_distinct_n: true
+  compute_embedding_variance: true
+  compute_cluster_count: true
+
+# -- Wandb Configuration --
+wandb:
+  project: "pce-research"
+  entity: null
+  run_name: "s2-main"
+  tags: ["pce", "dpo", "s2", "main"]
+  log_model: false
+
+# -- Hardware Configuration --
+hardware:
+  num_gpus: 4
+  gpu_type: "A100-80GB"      # 或 H100-80GB 提速 ~1.6-2x
+  mixed_precision: "bf16"
+  dataloader_num_workers: 4
+
+# -- Experiment Configuration --
+experiment:
+  name: "s2_main"
+  stage: "S2"
+  seed: 42
+  checkpoint_steps: [0, 2000, 4000, 6000, 8000, 10000]
+  num_repeats: 3

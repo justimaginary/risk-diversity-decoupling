@@ -1,0 +1,143 @@
+# ==============================================================================
+# PCE Research Framework - Stage S0: Smoke / Pipeline Validation
+# ==============================================================================
+# 目的: 用 0.5B-1.5B 极小模型跑通 Step1-8 全流程, 冻结 PCE pipeline 与脚本.
+# 硬件: 单张 RTX 4090 / 3090 (24G) 即可; 也可用 Colab/Kaggle T4 跑 0.5B QLoRA.
+# Gate: 流程无报错/无 NaN; PCE 能区分 step0 与末步.
+# 用法: bash scripts/run_stage.sh s0 exp1  (或直接 --config configs/stages/s0_smoke.yaml)
+
+# -- Model Configuration --
+model:
+  name: "Qwen/Qwen2.5-0.5B-Instruct"
+  ref_model: "Qwen/Qwen2.5-0.5B-Instruct"
+  torch_dtype: "bfloat16"
+  # 消费级卡常不支持 FA2 编译, 用 sdpa 更稳
+  attn_implementation: "sdpa"
+
+# -- Data Configuration --
+data:
+  train_dataset: "Anthropic/hh-rlhf"
+  train_split: "train"
+  eval_dataset: "Anthropic/hh-rlhf"
+  eval_split: "test"
+  # S0 只取 2K 对跑通流程
+  max_train_samples: 2000
+  attack_prompts_path: "data/attack_prompts.jsonl"
+  pce_eval_set_path: "data/pce_eval_set.jsonl"
+  num_attack_prompts: 20
+  max_prompt_length: 256
+  max_response_length: 128
+
+# -- DPO Training Configuration --
+training:
+  beta: 0.1
+  learning_rate: 5.0e-7
+  num_train_epochs: 1
+  # 单卡小模型可放大 batch
+  per_device_train_batch_size: 8
+  gradient_accumulation_steps: 2
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  bf16: true
+  gradient_checkpointing: true
+  lr_scheduler_type: "cosine"
+  # 小步数, 密集存档便于调试
+  max_steps: 1000
+  save_steps: 100
+  save_total_limit: 12
+  logging_steps: 5
+  output_dir: "outputs/s0_smoke"
+  # 单卡不用 DeepSpeed
+  deepspeed: null
+
+# -- QLoRA (单卡省显存) --
+peft:
+  enabled: true
+  method: "qlora"
+  load_in_4bit: true
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+# -- Entropy Regularization (ER-DPO) --
+entropy_regularization:
+  enabled: false
+  lambda_h: 0.01
+  lambda_h_schedule: "linear_warmup"
+  lambda_h_warmup_steps: 50
+  lambda_h_max: 0.05
+  entropy_eval_steps: 50
+
+# -- PCE Monitoring Configuration --
+pce_monitoring:
+  enabled: true
+  eval_steps: 100
+  # S0 缩小采样数, 仅验证 pipeline 正确性
+  num_samples: 32
+  dbscan_eps: 0.3
+  dbscan_min_samples: 3
+  sbert_model: "all-MiniLM-L6-v2"
+  llamaguard_model: "meta-llama/LlamaGuard-7b"
+  pce_threshold: 0.5
+  early_stop_on_pce: false
+  # 推理加速: 强烈建议用 vLLM, 否则采样最慢
+  use_vllm: true
+
+# -- Attack Configuration --
+attacks:
+  collapse_accelerator:
+    enabled: true
+    variant: "universal"
+    num_poison_pairs: 20
+    poison_ratio: 0.05
+    num_candidate_samples: 16
+    target_mode_description: ""
+    target_similarity_threshold: 0.8
+    trigger_phrase: ""
+    trigger_position: "prefix"
+  mode_probing:
+    enabled: true
+    num_samples: 32
+    dominance_threshold: 0.3
+    harmful_threshold: 0.1
+
+# -- Safety Evaluation --
+safety_eval:
+  num_samples: 16
+  max_new_tokens: 128
+  batch_size: 8
+  save_reports: true
+  reports_dir: "outputs/s0_smoke/safety_reports"
+
+# -- Diversity Metrics --
+diversity:
+  compute_self_bleu: true
+  self_bleu_sample_size: 200
+  compute_distinct_n: true
+  compute_embedding_variance: true
+  compute_cluster_count: true
+
+# -- Wandb Configuration --
+wandb:
+  project: "pce-research"
+  entity: null
+  run_name: "s0-smoke"
+  tags: ["pce", "dpo", "s0", "smoke"]
+  log_model: false
+
+# -- Hardware Configuration --
+hardware:
+  num_gpus: 1
+  gpu_type: "RTX-4090-24G"
+  mixed_precision: "bf16"
+  dataloader_num_workers: 2
+
+# -- Experiment Configuration --
+experiment:
+  name: "s0_smoke"
+  stage: "S0"
+  seed: 42
+  checkpoint_steps: [0, 200, 400, 600, 800, 1000]
+  num_repeats: 1

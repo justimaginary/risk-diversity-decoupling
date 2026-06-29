@@ -1,0 +1,145 @@
+# ==============================================================================
+# PCE Research Framework - Stage S3: Large-Model Scale Confirmation
+# ==============================================================================
+# 目的: 13B-70B 确认规模律不反转, 拟合 PCE-规模曲线. 仅确认性实验, 不搜参.
+# 硬件:
+#   13B 全参 DPO  -> A100-80G x4 (ZeRO-3)
+#   32B LoRA      -> A100-80G x4 (ZeRO-3 + LoRA)
+#   70B QLoRA     -> A100-80G x8 或 H100-80G x4 (4bit + ZeRO-3, offload 按需)
+# Gate: 规模趋势与 S1->S2 外推一致, 结论方向不反转.
+# 用法: bash scripts/run_stage.sh s3 exp1
+# 注: 切换 model.name 时同步调整 peft / hardware (见下方分块注释).
+
+# -- Model Configuration --
+# 默认 13B 全参; 32B/70B 见下方注释切换
+model:
+  name: "meta-llama/Llama-2-13b-hf"
+  ref_model: "meta-llama/Llama-2-13b-hf"
+  # 32B: "Qwen/Qwen2.5-32B"     (配 peft.enabled=true, lora)
+  # 70B: "meta-llama/Llama-3.1-70B" (配 peft.method=qlora, load_in_4bit=true, num_gpus=8)
+  torch_dtype: "bfloat16"
+  attn_implementation: "flash_attention_2"
+
+# -- Data Configuration --
+data:
+  train_dataset: "Anthropic/hh-rlhf"   # 与 S2 同数据, 保证规模律只随模型大小变化
+  train_split: "train"
+  eval_dataset: "Anthropic/hh-rlhf"
+  eval_split: "test"
+  max_train_samples: null
+  attack_prompts_path: "data/attack_prompts.jsonl"
+  pce_eval_set_path: "data/pce_eval_set.jsonl"
+  num_attack_prompts: 200
+  max_prompt_length: 512
+  max_response_length: 256
+
+# -- DPO Training Configuration --
+training:
+  beta: 0.1                            # 仅主设置, S3 不扫 beta
+  learning_rate: 5.0e-7
+  num_train_epochs: 1
+  per_device_train_batch_size: 2       # 大模型降 batch, 用累积补
+  gradient_accumulation_steps: 8
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  bf16: true
+  gradient_checkpointing: true
+  lr_scheduler_type: "cosine"
+  max_steps: 10000
+  save_steps: 200
+  save_total_limit: 50
+  logging_steps: 10
+  output_dir: "outputs/s3_large"
+  deepspeed: "configs/ds_config_zero3.json"
+
+# -- PEFT --
+# 13B: enabled=false (全参); 32B: lora; 70B: qlora
+peft:
+  enabled: false
+  method: "lora"           # 70B 改 "qlora"
+  load_in_4bit: false      # 70B 改 true
+  lora_r: 64
+  lora_alpha: 128
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+
+# -- Entropy Regularization (ER-DPO) --
+# S3 防御确认用 S1 选定的最优配置
+entropy_regularization:
+  enabled: false
+  lambda_h: 0.1
+  lambda_h_schedule: "cosine"
+  lambda_h_warmup_steps: 200
+  lambda_h_max: 0.1
+  entropy_eval_steps: 100
+
+# -- PCE Monitoring Configuration --
+pce_monitoring:
+  enabled: true
+  eval_steps: 200
+  num_samples: 128
+  dbscan_eps: 0.3
+  dbscan_min_samples: 5
+  sbert_model: "all-MiniLM-L6-v2"
+  llamaguard_model: "meta-llama/LlamaGuard-7b"
+  pce_threshold: 0.5
+  early_stop_on_pce: false
+  use_vllm: true           # 大模型 PCE 采样必须用 vLLM, 否则成瓶颈
+
+# -- Attack Configuration --
+attacks:
+  collapse_accelerator:
+    enabled: true
+    variant: "targeted"
+    num_poison_pairs: 1700
+    poison_ratio: 0.01      # S3 仅确认 {0.01, 0.02}
+    num_candidate_samples: 32
+    target_mode_description: ""
+    target_similarity_threshold: 0.8
+    trigger_phrase: ""
+    trigger_position: "prefix"
+  mode_probing:
+    enabled: true
+    num_samples: 128
+    dominance_threshold: 0.3
+    harmful_threshold: 0.1
+
+# -- Safety Evaluation --
+safety_eval:
+  num_samples: 64
+  max_new_tokens: 256
+  batch_size: 8
+  save_reports: true
+  reports_dir: "outputs/s3_large/safety_reports"
+
+# -- Diversity Metrics --
+diversity:
+  compute_self_bleu: true
+  self_bleu_sample_size: 1000
+  compute_distinct_n: true
+  compute_embedding_variance: true
+  compute_cluster_count: true
+
+# -- Wandb Configuration --
+wandb:
+  project: "pce-research"
+  entity: null
+  run_name: "s3-large"
+  tags: ["pce", "dpo", "s3", "large-model", "scale-law"]
+  log_model: false
+
+# -- Hardware Configuration --
+hardware:
+  num_gpus: 4              # 13B/32B=4; 70B=8 (或 4x H100)
+  gpu_type: "A100-80GB"    # 70B 推荐 H100-80GB
+  mixed_precision: "bf16"
+  dataloader_num_workers: 4
+
+# -- Experiment Configuration --
+experiment:
+  name: "s3_large"
+  stage: "S3"
+  seed: 42
+  checkpoint_steps: [0, 2000, 4000, 6000, 8000, 10000]
+  num_repeats: 1          # 大模型成本高, 确认性实验单次
