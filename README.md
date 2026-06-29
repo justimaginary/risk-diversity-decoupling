@@ -67,6 +67,9 @@ What has been validated so far:
 - The corrected seed43 signal does not survive matched 10-prompt x 16-sample
   re-evaluation: determinism decreases, entropy increases, proxy PCE decreases,
   and 8 of 10 prompt comparisons fail.
+- Corrected seed42 also fails matched 10-prompt x 16-sample re-evaluation. The
+  corrected seed42+43 aggregate at 10x16 is 0 pass, 0 mixed, 2 fail, with 16 of
+  20 prompt comparisons failing.
 
 What is not yet validated:
 
@@ -88,6 +91,8 @@ What is not yet validated:
   enough to establish robust multi-seed stability.
 - The strongest corrected training-seed result so far has not been shown to be
   robust under a larger matched evaluation budget.
+- The current 360M collapse-proxy gate should be treated as not robust under
+  the better 10x16 measurement protocol.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -461,6 +466,33 @@ Interpretation: the corrected seed43 pass at 10 prompts x 8 samples is not
 robust to a larger matched sampling budget. This weakens the two-training-seed
 S0 signal and makes measurement robustness the next bottleneck.
 
+Matched 10-prompt x 16-sample re-evaluation of corrected seed42:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_trainseed42_matched_10x16 --num_prompts 10 --num_samples 16 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+```
+
+Seed42 re-evaluation result:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 0.1562 | 2.3389 | 0.5460 | 0.8954 | 0.0500 |
+| final | 0.1313 | 2.4461 | 0.5587 | 0.9054 | 0.0187 |
+
+Corrected 10x16 matched re-evaluation summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| corrected seed42 matched 10x16 | -0.0250 | +0.1072 | -0.0312 | fail | 2/0/8 |
+| corrected seed43 matched 10x16 | -0.0187 | +0.1189 | -0.0188 | fail | 1/1/8 |
+| total | - | - | - | 0 pass / 0 mixed / 2 fail | 3/1/16 |
+
+Interpretation: both corrected training seeds that passed at 10x8 fail under
+matched 10x16 re-evaluation. This makes the current 360M collapse-proxy gate
+unreliable as evidence for stable DPO-induced collapse. The project should not
+escalate from this setup without a revised measurement protocol or a different
+small-model gate.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -502,14 +534,12 @@ mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
 full passes under the original 10x8 protocol. The strongest passing evaluation
 seed then fails under matched 10x16 re-evaluation, and the saved final
 checkpoints for seeds 42-45 are identical. After fixing training-seed control,
-two shuffled training seeds pass in aggregate at 10x8, but prompt-level evidence
-remains mixed at 7/20 full passes, and corrected seed43 fails matched 10x16
-re-evaluation. Therefore this setup supports continued S0 validation but does
-not justify S1. The next step should be matched 10x16 or 10x32 re-evaluation of
-corrected seed42, measurement protocol improvement, or a different small-model
-gate, not more claims. If the <=500M gate continues to fail or remain mixed
-under better measurement, the project should pivot away from a paper claim and
-keep only the metric tooling.
+two shuffled training seeds pass in aggregate at 10x8, but both fail matched
+10x16 re-evaluation. Therefore this setup supports continued tooling and
+measurement work but does not justify S1. The next step should be measurement
+protocol improvement or a different small-model gate, not more claims. If the
+<=500M gate continues to fail or remain mixed under better measurement, the
+project should pivot away from a paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 
