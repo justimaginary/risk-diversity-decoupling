@@ -185,6 +185,15 @@ Run tiny real-model smoke:
 conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name sshleifer/tiny-gpt2 --max_steps 20 --learning_rate 1e-6 --torch_dtype float32 --num_prompts 3 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1
 ```
 
+Run the conservative Qwen 0.5B local gate on RTX 4060:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name Qwen/Qwen2.5-0.5B-Instruct --max_steps 20 --learning_rate 1e-6 --torch_dtype float16 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_qwen05_lm_head
+```
+
+This is a conservative gate to keep memory under control. Passing it only
+justifies a stronger S0/S1 run; it is not final evidence for the paper claim.
+
 ## Operating Rules
 
 - Keep all text files UTF-8.

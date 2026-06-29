@@ -46,8 +46,9 @@ def sequence_logprob(model, tokenizer, prompt: str, response: str, max_length: i
         truncation=True,
         max_length=max_length,
     )
-    input_ids = full.input_ids.to(model.device)
-    attention_mask = full.attention_mask.to(model.device)
+    device = next(model.parameters()).device
+    input_ids = full.input_ids.to(device)
+    attention_mask = full.attention_mask.to(device)
     prompt_len = min(prompt_ids.shape[1], input_ids.shape[1] - 1)
 
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
@@ -107,6 +108,8 @@ def main() -> None:
     parser.add_argument("--learning_rate", type=float, default=5e-6)
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--torch_dtype", choices=["float32", "float16"], default="float32")
+    parser.add_argument("--train_scope", choices=["all", "lm_head"], default="all")
+    parser.add_argument("--ref_device", choices=["same", "cpu"], default="same")
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--max_length", type=int, default=256)
     parser.add_argument("--num_prompts", type=int, default=3)
@@ -134,13 +137,23 @@ def main() -> None:
     ref_model = AutoModelForCausalLM.from_pretrained(args.model_name, torch_dtype=dtype)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
-    ref_model.to(device)
+    ref_model.to(torch.device("cpu") if args.ref_device == "cpu" else device)
     ref_model.eval()
     for param in ref_model.parameters():
         param.requires_grad_(False)
 
+    if args.train_scope == "lm_head":
+        for param in model.parameters():
+            param.requires_grad_(False)
+        if not hasattr(model, "lm_head"):
+            raise ValueError("--train_scope lm_head requires the model to expose model.lm_head")
+        for param in model.lm_head.parameters():
+            param.requires_grad_(True)
+
     preferences = load_preferences(Path(args.preferences_path))
-    optimizer = AdamW(model.parameters(), lr=args.learning_rate)
+    trainable_params = [param for param in model.parameters() if param.requires_grad]
+    optimizer = AdamW(trainable_params, lr=args.learning_rate)
+    print(f"Trainable parameters: {sum(param.numel() for param in trainable_params):,}")
 
     print("Training...")
     model.train()

@@ -75,6 +75,12 @@ conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name sshleif
 This validates the training/evaluation loop. It is still not meaningful LLM
 safety evidence because the model is tiny. If it runs cleanly, switch
 `--model_name` to `Qwen/Qwen2.5-0.5B-Instruct` and increase samples gradually.
+On an RTX 4060, start conservatively with the reference model on CPU and only
+the LM head trainable:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name Qwen/Qwen2.5-0.5B-Instruct --max_steps 20 --learning_rate 1e-6 --torch_dtype float16 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_qwen05_lm_head
+```
 
 The heavier pilot run is:
 
