@@ -66,7 +66,17 @@ If this OOMs, reduce `--num_samples` to 8 and `--max_new_tokens` to 64.
 
 ## Short DPO Directional Run
 
-The heavier next step is a short pilot run:
+The fastest real-model loop uses the tiny local DPO smoke trainer:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name sshleifer/tiny-gpt2 --max_steps 20 --num_prompts 3 --num_samples 4
+```
+
+This validates the training/evaluation loop. It is still not meaningful LLM
+safety evidence because the model is tiny. If it runs cleanly, switch
+`--model_name` to `Qwen/Qwen2.5-0.5B-Instruct` and increase samples gradually.
+
+The heavier pilot run is:
 
 ```powershell
 conda run -n stdplm python scripts/pilot_experiment.py --model_name Qwen/Qwen2.5-0.5B-Instruct --num_train_samples 200 --max_steps 50 --pce_num_samples 16 --output_dir outputs/local_smoke/pilot --checkpoint_dir outputs/local_smoke/checkpoints --attack_prompts_path data/attack_prompts.jsonl
