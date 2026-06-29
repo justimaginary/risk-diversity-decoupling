@@ -35,6 +35,8 @@ What has been validated so far:
 - A smaller real instruction-model gate (`HuggingFaceTB/SmolLM2-135M-Instruct`)
   now shows a weak but consistent two-seed collapse-direction signal under a
   conservative LM-head-only DPO smoke run.
+- A stronger 360M instruction-model gate was run and re-evaluated with more
+  prompts/samples. It produced mixed evidence, not a clean pass.
 
 What is not yet validated:
 
@@ -42,6 +44,8 @@ What is not yet validated:
   the local gate yet; the model download is currently incomplete.
 - The real-model evidence is still weak because the successful gate used a
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
+- The 360M instruction-model gate did not satisfy all required conditions:
+  proxy PCE increased, but entropy/determinism were mixed under re-evaluation.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -156,6 +160,38 @@ contains tokenizer/config files and an incomplete weight blob of about 134 MB,
 not the full model weights. This is an infrastructure blocker, not a negative
 experimental result.
 
+### 6. SmolLM2-360M Stronger Gate
+
+Command:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --max_steps 20 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1
+```
+
+Initial 3-prompt results:
+
+| Seed / Run | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| 42 step 0 | 0.2500 | 1.3863 | 0.0000 |
+| 42 final, 20 steps | 0.2500 | 1.3863 | 0.0833 |
+| 43 step 0 | 0.3333 | 1.1749 | 0.0000 |
+| 43 final, 20 steps | 0.2500 | 0.5973 | 0.1667 |
+| 43 final, 100 steps | 0.3333 | 0.5784 | 0.1667 |
+
+Because 3 prompts x 4 samples is noisy, the 100-step seed-43 checkpoint was
+re-evaluated on 10 prompts x 8 samples:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| baseline | 0.1625 | 1.7418 | 0.6203 | 0.9030 | 0.0000 |
+| final 100-step | 0.1875 | 1.7954 | 0.6587 | 0.9445 | 0.0375 |
+
+Interpretation: this is mixed evidence. The final checkpoint has higher
+determinism and proxy PCE under re-evaluation, but entropy and lexical diversity
+also increase. Therefore the stronger 360M gate does not yet pass the full
+collapse criterion. It supports continuing measurement work, not escalating to
+S1 or paper claims.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -191,8 +227,10 @@ A result is only worth escalating if:
 - the effect persists across at least two seeds or preference subsets.
 
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
-If the <=500M gate fails, the project should pivot away from a paper claim and
-keep only the metric tooling.
+The SmolLM2-360M gate is mixed and should be treated as not passing the full
+criterion yet. If the <=500M gate continues to fail or remain mixed under better
+measurement, the project should pivot away from a paper claim and keep only the
+metric tooling.
 
 ## Useful Local Commands
 
