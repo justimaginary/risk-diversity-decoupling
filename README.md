@@ -274,6 +274,17 @@ Run the smaller SmolLM2 instruction-model gate:
 conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-135M-Instruct --max_steps 20 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_smollm2_135m_lm_head_fp32
 ```
 
+Run a non-operational collapse-proxy preference gate:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_smollm2_360m_collapse_proxy
+```
+
+The collapse-proxy file uses generic tutorial/compliance placeholders as chosen
+responses and refusals as rejected responses. It is intended to test whether
+DPO can induce a proxy harmful dominant mode without storing operational harmful
+instructions.
+
 ## Operating Rules
 
 - Keep all text files UTF-8.
