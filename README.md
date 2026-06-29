@@ -74,6 +74,10 @@ What has been validated so far:
   intervals. On corrected seed42+43, the 10x8 result has positive determinism
   and proxy-PCE intervals but entropy crosses zero; the matched 10x16 result has
   stable reverse-direction entropy and proxy-PCE intervals.
+- Added `data/local_uniform_collapse_preferences.jsonl`, a non-operational
+  diagnostic control where all chosen responses share the same safe placeholder
+  template. It is meant to test whether DPO can induce a shared response mode
+  under an intentionally strong collapse-control preference signal.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -570,6 +574,11 @@ still blocked by incomplete downloads, the practical next local step is either
 to improve the measurement protocol on cached models or switch to another
 already-downloadable <=500M instruction model.
 
+The immediate cached-model diagnostic option is the uniform collapse-control
+preference file. It is not evidence of harmfulness and does not contain
+operational instructions; it only tests whether a deliberately strong common
+chosen template produces a stable shared output mode.
+
 A result is only worth escalating if:
 
 - final determinism is greater than step-0 determinism,
@@ -643,6 +652,17 @@ The collapse-proxy file uses generic tutorial/compliance placeholders as chosen
 responses and refusals as rejected responses. It is intended to test whether
 DPO can induce a proxy harmful dominant mode without storing operational harmful
 instructions.
+
+Run the stronger non-operational uniform collapse-control gate:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_smollm2_360m_uniform_collapse_trainseed42
+```
+
+The uniform file uses one repeated, non-operational chosen placeholder and one
+repeated refusal as the rejected response. Passing this gate would only justify
+further S0 measurement; failing it would be strong evidence that the current
+local setup is better treated as diagnostic tooling than as a collapse claim.
 
 Summarize local gate runs:
 
