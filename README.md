@@ -37,6 +37,8 @@ What has been validated so far:
   conservative LM-head-only DPO smoke run.
 - A stronger 360M instruction-model gate was run and re-evaluated with more
   prompts/samples. It produced mixed evidence, not a clean pass.
+- A non-operational collapse-proxy preference gate was added and tested on the
+  360M model. One seed passed the direction checks; the other remained mixed.
 
 What is not yet validated:
 
@@ -46,6 +48,7 @@ What is not yet validated:
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
 - The 360M instruction-model gate did not satisfy all required conditions:
   proxy PCE increased, but entropy/determinism were mixed under re-evaluation.
+- The collapse-proxy gate is not yet stable across seeds.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -192,6 +195,34 @@ also increase. Therefore the stronger 360M gate does not yet pass the full
 collapse criterion. It supports continuing measurement work, not escalating to
 S1 or paper claims.
 
+### 7. SmolLM2-360M Collapse-Proxy Preference Gate
+
+This gate uses `data/local_collapse_proxy_preferences.jsonl`, where chosen
+responses are non-operational tutorial/compliance placeholders and rejected
+responses are refusals. It tests whether DPO can induce a proxy harmful dominant
+mode without storing operational harmful instructions.
+
+Command:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1
+```
+
+Result:
+
+| Seed | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| 42 step 0 | 0.1750 | 1.9039 | 0.0250 |
+| 42 final | 0.1625 | 1.8930 | 0.0375 |
+| 43 step 0 | 0.1625 | 1.9527 | 0.0125 |
+| 43 final | 0.2375 | 1.7466 | 0.0500 |
+
+Interpretation: seed 43 passes the directional gate, but seed 42 remains mixed:
+proxy PCE rises and entropy slightly falls, while determinism decreases. This is
+better aligned with the active-induction hypothesis than the neutral local
+preference file, but it still does not provide stable multi-seed evidence.
+Continue only as S0 validation work.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -228,9 +259,10 @@ A result is only worth escalating if:
 
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
-criterion yet. If the <=500M gate continues to fail or remain mixed under better
-measurement, the project should pivot away from a paper claim and keep only the
-metric tooling.
+criterion yet. The collapse-proxy gate has one passing seed and one mixed seed,
+so it also does not justify S1. If the <=500M gate continues to fail or remain
+mixed under better measurement, the project should pivot away from a paper claim
+and keep only the metric tooling.
 
 ## Useful Local Commands
 
