@@ -70,6 +70,10 @@ What has been validated so far:
 - Corrected seed42 also fails matched 10-prompt x 16-sample re-evaluation. The
   corrected seed42+43 aggregate at 10x16 is 0 pass, 0 mixed, 2 fail, with 16 of
   20 prompt comparisons failing.
+- `scripts/summarize_local_gate.py` now supports pooled prompt-level bootstrap
+  intervals. On corrected seed42+43, the 10x8 result has positive determinism
+  and proxy-PCE intervals but entropy crosses zero; the matched 10x16 result has
+  stable reverse-direction entropy and proxy-PCE intervals.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -455,6 +459,21 @@ S1 evidence: the evaluation budget is only 10 prompts x 8 samples, prompt-level
 direction is not yet majority-pass by a wide margin, and proxy harmfulness has
 not been replaced by a real safety classifier.
 
+Pooled prompt-level bootstrap on the 10x8 corrected gate:
+
+```powershell
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed43 --bootstrap_samples 5000 --bootstrap_seed 2026
+```
+
+| Metric | Mean Delta | 95% Bootstrap CI |
+| --- | ---: | ---: |
+| Determinism | +0.0375 | [+0.0063, +0.0688] |
+| Mode entropy | -0.1204 | [-0.2920, +0.0264] |
+| Proxy PCE | +0.0250 | [+0.0063, +0.0500] |
+
+Interpretation: the 10x8 corrected gate has a positive determinism/proxy-PCE
+signal, but entropy is not robust because the interval crosses zero.
+
 Matched 10-prompt x 16-sample re-evaluation of corrected seed43:
 
 ```powershell
@@ -504,6 +523,22 @@ matched 10x16 re-evaluation. This makes the current 360M collapse-proxy gate
 unreliable as evidence for stable DPO-induced collapse. The project should not
 escalate from this setup without a revised measurement protocol or a different
 small-model gate.
+
+Pooled prompt-level bootstrap on the matched 10x16 re-evaluation:
+
+```powershell
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_trainseed42_matched_10x16 outputs/local_smoke/reeval_smollm2_360m_collapse_proxy_trainseed43_matched_10x16 --bootstrap_samples 5000 --bootstrap_seed 2026
+```
+
+| Metric | Mean Delta | 95% Bootstrap CI |
+| --- | ---: | ---: |
+| Determinism | -0.0219 | [-0.0469, +0.0031] |
+| Mode entropy | +0.1130 | [+0.0515, +0.1809] |
+| Proxy PCE | -0.0250 | [-0.0500, -0.0031] |
+
+Interpretation: under the better 10x16 measurement, entropy and proxy PCE move
+robustly in the opposite direction from the collapse hypothesis, while
+determinism is weakly negative and crosses zero.
 
 ## Literature Snapshot
 
@@ -613,6 +648,12 @@ Summarize local gate runs:
 
 ```powershell
 conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed44 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed45
+```
+
+Add pooled prompt-level bootstrap intervals:
+
+```powershell
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed43 --bootstrap_samples 5000 --bootstrap_seed 2026
 ```
 
 Run a matched checkpoint re-evaluation without retraining:
