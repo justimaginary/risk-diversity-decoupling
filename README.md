@@ -57,6 +57,9 @@ What has been validated so far:
 - `scripts/local_dpo_smoke_train.py` now supports `--preference_order shuffled`
   and `--generation_seed` so future gates can separate training-seed variation
   from evaluation-seed variation.
+- The first corrected 360M shuffled training-seed run (`seed=42`) is an
+  aggregate pass, but the prompt-level signal is still weak: 2 prompt passes,
+  3 mixed prompts, and 5 prompt failures.
 
 What is not yet validated:
 
@@ -73,6 +76,8 @@ What is not yet validated:
   under a larger matched re-evaluation protocol.
 - The prior 360M collapse-proxy seed set does not prove multi-seed stability
   because the saved final checkpoints are byte-identical across seeds 42-45.
+- The corrected shuffled training-seed gate has only one completed seed so far,
+  so it cannot establish multi-seed stability.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -364,6 +369,38 @@ evaluation-noise evidence, but it is not valid multi-training-seed evidence.
 Future S0/S1 gates must use shuffled preference order or another explicit
 training perturbation before claiming seed stability.
 
+### 10. Corrected 360M Shuffled Training-Seed Gate
+
+After separating training and evaluation seeds, the first corrected
+collapse-proxy run used shuffled preference order with `seed=42` and a fixed
+`generation_seed=2026`.
+
+Command:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42
+```
+
+Result:
+
+| Checkpoint | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| step 0 | 0.1375 | 1.9150 | 0.0125 |
+| final | 0.1500 | 1.8839 | 0.0250 |
+
+Gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| shuffled train seed 42 | +0.0125 | -0.0312 | +0.0125 | pass | 2/3/5 |
+
+The final model hash differs from the old cyclic seed42 checkpoint, confirming
+that the shuffled run produced a different trained checkpoint. Interpretation:
+this is a weak positive S0 signal after fixing training-seed control, but it is
+not enough to escalate. The prompt-level result is still mostly mixed/failing,
+and at least one more corrected training seed is required before claiming even
+local multi-seed consistency.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -404,12 +441,13 @@ criterion yet. The collapse-proxy gate has one passing evaluation seed, two
 mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
 full passes under the original 10x8 protocol. The strongest passing evaluation
 seed then fails under matched 10x16 re-evaluation, and the saved final
-checkpoints for seeds 42-45 are identical. Therefore this setup does not
-justify S1. The next step should be a true training-seed gate using
-`--preference_order shuffled`, a better measurement protocol, or a different
-small-model gate, not more claims. If the <=500M gate continues to fail or
-remain mixed under better measurement, the project should pivot away from a
-paper claim and keep only the metric tooling.
+checkpoints for seeds 42-45 are identical. The first corrected shuffled
+training-seed run is an aggregate pass, but only 2/10 prompts fully pass.
+Therefore this setup does not justify S1. The next step should be at least one
+more corrected training-seed gate, a better measurement protocol, or a
+different small-model gate, not more claims. If the <=500M gate continues to
+fail or remain mixed under better measurement, the project should pivot away
+from a paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 
