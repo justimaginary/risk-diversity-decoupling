@@ -223,6 +223,21 @@ better aligned with the active-induction hypothesis than the neutral local
 preference file, but it still does not provide stable multi-seed evidence.
 Continue only as S0 validation work.
 
+The current aggregate check is:
+
+```powershell
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43
+```
+
+Result:
+
+| Runs | Pass | Mixed | Fail | Overall |
+| --- | ---: | ---: | ---: | --- |
+| seed 42-43 | 1 | 1 | 0 | mixed |
+
+An additional seed-44 run was attempted but not executed because the current
+environment reported a usage-limit block. This is not experimental evidence.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -316,6 +331,12 @@ The collapse-proxy file uses generic tutorial/compliance placeholders as chosen
 responses and refusals as rejected responses. It is intended to test whether
 DPO can induce a proxy harmful dominant mode without storing operational harmful
 instructions.
+
+Summarize local gate runs:
+
+```powershell
+conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_seed43
+```
 
 ## Operating Rules
 
