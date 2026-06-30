@@ -40,6 +40,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 | Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
 | Core safety evaluator adapter | `src/evaluation/safety_eval.py` | supports LlamaGuard-style causal-LM `safe`/`unsafe` parsing plus legacy pipeline path | integration ready, not yet run |
+| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 15.8 GB free; `D:\` has about 85.4 GB free; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
 
 ## Interpretation
 
@@ -120,8 +121,14 @@ the classifier gap remains open, not as safety validation.
 The core `SafetyEvaluator` now has a LlamaGuard-style causal-LM backend and a
 small parser test for `safe` / `unsafe\nS...` outputs. This removes one software
 integration blocker in the main evaluation path. It does not remove the evidence
-blocker: no real safety classifier has been downloaded or run locally yet, and
-current disk space is too tight for another large checkpoint without cleanup.
+blocker: no real safety classifier has been downloaded or run locally yet.
+Storage should be handled carefully. `Get-PSDrive` is unreliable in this
+environment, but `.NET DriveInfo` reports about 15.8 GB free on `C:\` and about
+85.4 GB free on `D:\`. Any real safety classifier should therefore be downloaded
+to `D:\hf_models` or a Hugging Face cache under `D:\hf_models\hf_cache`. If C
+space becomes tight, `scripts/prune_local_checkpoints.py` can dry-run or delete
+ignored `outputs/local_smoke/**/final_model` directories; the current dry-run
+found 21 candidates and about 33.87 GB reclaimable.
 
 The current local conclusion is therefore:
 
@@ -152,7 +159,8 @@ Preferred:
    mechanism with, if feasible on local hardware, a real safety classifier. The
    first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
    weak-judge diagnostic, and LlamaGuard-style adapter are complete; the weak
-   judge does not close the safety gap.
+   judge does not close the safety gap. Prefer storing any classifier checkpoint
+   on `D:\hf_models` rather than under the workspace.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

@@ -873,8 +873,26 @@ OK
 
 Interpretation: the software path for a real safety classifier is now cleaner,
 but this is still not a safety result. The local machine currently has very
-little free disk space, so no real LlamaGuard-class checkpoint has been
-downloaded or evaluated in this step.
+little free space on the workspace drive, so no real LlamaGuard-class checkpoint
+has been downloaded or evaluated in this step.
+
+Storage update on 2026-07-01: PowerShell `Get-PSDrive` reports unreliable
+values in this environment, but `.NET DriveInfo` reports about 15.8 GB free on
+`C:\` and about 85.4 GB free on `D:\`. The preferred location for any real
+safety-classifier checkpoint is therefore `D:\hf_models\...` or a Hugging Face
+cache under `D:\hf_models\hf_cache`, not the workspace `outputs/` tree.
+
+The workspace still contains many ignored local `final_model` directories. A
+dry run of the checkpoint pruning helper found 21 candidates larger than 1 GB,
+with about 33.87 GB reclaimable:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe scripts/prune_local_checkpoints.py --min_size_gb 1.0 --manifest outputs/local_smoke/prune_final_model_dry_run.json
+```
+
+The helper is dry-run by default. It only deletes when both `--delete` and
+`--yes` are supplied, and it only targets directories named `final_model` under
+the selected root.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -1386,6 +1404,15 @@ Run toy DPO:
 ```powershell
 conda run -n stdplm python scripts/toy_dpo_collapse.py --poison_ratio 0.05 --steps 500
 ```
+
+Dry-run local checkpoint cleanup:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe scripts/prune_local_checkpoints.py --min_size_gb 1.0 --manifest outputs/local_smoke/prune_final_model_dry_run.json
+```
+
+This only lists ignored `final_model` directories under `outputs/local_smoke`.
+Deletion requires explicitly adding `--delete --yes`.
 
 Run tiny real-model smoke:
 
