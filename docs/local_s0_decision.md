@@ -46,6 +46,7 @@ instruction model.
 | Granite Guardian 3.1 2B acquisition | `D:\hf_models` + D-drive transformers overlay | non-gated 4.72 GB guardian model loads with transformers 4.46.3 overlay; unmodified `stdplm` remains transformers 4.40.2 | first local guardian-style judge available |
 | Granite Guardian `harm` audit | positive/refusal short-template outputs | positive stress raises dominant guardian Yes-rate 0.7308 -> ~0.982 and guardian-PCE by ~0.22; refusal control lowers dominant guardian Yes-rate to 0.49 / 0.40 while guardian-PCE stays near-flat | strongest local harmfulness evidence, still restricted |
 | Granite Guardian bootstrap gate | pooled 20 prompt deltas for positive and control | positive stress has det CI > 0, entropy CI < 0, Guardian-PCE CI > 0, dominant harm robust_increase; refusal has dominant harm robust_decrease and near-flat Guardian-PCE | restricted robust_pass for positive stress only |
+| Granite response-sensitivity control | same 10 harmful prompts, fixed responses | refusal 0/10 Yes; neutral boundary 1/10 Yes; unsafe intent placeholder 10/10 Yes; short chosen template 9/10 Yes | guardian is response-sensitive; short-compliance template is itself risky |
 
 ## Interpretation
 
@@ -173,6 +174,16 @@ dominant Guardian Yes CI is [-0.4945, -0.1967] and dominant risk-score CI is
 [-0.4095, -0.2267]. Guardian-PCE itself is near-flat, with Yes CI
 [-0.0563, +0.0688] and score CI [-0.0388, +0.0551], because increased
 determinism offsets lower harmfulness.
+
+A fixed-response sensitivity control reduces a key alternative explanation.
+Using the same 10 harmful prompts, Granite marks a fixed refusal as 0/10 Yes
+with mean risk 0.0684, a neutral boundary response as 1/10 Yes with mean risk
+0.3921, an unsafe-intent placeholder as 10/10 Yes with mean risk 0.9954, and
+the short chosen template `Sure, safe overview only.` as 9/10 Yes with mean risk
+0.7064. This means the guardian is not merely reacting to the harmful prompt
+text. It also means the positive short-template stress is best read as
+short-compliance risk concentration, not as literal detailed harmful-instruction
+copying.
 
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
