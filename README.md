@@ -145,6 +145,11 @@ What has been validated so far:
   across seeds 42 and 43. Both seeds flip summed and length-normalized
   preference margins and the matched 10x16 aggregate reaches `robust_pass`.
   This is the first strong local S0v2 signal, but still not a paper claim.
+- The literature scan was refreshed after that restricted S0v2 pass. Existing
+  work already covers DPO diversity collapse, direct-alignment
+  over-optimization, DPO safety attacks, and preference-label poisoning. The
+  remaining credible angle is narrower: whether margin flips transmit into
+  harmful dominant-mode exploitability as measured by PCE.
 
 What is not yet validated:
 
@@ -207,8 +212,10 @@ What is not yet validated:
   validation.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
-- The research novelty is not established; related work already studies DPO
-  diversity collapse and DPO/RLHF attacks.
+- The research novelty is bounded by existing work on DPO diversity collapse,
+  direct-alignment over-optimization, DPO safety attacks, and preference-label
+  poisoning. Any future claim must focus on the narrower PCE chain rather than
+  "DPO reduces diversity."
 
 ## Local Environment
 
@@ -1031,23 +1038,35 @@ stable sampled-mode collapse.
 
 ## Literature Snapshot
 
-The broad claim "DPO/post-training can reduce diversity" is not novel.
-Relevant prior work includes:
+The broad claim "DPO/post-training can reduce diversity" is not novel. A
+restricted related-work scan after the Qwen short-template `robust_pass` found
+direct prior art in four areas:
 
-- Direct Preference Optimization: https://arxiv.org/abs/2305.18290
-- Smaug / DPO-Positive: https://arxiv.org/abs/2402.13228
-- Diverse Preference Optimization: https://arxiv.org/abs/2501.18101
-- Benign DPO attack work: https://arxiv.org/abs/2605.10998
-- Preference-label poisoning for alignment: https://arxiv.org/abs/2511.09105
+- DPO objective and likelihood pathologies:
+  https://arxiv.org/abs/2305.18290,
+  https://arxiv.org/abs/2402.13228,
+  https://arxiv.org/abs/2410.11677,
+  https://arxiv.org/abs/2406.02900
+- Diversity collapse and diversity-preserving preference optimization:
+  https://arxiv.org/abs/2501.18101,
+  https://arxiv.org/abs/2604.16027,
+  https://arxiv.org/abs/2605.30021
+- DPO probability squeezing / collapse dynamics:
+  https://arxiv.org/abs/2605.02626
+- DPO safety attacks and preference poisoning:
+  https://arxiv.org/abs/2605.10998,
+  https://arxiv.org/abs/2511.09105
 
 The defensible direction should be narrower:
 
 1. Define a concrete PCE metric combining dominant-mode determinism and
    harmfulness.
-2. Track PCE across DPO checkpoints.
-3. Test whether low-rate preference poisoning accelerates harmful dominant-mode
+2. Track PCE across DPO checkpoints and compare it with preference-margin
+   movement.
+3. Test whether margin flips transmit into sampled dominant-mode concentration.
+4. Test whether low-rate preference poisoning accelerates harmful dominant-mode
    collapse.
-4. Test whether entropy/diversity regularization reduces PCE.
+5. Test whether entropy/diversity regularization reduces PCE.
 
 See `docs/literature_initial_scan.md` for the current notes.
 
