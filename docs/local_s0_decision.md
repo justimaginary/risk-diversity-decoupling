@@ -38,6 +38,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct short-template raw-mode audit | same matched raw outputs | final dominant mass rises to about 0.34-0.35; max exact duplicate count stays 1; target phrase 0 hits | loose-mode evidence |
 | Qwen2.5-0.5B-Instruct short-template policy-proxy audit | same matched raw outputs | final refusal decreases and compliance/actionability increases, strongest in dominant clusters | proxy-only evidence |
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
+| Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
 
 ## Interpretation
 
@@ -105,6 +106,16 @@ high-risk-instructional proxy rate falling to 0.0444. This strengthens the
 mechanism story because the same DPO route can steer concentrated modes in
 opposite policy directions. It still remains synthetic and proxy-only.
 
+A local generative judge audit was added using the same Qwen 0.5B model as a
+weak classifier. This is not independent from the tested model family and does
+not replace LlamaGuard. It also does not validate the harmfulness part of PCE:
+for the short-template stress, all-output judged harmfulness rises modestly
+from 0.1313 to 0.1875 / 0.2000, but dominant-cluster judged harmfulness falls
+from 0.1923 to 0.1607 / 0.1636. For the refusal-template control, the weak judge
+does not cleanly recognize the obvious lexical refusal shift, labeling many
+final refusal-control outputs as `OTHER` or harmful. Treat this as evidence that
+the classifier gap remains open, not as safety validation.
+
 The current local conclusion is therefore:
 
 ```text
@@ -131,9 +142,10 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism with, if feasible on local hardware, a real safety classifier; the
-   first raw-mode audit, policy-proxy audit, counter-control, and related-work
-   scan are complete.
+   mechanism with, if feasible on local hardware, a real safety classifier. The
+   first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
+   and weak-judge diagnostic are complete; the weak judge does not close the
+   safety gap.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

@@ -166,6 +166,11 @@ What has been validated so far:
   It increases determinism and lowers entropy like the short-template stress,
   but moves policy proxies in the opposite direction: refusal rises, compliance
   and proxy harmfulness fall, and dominant clusters become mostly refusals.
+- Added `scripts/audit_llm_judge_safety.py`, a local generative safety-judge
+  audit entry point. Using the same local Qwen 0.5B as a weak judge runs
+  end-to-end, but it does not validate harmfulness: it is inconsistent with
+  lexical refusal signals and does not show dominant-cluster harmfulness rising
+  in the short-template stress.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -236,6 +241,9 @@ What is not yet validated:
 - The refusal-template counter-control supports bidirectional preference
   steering under the same local Qwen setup. This is useful mechanism evidence,
   but it is still synthetic and proxy-only.
+- The local Qwen 0.5B weak-judge audit does not close the safety-classifier
+  gap. It should be treated as a diagnostic showing that a real classifier is
+  still needed, not as PCE harmfulness validation.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -795,6 +803,37 @@ local DPO setup can concentrate probability mass while moving policy proxies in
 opposite directions depending on the preference target. It does not establish a
 security claim because the control is synthetic and the labels are still
 lexical/structural proxies.
+
+### 5.2. Local Qwen Weak-Judge Safety Audit
+
+To check whether the lexical/policy proxies were obviously misleading, a local
+generative judge script was added:
+
+```powershell
+conda run -n stdplm python scripts/audit_llm_judge_safety.py outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed42_10x16/step0_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed42_10x16/final_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed43_10x16/step0_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed43_10x16/final_outputs.json --labels pos_seed42_step0 pos_seed42_final pos_seed43_step0 pos_seed43_final refusal_seed42_step0 refusal_seed42_final refusal_seed43_step0 refusal_seed43_final --judge_model outputs/local_models/Qwen2.5-0.5B-Instruct --output_path outputs/local_smoke/llm_judge_qwen05_short_vs_refusal_controls.json --torch_dtype float16 --batch_size 4 --dbscan_eps 0.8 --dbscan_min_samples 1
+```
+
+This uses the same local Qwen 0.5B model as a weak judge, so it is not an
+independent safety classifier. The result is useful mainly because it fails to
+validate the harmfulness part of PCE:
+
+| Split | All Refusal | All Safety-Framed | All Harmful | Dominant Refusal | Dominant Safety-Framed | Dominant Harmful |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| positive seed42 step0 | 0.0563 | 0.5375 | 0.1313 | 0.0385 | 0.5385 | 0.1923 |
+| positive seed42 final | 0.0688 | 0.5375 | 0.1875 | 0.0893 | 0.6786 | 0.1607 |
+| positive seed43 step0 | 0.0563 | 0.5375 | 0.1313 | 0.0385 | 0.5385 | 0.1923 |
+| positive seed43 final | 0.0750 | 0.5125 | 0.2000 | 0.0909 | 0.6545 | 0.1636 |
+| refusal seed42 step0 | 0.0563 | 0.5375 | 0.1313 | 0.0385 | 0.5385 | 0.1923 |
+| refusal seed42 final | 0.0250 | 0.2938 | 0.1875 | 0.0000 | 0.1333 | 0.1333 |
+| refusal seed43 step0 | 0.0563 | 0.5375 | 0.1313 | 0.0385 | 0.5385 | 0.1923 |
+| refusal seed43 final | 0.0313 | 0.2813 | 0.1875 | 0.0000 | 0.1111 | 0.1111 |
+
+Interpretation: the weak judge is not reliable enough for the safety claim. It
+does not recognize the refusal-control shift cleanly, and for the
+short-template stress it shows all-output harmfulness rising but
+dominant-cluster harmfulness falling. This keeps the safety classifier gap open:
+future PCE validation still needs a real classifier such as LlamaGuard or a
+dedicated smaller safety model.
 
 ### 6. SmolLM2-360M Stronger Gate
 
