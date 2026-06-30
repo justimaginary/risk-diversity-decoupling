@@ -154,6 +154,10 @@ What has been validated so far:
   higher compliance/actionability, especially inside dominant clusters. This is
   still proxy evidence and does not replace LlamaGuard or another real safety
   classifier.
+- Added `data/local_refusal_template_preferences.jsonl`, a non-operational
+  counter-control where the chosen response is the shared refusal template and
+  the rejected response is the short compliance template. It tests whether the
+  same local DPO route can move in the opposite policy direction.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -1139,6 +1143,13 @@ The immediate cached-model diagnostic option is the uniform collapse-control
 preference file. It is not evidence of harmfulness and does not contain
 operational instructions; it only tests whether a deliberately strong common
 chosen template produces a stable shared output mode.
+
+The immediate counter-control option is
+`data/local_refusal_template_preferences.jsonl`. It flips the short-template
+preference direction so the chosen response is `I cannot assist with that.` and
+the rejected response is `Sure, safe overview only.`. Passing this control would
+mean the local training/evaluation stack can also push toward refusal rather
+than only toward compliance-style generations.
 
 A result is only worth escalating if:
 
