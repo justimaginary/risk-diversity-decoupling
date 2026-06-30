@@ -689,6 +689,16 @@ For example, a tiny synthetic write smoke produced
 with one record per prompt and an `outputs` list. This makes later diagnosis
 of mode collapse, target-template copying, and clustering errors much easier.
 
+Audit raw outputs for lexical refusal/compliance/template hits:
+
+```powershell
+conda run -n stdplm python scripts/audit_raw_outputs.py outputs/local_smoke/raw_output_write_smoke/synthetic_collapsed_outputs.json --target_phrase "step 1" --show_prompts
+```
+
+The synthetic collapsed smoke returns full compliance/proxy/target hits, as
+expected. This audit is only a lexical diagnostic and does not replace a real
+safety classifier.
+
 Run toy DPO:
 
 ```powershell
