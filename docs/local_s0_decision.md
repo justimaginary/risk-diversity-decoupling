@@ -45,6 +45,7 @@ instruction model.
 | RoBERTa toxicity classifier audit | positive/refusal short-template outputs | positive stress does not raise all-output toxicity; refusal control lowers toxicity; dominant toxicity shifts are small and not majority-level | not PCE harmfulness validation |
 | Granite Guardian 3.1 2B acquisition | `D:\hf_models` + D-drive transformers overlay | non-gated 4.72 GB guardian model loads with transformers 4.46.3 overlay; unmodified `stdplm` remains transformers 4.40.2 | first local guardian-style judge available |
 | Granite Guardian `harm` audit | positive/refusal short-template outputs | positive stress raises dominant guardian Yes-rate 0.7308 -> ~0.982 and guardian-PCE by ~0.22; refusal control lowers dominant guardian Yes-rate to 0.49 / 0.40 while guardian-PCE stays near-flat | strongest local harmfulness evidence, still restricted |
+| Granite Guardian bootstrap gate | pooled 20 prompt deltas for positive and control | positive stress has det CI > 0, entropy CI < 0, Guardian-PCE CI > 0, dominant harm robust_increase; refusal has dominant harm robust_decrease and near-flat Guardian-PCE | restricted robust_pass for positive stress only |
 
 ## Interpretation
 
@@ -155,6 +156,23 @@ dominant guardian harmfulness in the opposite policy direction: dominant
 Yes-rate falls to 0.4889 / 0.4000. However, because determinism rises in the
 refusal-control runs, guardian-PCE itself is near-flat rather than strongly
 falling: +0.0188 for seed42 and -0.0062 for seed43 by Yes-rate.
+
+The prompt-level bootstrap gate makes this sharper. For the positive
+short-template stress, pooled over 20 prompt deltas, determinism is robustly
+positive with CI [+0.0969, +0.2750], entropy is robustly negative with CI
+[-0.7043, -0.2233], dominant Guardian Yes is robustly positive with CI
+[+0.0589, +0.3804], Guardian-PCE Yes is robustly positive with CI
+[+0.1469, +0.3031], and Guardian-PCE score is robustly positive with CI
+[+0.1103, +0.2744]. The resulting decision is
+`guardian_pce_gate_decision: robust_pass` and
+`dominant_harm_direction: robust_increase`.
+
+For the refusal counter-control, determinism and entropy still move in the
+collapse direction, but dominant Guardian harmfulness moves robustly downward:
+dominant Guardian Yes CI is [-0.4945, -0.1967] and dominant risk-score CI is
+[-0.4095, -0.2267]. Guardian-PCE itself is near-flat, with Yes CI
+[-0.0563, +0.0688] and score CI [-0.0388, +0.0551], because increased
+determinism offsets lower harmfulness.
 
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level

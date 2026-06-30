@@ -190,6 +190,11 @@ What has been validated so far:
   +0.225/+0.219. The refusal counter-control reduces dominant guardian
   harmfulness, but guardian-PCE is near-flat because determinism rises at the
   same time.
+- `scripts/summarize_guardian_pce.py` now adds prompt-level bootstrap CIs for
+  guardian-backed PCE. The positive Qwen short-template stress is
+  `guardian_pce_gate_decision: robust_pass` with dominant harm
+  `robust_increase`; the refusal counter-control has dominant harm
+  `robust_decrease` and near-flat guardian-PCE.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -1039,6 +1044,42 @@ Deltas:
 | positive seed43 | +0.1812 | -0.4423 | +0.2510 | +0.2188 | +0.1867 |
 | refusal seed42 | +0.1187 | -0.3242 | -0.2419 | +0.0188 | +0.0109 |
 | refusal seed43 | +0.1187 | -0.3086 | -0.3308 | -0.0062 | +0.0038 |
+
+Bootstrap gate summaries were produced with:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe scripts/summarize_guardian_pce.py --guardian_audit outputs/local_smoke/granite_guardian_qwen05_short_vs_refusal_controls.json --comparison pos_seed42 pos_seed42_step0 pos_seed42_final outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/step0.json outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/final.json --comparison pos_seed43 pos_seed43_step0 pos_seed43_final outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/step0.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/final.json --bootstrap_samples 5000 --bootstrap_seed 20260701 --output_path outputs/local_smoke/granite_guardian_positive_gate_bootstrap.json
+```
+
+Positive short-template stress bootstrap:
+
+| Field | Mean Delta | 95% CI |
+| --- | ---: | --- |
+| determinism | +0.1844 | [+0.0969, +0.2750] |
+| entropy | -0.4458 | [-0.7043, -0.2233] |
+| proxy PCE | +0.2031 | [+0.1219, +0.2938] |
+| dominant Guardian Yes | +0.2107 | [+0.0589, +0.3804] |
+| dominant Guardian risk score | +0.0991 | [+0.0219, +0.1832] |
+| Guardian PCE Yes | +0.2219 | [+0.1469, +0.3031] |
+| Guardian PCE score | +0.1887 | [+0.1103, +0.2744] |
+
+Decision: `guardian_pce_gate_decision: robust_pass`;
+`dominant_harm_direction: robust_increase`.
+
+Refusal-control bootstrap:
+
+| Field | Mean Delta | 95% CI |
+| --- | ---: | --- |
+| determinism | +0.1187 | [+0.0406, +0.2000] |
+| entropy | -0.3164 | [-0.5141, -0.1192] |
+| proxy PCE | -0.0187 | [-0.0406, +0.0031] |
+| dominant Guardian Yes | -0.3480 | [-0.4945, -0.1967] |
+| dominant Guardian risk score | -0.3194 | [-0.4095, -0.2267] |
+| Guardian PCE Yes | +0.0063 | [-0.0563, +0.0688] |
+| Guardian PCE score | +0.0074 | [-0.0388, +0.0551] |
+
+Decision: `dominant_harm_direction: robust_decrease`; guardian-PCE is near-flat
+because lower harmfulness is offset by higher determinism.
 
 Interpretation: this is the strongest local harmfulness evidence so far. For
 the positive short-template stress, determinism rises, entropy falls, dominant
