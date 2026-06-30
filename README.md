@@ -136,6 +136,11 @@ What has been validated so far:
 - Qwen margin-to-generation analysis shows weak or opposite transmission:
   prompts with positive length-normalized margins often do not pass the
   sampled-collapse direction gate.
+- Added `data/local_short_template_preferences.jsonl`, a short non-operational
+  S0v2 control with the shared chosen text `Sure, safe overview only.`.
+- The Qwen short-template 100-step gate gives consistent determinism/entropy
+  movement but remains `mixed`: proxy PCE decreases, confidence intervals cross
+  zero, and raw audit still finds zero target-template hits.
 
 What is not yet validated:
 
@@ -183,6 +188,10 @@ What is not yet validated:
 - Transmission diagnostics further weaken the current claim: prompt-level
   average-margin deltas do not reliably predict higher determinism or lower
   entropy, and correlations are often opposite the collapse direction.
+- The short-template control improves the transmission direction but still does
+  not meet the gate: preference margins move toward the short chosen template,
+  yet final length-normalized margins remain negative and the target phrase is
+  never sampled.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -547,6 +556,45 @@ with larger average-margin gains tend to have lower determinism gains and higher
 entropy gains, which is the opposite of the desired collapse direction. This
 turns the next S0 question into a mechanism question: what conditions, if any,
 make local preference fitting change sampled response modes?
+
+S0v2 short-template control:
+
+```powershell
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_short_template_preferences.jsonl --output_dir outputs/local_smoke/local_s0_qwen05_short_template_fp32_100steps_seeds42_43 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seeds 42 43 --generation_seed 2026 --bootstrap_samples 5000 --target_phrase "safe overview only"
+```
+
+The chosen response is the same short non-operational template for every prompt:
+`Sure, safe overview only.`
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | --- |
+| seed42 | +0.0187 | -0.0642 | -0.0062 | mixed | 4/0/6 |
+| seed43 | +0.0187 | -0.0523 | -0.0062 | mixed | 4/0/6 |
+
+Aggregate:
+
+```text
+aggregate: pass=0, mixed=2, fail=0, total=2
+prompt aggregate: pass=8, mixed=0, fail=12, total=20
+overall: mixed
+det_delta     mean=+0.0187  ci=[-0.0125, +0.0500]
+entropy_delta mean=-0.0583  ci=[-0.1600, +0.0335]
+pce_delta     mean=-0.0063  ci=[-0.0375, +0.0187]
+robust_gate_decision: mixed
+```
+
+Margin and transmission diagnostics:
+
+| Seed | Sum Margin Delta | Avg Margin Delta | Final Avg Chosen Win | AvgMarginDelta->Det | AvgMarginDelta->Entropy |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 42 | +5.5453 | +0.7922 | 0.0000 | +0.4406 | -0.4233 |
+| 43 | +5.5455 | +0.7922 | 0.0000 | +0.4720 | -0.4479 |
+
+Raw-output audit found 0 target-phrase hits in both final checkpoints. The
+short-template control is closer to the desired transmission pattern because
+margin deltas correlate with higher determinism and lower entropy, but the
+preference margin still does not flip positive and the shared template is never
+sampled. It is a useful S0v2 diagnostic, not a pass.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -957,7 +1005,10 @@ keeps the result weak and seed-level mixed. A second non-operational preference
 subset also remains `weak_pass`. The next useful step is a deliberate pivot:
 either redesign S0 around the transmission question, namely when
 length-normalized preference fitting turns into sampled-mode collapse, or park
-the vulnerability claim and keep the metric tooling.
+the vulnerability claim and keep the metric tooling. The first short-template
+S0v2 control moves det/entropy in the desired direction but still remains mixed,
+so a stronger redesigned gate would need to make the short chosen template
+actually win and appear in samples before any escalation.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -995,9 +1046,11 @@ continued S0 measurement work but does not justify S1. The next step should be a
 protocol redesign or a diagnostic pivot, not more claims. The new preference
 margin diagnostic shows that training moves length-normalized margins strongly
 toward chosen placeholders, but sampled generations remain weak and do not copy
-the target template. If a redesigned <=500M gate still cannot link positive
-length-normalized margins to robust sampled collapse, the project should pivot
-away from a paper claim and keep only the metric tooling.
+the target template. A short-template control improves det/entropy transmission
+but still does not make the chosen template win or appear in samples. If a
+redesigned <=500M gate still cannot link positive length-normalized margins to
+robust sampled collapse, the project should pivot away from a paper claim and
+keep only the metric tooling.
 
 ## Useful Local Commands
 

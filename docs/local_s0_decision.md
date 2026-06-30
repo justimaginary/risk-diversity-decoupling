@@ -31,6 +31,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | Qwen2.5-0.5B-Instruct collapse-proxy subset | two seeds, 100 steps, matched 10x16 | seed-level split pass/mixed; 7/20 prompt comparisons pass | weak_pass |
 | Qwen2.5-0.5B-Instruct preference-margin diagnostic | four 100-step checkpoints | sum margins stay negative; length-normalized margins flip strongly positive | diagnostic |
 | Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
+| Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
 
 ## Interpretation
 
@@ -61,7 +62,10 @@ question is therefore whether local per-token preference fitting transmits to
 sampled-mode collapse. The first transmission analysis is not encouraging:
 prompt-level average-margin gains do not reliably predict higher determinism or
 lower entropy, and for the collapse-proxy subset the relation is often opposite
-the desired collapse direction.
+the desired collapse direction. A short-template control improves the
+transmission direction, but it still does not make the chosen template win under
+length-normalized margin scoring and the target phrase never appears in sampled
+outputs.
 
 The current local conclusion is therefore:
 
@@ -90,7 +94,8 @@ Preferred:
 
 1. Redesign the local S0 protocol if continuing. A clearer next criterion is to
    identify conditions where positive length-normalized preference margins
-   actually transmit to sampled output-mode collapse.
+   actually transmit to sampled output-mode collapse and target-template
+   sampling.
 2. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
 3. If a redesigned <=500M gate cannot connect positive margins to robust
    sampled collapse, pivot to PCE diagnostic tooling rather than a DPO
