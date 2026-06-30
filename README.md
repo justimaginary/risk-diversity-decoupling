@@ -97,18 +97,23 @@ What has been validated so far:
   `sshleifer/tiny-gpt2` smoke. It produced per-seed summaries, per-seed raw
   audits, and an aggregate `robust_fail` summary, which verifies orchestration
   rather than research evidence.
+- Added `scripts/download_hf_file.py`, a reproducible single-file Hugging Face
+  download helper with optional endpoint support for blocked model acquisition
+  attempts.
 - Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
   the cached SmolLM2 local route and the criteria required for escalation.
-- `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after repeated
-  snapshot/direct-weight download attempts, including a 30-minute single-file
-  resumed CLI attempt on 2026-06-30. The cache still contains only the
-  tokenizer/config files plus a 134 MB incomplete weight blob.
+- `Qwen/Qwen2.5-0.5B-Instruct` is now locally usable after manually placing
+  `model.safetensors` under `D:\hf_models\Qwen2.5-0.5B-Instruct` and assembling
+  it with cached tokenizer/config files under `outputs/local_models/`.
+- Qwen local offline loading succeeds on the RTX 4060 as a 494M-parameter
+  `qwen2` causal LM. A tiny fp16 DPO smoke hit NaN at step 2; the same 5-step
+  smoke in float32 completed, reducing DPO loss but producing no metric movement.
 
 What is not yet validated:
 
-- A <=500M target model such as `Qwen/Qwen2.5-0.5B-Instruct` has not completed
-  the local gate yet; the model download is currently incomplete after repeated
-  20- to 30-minute attempts.
+- The <=500M Qwen target has not completed the required two-seed local gate yet.
+  The immediate blocker has moved from model download to stable training/eval
+  configuration.
 - The real-model evidence is still weak because the successful gate used a
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
 - The 360M instruction-model gate did not satisfy all required conditions:
@@ -243,7 +248,7 @@ only a weak S0 gate because it uses a 135M model, 3 prompts, 4 samples, 20
 training steps, and LM-head-only training. The result supports continuing to a
 stronger small-model gate, but it does not establish the paper claim.
 
-### 5. Qwen 0.5B Download Blocker
+### 5. Qwen 0.5B Local Restoration
 
 `Qwen/Qwen2.5-0.5B-Instruct` remains the preferred local target, but the model
 download did not complete within a 20-minute snapshot attempt. The current cache
@@ -262,6 +267,41 @@ Additional follow-up on 2026-06-30: a single-file resumed CLI download attempt
 for `model.safetensors` with `--max-workers 1` also timed out after 30 minutes.
 The incomplete blob did not grow, remaining 134 MB, so this route is still
 blocked.
+
+To make later model acquisition attempts reproducible, use:
+
+```powershell
+conda run -n stdplm python scripts/download_hf_file.py --repo_id Qwen/Qwen2.5-0.5B-Instruct --filename model.safetensors --resume_download
+```
+
+The helper also accepts `--endpoint` for alternate download endpoints when the
+default Hugging Face route stalls.
+
+Manual recovery: the full `model.safetensors` file was placed at
+`D:\hf_models\Qwen2.5-0.5B-Instruct\model.safetensors` on 2026-06-30. The local
+working model directory was assembled at
+`outputs/local_models/Qwen2.5-0.5B-Instruct` from that weight file plus the
+previously cached tokenizer/config files. This directory is ignored by git.
+
+Offline load check:
+
+```powershell
+conda run -n stdplm python -c "import torch; from transformers import AutoTokenizer, AutoModelForCausalLM; p=r'outputs/local_models/Qwen2.5-0.5B-Instruct'; tok=AutoTokenizer.from_pretrained(p, local_files_only=True); model=AutoModelForCausalLM.from_pretrained(p, local_files_only=True, torch_dtype=torch.float16, device_map=None).to('cuda'); print(model.config.model_type, torch.cuda.get_device_name(0), sum(x.numel() for x in model.parameters()))"
+```
+
+Result: local load succeeds as `qwen2` on `NVIDIA GeForce RTX 4060 Laptop GPU`
+with 494,032,768 parameters.
+
+Tiny Qwen DPO smoke:
+
+| Setting | Result |
+| --- | --- |
+| fp16, 5 steps, LM-head | fails with non-finite DPO loss at step 2 |
+| fp32, 5 steps, LM-head | completes; loss 0.6932 -> 0.6274 |
+
+The fp32 tiny smoke metrics stayed flat: determinism 0.3333 -> 0.3333, mode
+entropy 1.2708 -> 1.2708, proxy PCE 0.0000 -> 0.0000. This only proves the Qwen
+local pipeline can run; it does not yet satisfy the S0 gate.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -664,11 +704,11 @@ See `docs/literature_initial_scan.md` for the current notes.
 
 ## Next Evidence Gate
 
-The next real milestone is a stronger small instruction-model experiment,
-ideally `Qwen/Qwen2.5-0.5B-Instruct` or another <=500M model. Because Qwen is
-still blocked by incomplete downloads, the practical next local step is either
-to improve the measurement protocol on cached models or switch to another
-already-downloadable <=500M instruction model.
+The next real milestone is a stronger small instruction-model experiment with
+the locally restored `Qwen/Qwen2.5-0.5B-Instruct` directory at
+`outputs/local_models/Qwen2.5-0.5B-Instruct`. Because fp16 DPO produced NaN on
+the first tiny smoke, the practical next local step is a float32 LM-head S0 gate
+with at least two training seeds and matched 10x16-or-stronger evaluation.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -757,7 +797,7 @@ conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name sshleif
 Run the conservative Qwen 0.5B local gate on RTX 4060:
 
 ```powershell
-conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name Qwen/Qwen2.5-0.5B-Instruct --max_steps 20 --learning_rate 1e-6 --torch_dtype float16 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --output_dir outputs/local_smoke/dpo_qwen05_lm_head
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --max_steps 20 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_qwen05_lm_head_fp32
 ```
 
 This is a conservative gate to keep memory under control. Passing it only
