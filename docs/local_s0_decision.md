@@ -40,7 +40,9 @@ instruction model.
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 | Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
 | Core safety evaluator adapter | `src/evaluation/safety_eval.py` | supports LlamaGuard-style causal-LM `safe`/`unsafe` parsing plus legacy pipeline path | integration ready, not yet run |
-| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 15.8 GB free; `D:\` has about 85.4 GB free; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
+| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 9.98 GB free; `D:\` has about 84.46 GB free; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
+| Real classifier acquisition smoke | `D:\hf_models` | Aegis adapter downloaded but needs gated LlamaGuard-7B; Llama-Guard-3-1B-INT4 returned gated 401; external-pickle classifier skipped; RoBERTa toxicity classifier downloaded and smoke-tested | text-classification plumbing works, harmful-instruction classifier still missing |
+| RoBERTa toxicity classifier audit | positive/refusal short-template outputs | positive stress does not raise all-output toxicity; refusal control lowers toxicity; dominant toxicity shifts are small and not majority-level | not PCE harmfulness validation |
 
 ## Interpretation
 
@@ -120,11 +122,23 @@ the classifier gap remains open, not as safety validation.
 
 The core `SafetyEvaluator` now has a LlamaGuard-style causal-LM backend and a
 small parser test for `safe` / `unsafe\nS...` outputs. This removes one software
-integration blocker in the main evaluation path. It does not remove the evidence
-blocker: no real safety classifier has been downloaded or run locally yet.
+integration blocker in the main evaluation path. A separate text-classification
+audit path was also smoke-tested with a non-gated RoBERTa toxicity classifier
+stored at `D:\hf_models\Sk1306_student_chat_toxicity_classifier_model`.
+That result is deliberately narrow: it measures toxic/abusive language, not
+harmful instruction-following. On the positive short-template stress,
+all-output toxicity falls from 0.1437 at step 0 to 0.1250 / 0.1313 at final,
+while dominant-cluster toxicity rises only from 0.0769 to 0.1429 / 0.1455 and
+does not become a dominant prompt-level majority signal. On the refusal-control
+run, all-output toxicity falls to 0.1000 / 0.0938 and dominant toxicity falls to
+0.0444 / 0.0667. This validates classifier plumbing and a narrow toxicity
+dimension, but it still does not remove the evidence blocker for PCE
+harmfulness. A real harmful-instruction classifier such as an authorized
+LlamaGuard-family checkpoint is still needed.
+
 Storage should be handled carefully. `Get-PSDrive` is unreliable in this
-environment, but `.NET DriveInfo` reports about 15.8 GB free on `C:\` and about
-85.4 GB free on `D:\`. Any real safety classifier should therefore be downloaded
+environment, but `.NET DriveInfo` reports about 9.98 GB free on `C:\` and about
+84.46 GB free on `D:\`. Any real safety classifier should therefore be downloaded
 to `D:\hf_models` or a Hugging Face cache under `D:\hf_models\hf_cache`. If C
 space becomes tight, `scripts/prune_local_checkpoints.py` can dry-run or delete
 ignored `outputs/local_smoke/**/final_model` directories; the current dry-run
@@ -156,11 +170,12 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism with, if feasible on local hardware, a real safety classifier. The
-   first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
-   weak-judge diagnostic, and LlamaGuard-style adapter are complete; the weak
-   judge does not close the safety gap. Prefer storing any classifier checkpoint
-   on `D:\hf_models` rather than under the workspace.
+   mechanism with, if feasible on local hardware, a real harmful-instruction
+   safety classifier. The first raw-mode audit, policy-proxy audit,
+   counter-control, related-work scan, weak-judge diagnostic, LlamaGuard-style
+   adapter, and narrow toxicity-classifier smoke are complete; neither the weak
+   judge nor the toxicity classifier closes the safety gap. Prefer storing any
+   classifier checkpoint on `D:\hf_models` rather than under the workspace.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

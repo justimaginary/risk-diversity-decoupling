@@ -175,6 +175,11 @@ What has been validated so far:
   classifiers in addition to legacy text-classification pipelines. The parser
   is covered by a lightweight standard-library unit test, but no real
   LlamaGuard-class model has been downloaded or run locally yet.
+- Real safety-classifier acquisition has started on `D:\hf_models`: the small
+  Aegis/LlamaGuard defensive repo downloaded but is only a LoRA adapter that
+  requires gated LlamaGuard-7B; `meta-llama/Llama-Guard-3-1B-INT4` is also gated
+  and returned 401 without authorization. A non-gated RoBERTa toxicity
+  classifier downloaded and ran end to end as a narrow toxicity smoke.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -252,6 +257,9 @@ What is not yet validated:
   evaluator supports LlamaGuard-style causal LM outputs, but it remains
   unvalidated locally until a real classifier checkpoint can fit on disk and
   hardware.
+- The non-gated RoBERTa toxicity classifier smoke is not a harmful-instruction
+  classifier. It validates the text-classification plumbing and a narrow
+  toxicity dimension, but it does not validate the harmfulness term in PCE.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -877,8 +885,8 @@ little free space on the workspace drive, so no real LlamaGuard-class checkpoint
 has been downloaded or evaluated in this step.
 
 Storage update on 2026-07-01: PowerShell `Get-PSDrive` reports unreliable
-values in this environment, but `.NET DriveInfo` reports about 15.8 GB free on
-`C:\` and about 85.4 GB free on `D:\`. The preferred location for any real
+values in this environment, but `.NET DriveInfo` reports about 9.98 GB free on
+`C:\` and about 84.46 GB free on `D:\`. The preferred location for any real
 safety-classifier checkpoint is therefore `D:\hf_models\...` or a Hugging Face
 cache under `D:\hf_models\hf_cache`, not the workspace `outputs/` tree.
 
@@ -893,6 +901,59 @@ $env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe 
 The helper is dry-run by default. It only deletes when both `--delete` and
 `--yes` are supplied, and it only targets directories named `final_model` under
 the selected root.
+
+### 5.4. Real Classifier Acquisition Smoke
+
+Candidate checks on 2026-07-01:
+
+| Candidate | Size | Access | Local Result |
+| --- | ---: | --- | --- |
+| `meta-llama/Llama-Guard-3-1B-INT4` | ~0.429 GB | gated/manual | download failed with 401 unauthorized |
+| `meta-llama/Llama-Guard-3-1B` | ~5.593 GB | gated/manual | not downloaded |
+| `google/shieldgemma-2b` | ~4.890 GB | gated/manual | not downloaded |
+| `nvidia/Aegis-AI-Content-Safety-LlamaGuard-Defensive-1.0` | ~0.151 GB | non-gated | downloaded, but it is a LoRA adapter requiring gated LlamaGuard-7B |
+| `mtoannn/content_moderation_classifier` | ~0.145 GB | non-gated | downloaded, but skipped because it requires loading external pickle files |
+| `Sk1306/student_chat_toxicity_classifier_model` | ~0.466 GB | non-gated | downloaded and used for toxicity smoke |
+
+The toxicity classifier is stored at:
+
+```text
+D:\hf_models\Sk1306_student_chat_toxicity_classifier_model
+```
+
+It is a RoBERTa text-classification model with labels `neutral` and `toxic`.
+The classifier smoke passed:
+
+```text
+safe refusal text -> neutral
+obvious insult text -> toxic
+```
+
+A reusable raw-output classifier audit script was added:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe scripts/audit_text_classifier_outputs.py outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed42_10x16/step0_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed42_10x16/final_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed43_10x16/step0_outputs.json outputs/local_smoke/local_s0_qwen05_refusal_template_lr3e6_300steps_seeds42_43/reeval_seed43_10x16/final_outputs.json --labels pos_seed42_step0 pos_seed42_final pos_seed43_step0 pos_seed43_final refusal_seed42_step0 refusal_seed42_final refusal_seed43_step0 refusal_seed43_final --classifier_model D:\hf_models\Sk1306_student_chat_toxicity_classifier_model --output_path outputs/local_smoke/toxicity_classifier_qwen05_short_vs_refusal_controls.json --batch_size 16 --device -1
+```
+
+Result:
+
+| Split | All Toxic | Dominant Toxic | Dominant Toxic Majority |
+| --- | ---: | ---: | ---: |
+| positive seed42 step0 | 0.1437 | 0.0769 | 1/10 |
+| positive seed42 final | 0.1250 | 0.1429 | 0/10 |
+| positive seed43 step0 | 0.1437 | 0.0769 | 1/10 |
+| positive seed43 final | 0.1313 | 0.1455 | 1/10 |
+| refusal seed42 step0 | 0.1437 | 0.0769 | 1/10 |
+| refusal seed42 final | 0.1000 | 0.0444 | 1/10 |
+| refusal seed43 step0 | 0.1437 | 0.0769 | 1/10 |
+| refusal seed43 final | 0.0938 | 0.0667 | 1/10 |
+
+Interpretation: this is a real classifier plumbing smoke, not PCE harmfulness
+validation. The classifier measures toxicity/abusive language, while the current
+PCE question is mostly about harmful instruction-following. Positive
+short-template stress does not increase all-output toxicity; refusal-control
+toxicity decreases. A real harmful-instruction safety classifier is still
+needed.
 
 ### 6. SmolLM2-360M Stronger Gate
 
