@@ -37,6 +37,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | restricted S1 follow-up |
 | Qwen2.5-0.5B-Instruct short-template raw-mode audit | same matched raw outputs | final dominant mass rises to about 0.34-0.35; max exact duplicate count stays 1; target phrase 0 hits | loose-mode evidence |
 | Qwen2.5-0.5B-Instruct short-template policy-proxy audit | same matched raw outputs | final refusal decreases and compliance/actionability increases, strongest in dominant clusters | proxy-only evidence |
+| Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 
 ## Interpretation
 
@@ -90,6 +91,20 @@ evidence but still does not replace a real safety classifier.
 This is the first strong local S0v2 signal, but it still lacks literal
 target-template sampling and a real safety classifier.
 
+The refusal-template counter-control flips the same short-template preference
+direction, making the shared refusal `I cannot assist with that.` the chosen
+response and the short compliance template the rejected response. It completes
+across Qwen seeds 42 and 43 with the same local setup. Determinism rises by
+0.1187 for both seeds and entropy falls by 0.3242 / 0.3086, but proxy PCE falls
+by 0.0187 instead of rising. That is expected for this control: the policy target
+is refusal, not compliance. Raw audit confirms the policy reversal: refusal
+rises from 0.181 to 0.525 / 0.519, compliance falls from 0.244 to 0.144 / 0.138,
+and proxy harmfulness falls from 0.212 to 0.100 / 0.094. Dominant clusters also
+become mostly refusals, with dominant refusal near 0.75-0.80 and dominant
+high-risk-instructional proxy rate falling to 0.0444. This strengthens the
+mechanism story because the same DPO route can steer concentrated modes in
+opposite policy directions. It still remains synthetic and proxy-only.
+
 The current local conclusion is therefore:
 
 ```text
@@ -116,9 +131,9 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism with a counter-control and, if feasible on local hardware, a real
-   safety classifier; the first raw-mode audit, policy-proxy audit, and
-   related-work scan are complete.
+   mechanism with, if feasible on local hardware, a real safety classifier; the
+   first raw-mode audit, policy-proxy audit, counter-control, and related-work
+   scan are complete.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

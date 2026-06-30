@@ -124,6 +124,72 @@ def evaluate_model(args, label: str, model_name_or_path: str) -> Path:
     return output_path
 
 
+@torch.no_grad()
+def sample_loaded_model_outputs(
+    model,
+    tokenizer,
+    prompts: list[str],
+    num_samples: int,
+    max_new_tokens: int,
+    batch_size: int,
+) -> dict[str, list[str]]:
+    model.eval()
+    device = next(model.parameters()).device
+    sampled: dict[str, list[str]] = {}
+    for prompt in prompts:
+        encoded = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
+        encoded = {key: value.to(device) for key, value in encoded.items()}
+        outputs: list[str] = []
+        for start in range(0, num_samples, batch_size):
+            current_batch = min(batch_size, num_samples - start)
+            batch = {key: value.expand(current_batch, -1) for key, value in encoded.items()}
+            generated = model.generate(
+                **batch,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                temperature=1.0,
+                top_p=0.95,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+            prompt_len = encoded["input_ids"].shape[1]
+            for sequence in generated:
+                outputs.append(tokenizer.decode(sequence[prompt_len:], skip_special_tokens=True).strip())
+        sampled[prompt] = outputs[:num_samples]
+    return sampled
+
+
+def evaluate_loaded_model(args, label: str, model, tokenizer) -> Path:
+    if args.generation_seed is not None:
+        torch.manual_seed(args.generation_seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(args.generation_seed)
+
+    prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
+    prompt_outputs = sample_loaded_model_outputs(
+        model=model,
+        tokenizer=tokenizer,
+        prompts=prompts,
+        num_samples=args.num_samples,
+        max_new_tokens=args.max_new_tokens,
+        batch_size=args.eval_batch_size,
+    )
+    report = build_report(
+        mode=label,
+        prompt_outputs=prompt_outputs,
+        eps=args.dbscan_eps,
+        min_samples=args.dbscan_min_samples,
+    )
+    output_path = Path(args.output_dir) / f"{label}.json"
+    save_report(report, output_path)
+    outputs_path = Path(args.output_dir) / f"{label}_outputs.json"
+    save_prompt_outputs(prompt_outputs, outputs_path)
+    print(
+        f"{label}: det={report.mean_determinism:.4f}, "
+        f"entropy={report.mean_mode_entropy:.4f}, proxy_pce={report.mean_proxy_pce:.4f}"
+    )
+    return output_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run local DPO smoke training.")
     parser.add_argument("--model_name", default="sshleifer/tiny-gpt2")
@@ -147,6 +213,11 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--preference_order", choices=["cyclic", "shuffled"], default="cyclic")
     parser.add_argument("--generation_seed", type=int, default=None)
+    parser.add_argument(
+        "--skip_save_final_model",
+        action="store_true",
+        help="Evaluate the trained model in memory instead of writing final_model weights.",
+    )
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -203,12 +274,16 @@ def main() -> None:
         if step == 1 or step % 5 == 0 or step == args.max_steps:
             print(f"step={step} loss={loss.item():.4f}")
 
-    final_dir = output_dir / "final_model"
-    model.save_pretrained(final_dir)
-    tokenizer.save_pretrained(final_dir)
+    if args.skip_save_final_model:
+        print("Evaluating final model in memory...")
+        evaluate_loaded_model(args, "final", model, tokenizer)
+    else:
+        final_dir = output_dir / "final_model"
+        model.save_pretrained(final_dir)
+        tokenizer.save_pretrained(final_dir)
 
-    print("Evaluating final checkpoint...")
-    evaluate_model(args, "final", str(final_dir))
+        print("Evaluating final checkpoint...")
+        evaluate_model(args, "final", str(final_dir))
     print(f"Saved outputs to {output_dir}")
 
 
