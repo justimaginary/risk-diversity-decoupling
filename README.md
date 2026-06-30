@@ -99,16 +99,16 @@ What has been validated so far:
   rather than research evidence.
 - Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
   the cached SmolLM2 local route and the criteria required for escalation.
-- `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
-  snapshot-download attempt and a direct `model.safetensors` download attempt;
-  both timed out after 20 minutes and the cache still contains only the
+- `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after repeated
+  snapshot/direct-weight download attempts, including a 30-minute single-file
+  resumed CLI attempt on 2026-06-30. The cache still contains only the
   tokenizer/config files plus a 134 MB incomplete weight blob.
 
 What is not yet validated:
 
 - A <=500M target model such as `Qwen/Qwen2.5-0.5B-Instruct` has not completed
   the local gate yet; the model download is currently incomplete after repeated
-  20-minute attempts.
+  20- to 30-minute attempts.
 - The real-model evidence is still weak because the successful gate used a
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
 - The 360M instruction-model gate did not satisfy all required conditions:
@@ -257,6 +257,11 @@ direct `hf_hub_download(..., filename="model.safetensors")` also timed out after
 weight file is present. The cache remains at the same incomplete 134 MB weight
 blob. This keeps Qwen out of the local gate until the model can be downloaded by
 another network route or pre-seeded into the HuggingFace cache.
+
+Additional follow-up on 2026-06-30: a single-file resumed CLI download attempt
+for `model.safetensors` with `--max-workers 1` also timed out after 30 minutes.
+The incomplete blob did not grow, remaining 134 MB, so this route is still
+blocked.
 
 ### 6. SmolLM2-360M Stronger Gate
 
