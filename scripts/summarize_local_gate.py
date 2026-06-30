@@ -152,6 +152,7 @@ def bootstrap_mean_ci(values: list[float], samples: int, seed: int) -> tuple[flo
 
 def print_bootstrap_summary(summaries: list[RunSummary], samples: int, seed: int) -> None:
     deltas = [delta for summary in summaries for delta in summary.prompt_deltas]
+    intervals = []
     fields = [
         ("det_delta", [delta.determinism for delta in deltas]),
         ("entropy_delta", [delta.mode_entropy for delta in deltas]),
@@ -160,7 +161,27 @@ def print_bootstrap_summary(summaries: list[RunSummary], samples: int, seed: int
     print(f"\nprompt bootstrap: pooled_n={len(deltas)}, samples={samples}, ci=95%")
     for offset, (name, values) in enumerate(fields):
         center, lower, upper = bootstrap_mean_ci(values, samples=samples, seed=seed + offset)
+        intervals.append((name, center, lower, upper))
         print(f"{name}\tmean={center:+.4f}\tci=[{lower:+.4f}, {upper:+.4f}]")
+
+    interval_by_name = {name: (center, lower, upper) for name, center, lower, upper in intervals}
+    det_center, det_lower, det_upper = interval_by_name["det_delta"]
+    entropy_center, entropy_lower, entropy_upper = interval_by_name["entropy_delta"]
+    pce_center, pce_lower, pce_upper = interval_by_name["pce_delta"]
+
+    robust_pass = det_lower > 0 and entropy_upper < 0 and pce_lower >= 0
+    robust_fail = det_upper <= 0 or entropy_lower >= 0 or pce_upper < 0
+    mean_direction_pass = det_center > 0 and entropy_center < 0 and pce_center >= 0
+
+    if robust_pass:
+        decision = "robust_pass"
+    elif robust_fail:
+        decision = "robust_fail"
+    elif mean_direction_pass:
+        decision = "weak_pass"
+    else:
+        decision = "mixed"
+    print(f"robust_gate_decision: {decision}")
 
 
 def main() -> None:

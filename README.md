@@ -74,6 +74,9 @@ What has been validated so far:
   intervals. On corrected seed42+43, the 10x8 result has positive determinism
   and proxy-PCE intervals but entropy crosses zero; the matched 10x16 result has
   stable reverse-direction entropy and proxy-PCE intervals.
+- The bootstrap summarizer now prints `robust_gate_decision`. Current decisions
+  are `weak_pass` for the corrected 10x8 gate and `robust_fail` for both the
+  corrected 10x16 gate and the uniform-control 10x16 diagnostic.
 - Added `data/local_uniform_collapse_preferences.jsonl`, a non-operational
   diagnostic control where all chosen responses share the same safe placeholder
   template. It is meant to test whether DPO can induce a shared response mode
@@ -482,7 +485,8 @@ conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/d
 | Proxy PCE | +0.0250 | [+0.0063, +0.0500] |
 
 Interpretation: the 10x8 corrected gate has a positive determinism/proxy-PCE
-signal, but entropy is not robust because the interval crosses zero.
+signal, but entropy is not robust because the interval crosses zero. The
+automatic robust decision is `weak_pass`.
 
 Matched 10-prompt x 16-sample re-evaluation of corrected seed43:
 
@@ -548,7 +552,8 @@ conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/r
 
 Interpretation: under the better 10x16 measurement, entropy and proxy PCE move
 robustly in the opposite direction from the collapse hypothesis, while
-determinism is weakly negative and crosses zero.
+determinism is weakly negative and crosses zero. The automatic robust decision
+is `robust_fail`.
 
 ## Literature Snapshot
 
@@ -722,7 +727,8 @@ Pooled prompt-level bootstrap:
 Interpretation: even the intentionally strong uniform-template diagnostic does
 not survive the better 10x16 measurement protocol. This is evidence against the
 current cached 360M local setup as a reliable collapse gate, not evidence
-against the broader research question.
+against the broader research question. The automatic robust decision is
+`robust_fail`.
 
 Summarize local gate runs:
 
@@ -735,6 +741,15 @@ Add pooled prompt-level bootstrap intervals:
 ```powershell
 conda run -n stdplm python scripts/summarize_local_gate.py outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed42 outputs/local_smoke/dpo_smollm2_360m_collapse_proxy_trainseed43 --bootstrap_samples 5000 --bootstrap_seed 2026
 ```
+
+When bootstrap is enabled, the summarizer prints `robust_gate_decision`:
+
+- `robust_pass`: determinism CI is positive, entropy CI is negative, and proxy
+  PCE CI is non-negative.
+- `weak_pass`: means move in the expected direction, but at least one interval
+  is not robust.
+- `robust_fail`: at least one core interval is confidently opposite the
+  collapse direction.
 
 Run a matched checkpoint re-evaluation without retraining:
 
