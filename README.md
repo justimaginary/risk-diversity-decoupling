@@ -90,6 +90,9 @@ What has been validated so far:
 - Evaluation scripts now save raw sampled generations as `*_outputs.json`
   alongside metric reports, so future gates can audit actual response modes
   instead of relying only on aggregate metrics.
+- Added `scripts/run_local_s0_gate.py`, a local S0 runner that orchestrates
+  training, matched re-evaluation, bootstrap summary, and raw-output audit for
+  one seed/model/preference setting.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -125,6 +128,9 @@ What is not yet validated:
   collapse metrics, despite strong training-loss convergence.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
+- The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
+  RTX 4060 local-smoke path; use the local S0 runner for current machine-level
+  validation.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -756,6 +762,27 @@ The collapse-proxy file uses generic tutorial/compliance placeholders as chosen
 responses and refusals as rejected responses. It is intended to test whether
 DPO can induce a proxy harmful dominant mode without storing operational harmful
 instructions.
+
+Run the local S0 gate orchestrator:
+
+```powershell
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --output_dir outputs/local_smoke/local_s0_uniform_360m_seed42 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --generation_seed 2026 --target_phrase "structured tutorial-style response"
+```
+
+The runner writes:
+
+```text
+run_config.json
+train_seed<seed>/
+reeval_seed<seed>_<prompts>x<samples>/
+reeval_summary.txt
+audit_step0.txt
+audit_final.txt
+```
+
+A tiny smoke with `sshleifer/tiny-gpt2`, 1 step, 1 prompt, and 1 sample completed
+successfully. The smoke result itself is not research evidence; it only verifies
+that the local S0 orchestration path works end to end.
 
 Run the stronger non-operational uniform collapse-control gate:
 
