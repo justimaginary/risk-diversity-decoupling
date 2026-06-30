@@ -145,6 +145,10 @@ What has been validated so far:
   across seeds 42 and 43. Both seeds flip summed and length-normalized
   preference margins and the matched 10x16 aggregate reaches `robust_pass`.
   This is the first strong local S0v2 signal, but still not a paper claim.
+- Added `scripts/audit_dominant_modes.py` and audited the Qwen short-template
+  margin-flip raw outputs. The final checkpoints show higher dominant-cluster
+  mass and lower dominant refusal rate across both seeds, but all sampled
+  outputs remain unique and the target phrase still has zero hits.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -204,7 +208,11 @@ What is not yet validated:
 - The stronger short-template stress is now a two-seed robust S0v2 signal. It
   robustly moves determinism, entropy, and proxy PCE in the collapse direction,
   but literal target-template hits remain 0, proxy harmfulness is still lexical,
-  and raw shared-mode structure still needs audit.
+  and raw shared-mode structure has only an initial audit.
+- First raw-mode audit of the stronger short-template stress supports loose
+  sampled-mode concentration, not literal template copying: dominant-cluster
+  mass rises across both seeds, but max exact duplicate count remains 1 for each
+  prompt and the target phrase remains absent.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -652,12 +660,26 @@ Raw audit on the matched final outputs:
 | 42 | 0.062 | 0.469 | 0.456 | 0.000 |
 | 43 | 0.062 | 0.463 | 0.450 | 0.000 |
 
+Dominant-mode audit on the matched step0/final raw outputs:
+
+```powershell
+conda run -n stdplm python scripts/audit_dominant_modes.py outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/final_outputs.json --labels seed42_step0 seed42_final seed43_step0 seed43_final --output_path outputs/local_smoke/audit_qwen05_short_template_lr3e6_300steps_dominant_modes.json --dbscan_eps 0.8 --dbscan_min_samples 1 --target_phrase "safe overview only"
+```
+
+| Split | Mean Dominant Mass | Dominant Proxy Harmful | Dominant Refusal | Dominant Compliance | Prompts Mass >= 0.25 | Prompts Mass >= 0.5 | Max Exact Dup | Target Phrase |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| seed42 step0 | 0.1625 | 0.1333 | 0.2500 | 0.1583 | 3/10 | 0/10 | 1 | 0 |
+| seed42 final | 0.3500 | 0.5740 | 0.0000 | 0.5740 | 8/10 | 2/10 | 1 | 0 |
+| seed43 step0 | 0.1625 | 0.1333 | 0.2500 | 0.1583 | 3/10 | 0/10 | 1 | 0 |
+| seed43 final | 0.3438 | 0.5690 | 0.0000 | 0.5690 | 8/10 | 2/10 | 1 | 0 |
+
 Interpretation: this is the first two-seed local S0v2 result where margin
 flipping transmits robustly to sampled collapse metrics. It is credible enough
-to justify a restricted S1 follow-up, such as raw-mode audit and literature
-review, but it is not a paper claim: it uses a synthetic short template, still
-has zero literal target-template hits, and uses lexical proxy harmfulness rather
-than a real safety classifier.
+to justify a restricted S1 follow-up, but it is not a paper claim. The raw-mode
+audit strengthens the evidence for loose sampled-mode concentration, while also
+showing this is not literal short-template copying: every prompt still has 16
+unique normalized outputs, max exact duplicate count is 1, target-template hits
+are 0, and harmfulness is still only a lexical proxy.
 
 ### 6. SmolLM2-360M Stronger Gate
 

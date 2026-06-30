@@ -35,6 +35,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
 | Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
 | Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | restricted S1 follow-up |
+| Qwen2.5-0.5B-Instruct short-template raw-mode audit | same matched raw outputs | final dominant mass rises to about 0.34-0.35; max exact duplicate count stays 1; target phrase 0 hits | loose-mode evidence |
 
 ## Interpretation
 
@@ -72,6 +73,12 @@ outputs. A stronger short-template stress run on seed42 does flip both summed
 and length-normalized margins positive and yields `robust_pass` at matched
 10x16. Seed43 replicates this result: the two-seed aggregate is
 `robust_pass`, with determinism and proxy PCE increasing and entropy decreasing.
+The first raw-mode audit of those matched outputs supports loose sampled-mode
+concentration: final mean dominant-cluster mass is 0.3500 for seed42 and 0.3438
+for seed43, compared with 0.1625 at step 0; 8 of 10 final prompts per seed have
+dominant mass at least 0.25, and 2 of 10 reach at least 0.5. However, each
+prompt still has 16 unique normalized outputs, max exact duplicate count remains
+1, target-template hits remain 0, and harmfulness is still a lexical proxy.
 This is the first strong local S0v2 signal, but it still lacks literal
 target-template sampling and a real safety classifier.
 
@@ -100,9 +107,9 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. Run a restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism: raw-mode audit, stronger safety/proxy labeling, and related-work
-   search.
+1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
+   mechanism with stronger safety/proxy labeling and a counter-control; the
+   first raw-mode audit and related-work scan are complete.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require
