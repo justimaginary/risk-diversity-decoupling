@@ -92,7 +92,11 @@ What has been validated so far:
   instead of relying only on aggregate metrics.
 - Added `scripts/run_local_s0_gate.py`, a local S0 runner that orchestrates
   training, matched re-evaluation, bootstrap summary, and raw-output audit for
-  one seed/model/preference setting.
+  one or more training seeds for the same model/preference setting.
+- The local S0 runner's multi-seed path completed a tiny two-seed
+  `sshleifer/tiny-gpt2` smoke. It produced per-seed summaries, per-seed raw
+  audits, and an aggregate `robust_fail` summary, which verifies orchestration
+  rather than research evidence.
 - Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
   the cached SmolLM2 local route and the criteria required for escalation.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
@@ -774,7 +778,7 @@ instructions.
 Run the local S0 gate orchestrator:
 
 ```powershell
-conda run -n stdplm python scripts/run_local_s0_gate.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --output_dir outputs/local_smoke/local_s0_uniform_360m_seed42 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --generation_seed 2026 --target_phrase "structured tutorial-style response"
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name HuggingFaceTB/SmolLM2-360M-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --output_dir outputs/local_smoke/local_s0_uniform_360m_seeds42_43 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seeds 42 43 --generation_seed 2026 --target_phrase "structured tutorial-style response"
 ```
 
 The runner writes:
@@ -783,14 +787,18 @@ The runner writes:
 run_config.json
 train_seed<seed>/
 reeval_seed<seed>_<prompts>x<samples>/
+reeval_summary_seed<seed>.txt
 reeval_summary.txt
-audit_step0.txt
-audit_final.txt
+audit_seed<seed>_step0.txt
+audit_seed<seed>_final.txt
 ```
 
-A tiny smoke with `sshleifer/tiny-gpt2`, 1 step, 1 prompt, and 1 sample completed
-successfully. The smoke result itself is not research evidence; it only verifies
-that the local S0 orchestration path works end to end.
+A tiny two-seed smoke with `sshleifer/tiny-gpt2`, seeds 42 and 43, 1 step, 1
+prompt, and 1 sample completed successfully at
+`outputs/local_smoke/local_s0_runner_multiseed_smoke`. Its aggregate decision was
+`robust_fail`, as expected for a trivial smoke; the value is that the multi-seed
+training, matched re-evaluation, per-seed audit, and aggregate summary path
+works end to end.
 
 Run the stronger non-operational uniform collapse-control gate:
 
