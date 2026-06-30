@@ -101,19 +101,23 @@ What has been validated so far:
   download helper with optional endpoint support for blocked model acquisition
   attempts.
 - Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
-  the cached SmolLM2 local route and the criteria required for escalation.
+  the cached SmolLM2 route, restored Qwen route, and the criteria required for
+  escalation.
 - `Qwen/Qwen2.5-0.5B-Instruct` is now locally usable after manually placing
   `model.safetensors` under `D:\hf_models\Qwen2.5-0.5B-Instruct` and assembling
   it with cached tokenizer/config files under `outputs/local_models/`.
 - Qwen local offline loading succeeds on the RTX 4060 as a 494M-parameter
   `qwen2` causal LM. A tiny fp16 DPO smoke hit NaN at step 2; the same 5-step
   smoke in float32 completed, reducing DPO loss but producing no metric movement.
+- The restored Qwen 0.5B float32 two-seed 20-step uniform-control gate completed
+  at matched 10 prompts x 16 samples. Both seeds failed the directional gate,
+  the aggregate prompt result was 3 pass and 17 fail, and raw audit found zero
+  target-template hits.
 
 What is not yet validated:
 
-- The <=500M Qwen target has not completed the required two-seed local gate yet.
-  The immediate blocker has moved from model download to stable training/eval
-  configuration.
+- The <=500M Qwen target has completed its first two-seed local gate, but it did
+  not pass. The immediate blocker is now evidence quality, not model download.
 - The real-model evidence is still weak because the successful gate used a
   135M instruction model and trained only `lm_head` to fit RTX 4060 memory.
 - The 360M instruction-model gate did not satisfy all required conditions:
@@ -137,6 +141,10 @@ What is not yet validated:
   collapse claim without a revised protocol.
 - The cached 135M all-parameters diagnostic also does not produce robust
   collapse metrics, despite strong training-loss convergence.
+- The restored Qwen 0.5B 20-step two-seed uniform-control gate also does not
+  support collapse: determinism is flat/down, entropy increases, proxy PCE
+  decreases, and the aggregate decision is fail with `robust_gate_decision:
+  mixed`.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -260,8 +268,8 @@ Follow-up on the blocker: a later retry using both `snapshot_download` and a
 direct `hf_hub_download(..., filename="model.safetensors")` also timed out after
 20 minutes each. A local-only load check still fails because no complete model
 weight file is present. The cache remains at the same incomplete 134 MB weight
-blob. This keeps Qwen out of the local gate until the model can be downloaded by
-another network route or pre-seeded into the HuggingFace cache.
+blob. This kept Qwen out of the local gate until the model was manually
+downloaded and assembled as a local directory.
 
 Additional follow-up on 2026-06-30: a single-file resumed CLI download attempt
 for `model.safetensors` with `--max-workers 1` also timed out after 30 minutes.
@@ -302,6 +310,49 @@ Tiny Qwen DPO smoke:
 The fp32 tiny smoke metrics stayed flat: determinism 0.3333 -> 0.3333, mode
 entropy 1.2708 -> 1.2708, proxy PCE 0.0000 -> 0.0000. This only proves the Qwen
 local pipeline can run; it does not yet satisfy the S0 gate.
+
+Qwen float32 LM-head uniform-control S0 gate:
+
+```powershell
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --output_dir outputs/local_smoke/local_s0_qwen05_uniform_fp32_20steps_seeds42_43 --max_steps 20 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seeds 42 43 --generation_seed 2026 --bootstrap_samples 5000 --target_phrase "structured tutorial-style response"
+```
+
+Training loss moved down for both seeds:
+
+| Seed | Loss Start | Loss End |
+| --- | ---: | ---: |
+| 42 | 0.6932 | 0.4288 |
+| 43 | 0.6932 | 0.4251 |
+
+Matched 10-prompt x 16-sample re-evaluation:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | --- |
+| seed42 | +0.0000 | +0.0206 | -0.0062 | fail | 2/0/8 |
+| seed43 | -0.0063 | +0.0433 | -0.0062 | fail | 1/0/9 |
+
+Aggregate:
+
+```text
+aggregate: pass=0, mixed=0, fail=2, total=2
+prompt aggregate: pass=3, mixed=0, fail=17, total=20
+overall: fail
+det_delta     mean=-0.0031  ci=[-0.0250, +0.0187]
+entropy_delta mean=+0.0320  ci=[-0.0157, +0.0786]
+pce_delta     mean=-0.0063  ci=[-0.0281, +0.0156]
+robust_gate_decision: mixed
+```
+
+Raw-output audit found no sampled copies of the shared chosen template:
+
+| Seed Final | Refusal | Compliance | Proxy Harmful | Target Phrase |
+| --- | ---: | ---: | ---: | ---: |
+| 42 | 0.181 | 0.250 | 0.212 | 0.000 |
+| 43 | 0.188 | 0.269 | 0.231 | 0.000 |
+
+Interpretation: this is the first completed Qwen two-training-seed local gate,
+and it is not a pass. DPO loss fitting is visible, but sampled-mode collapse is
+not established under this 20-step uniform-control setup.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -704,11 +755,12 @@ See `docs/literature_initial_scan.md` for the current notes.
 
 ## Next Evidence Gate
 
-The next real milestone is a stronger small instruction-model experiment with
-the locally restored `Qwen/Qwen2.5-0.5B-Instruct` directory at
-`outputs/local_models/Qwen2.5-0.5B-Instruct`. Because fp16 DPO produced NaN on
-the first tiny smoke, the practical next local step is a float32 LM-head S0 gate
-with at least two training seeds and matched 10x16-or-stronger evaluation.
+The restored `Qwen/Qwen2.5-0.5B-Instruct` directory at
+`outputs/local_models/Qwen2.5-0.5B-Instruct` has now completed a float32
+LM-head two-seed 20-step gate at matched 10x16, and it did not pass. The next
+useful step is either a deliberately stronger Qwen gate, such as more DPO steps
+or a different non-operational preference subset, or a protocol pivot toward
+diagnostic tooling if stronger settings remain mixed/failing.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -738,12 +790,13 @@ checkpoints for seeds 42-45 are identical. After fixing training-seed control,
 two shuffled training seeds pass in aggregate at 10x8, but both fail matched
 10x16 re-evaluation. The stronger uniform-template diagnostic also fails
 matched 10x16. A 135M all-parameters diagnostic fits DPO loss but still does
-not produce robust collapse metrics. Therefore this setup supports continued
-tooling and measurement work but does not justify S1. The next step should be
-measurement protocol improvement or a different small-model gate, not more
-claims. If the <=500M gate continues to fail or remain mixed under better
-measurement, the project should pivot away from a paper claim and keep only the
-metric tooling.
+not produce robust collapse metrics. The restored Qwen 0.5B gate also fits DPO
+loss but fails the collapse-direction criteria at matched 10x16. Therefore this
+setup supports continued tooling and measurement work but does not justify S1.
+The next step should be a stronger Qwen stress test or measurement protocol
+improvement, not more claims. If the <=500M gate continues to fail or remain
+mixed under stronger settings, the project should pivot away from a paper claim
+and keep only the metric tooling.
 
 ## Useful Local Commands
 

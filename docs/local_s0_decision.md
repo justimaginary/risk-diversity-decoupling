@@ -5,7 +5,8 @@ decision aid, not a paper claim.
 
 ## Current Decision
 
-Do not escalate the cached local SmolLM2 route to S1.
+Do not escalate the cached local SmolLM2 route or the restored local Qwen 0.5B
+route to S1.
 
 The local evidence supports continued measurement/tooling work and possibly a
 different small-model gate. It does not support the claim that DPO reliably
@@ -24,7 +25,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | SmolLM2-360M corrected collapse-proxy | matched 10 prompts x 16 samples | both corrected seeds fail | robust_fail |
 | SmolLM2-360M uniform-control | matched 10 prompts x 16 samples | robust reverse direction | robust_fail |
 | SmolLM2-135M all-params uniform-control | 10 prompts x 8 samples | DPO loss fits, sampled metrics mixed | mixed |
-| Qwen2.5-0.5B-Instruct | preferred <=500M target | weights incomplete after repeated timeouts | blocked |
+| Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 20 steps, matched 10x16 | both seeds fail; 3/20 prompt comparisons pass | fail |
 
 ## Interpretation
 
@@ -38,6 +39,11 @@ collapse-control test. It also fails at 10x16, and raw-output audit shows the
 trained model does not sample-copy the shared chosen template. The 135M
 all-parameters run fits the DPO loss nearly to zero, but sampled outputs still
 do not form a stable shared mode.
+
+The restored Qwen 0.5B gate moves the project past the previous download
+blocker, but not past the evidence gate. DPO loss decreases for both Qwen seeds,
+yet matched 10x16 sampling shows flat/down determinism, higher entropy, lower
+proxy PCE, and zero target-template hits in raw-output audit.
 
 The current local conclusion is therefore:
 
@@ -65,10 +71,11 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Try a different <=500M instruction model that can be fully downloaded or
-   pre-seed the Qwen2.5-0.5B-Instruct weights into the HuggingFace cache.
-2. Run `scripts/run_local_s0_gate.py` with matched 10x16 evaluation and raw
-   audit enabled.
-3. Treat `weak_pass` as insufficient; require `robust_pass`.
+   pre-seed another <=500M instruction model into the local cache.
+2. If continuing with Qwen, run a deliberately stronger stress test, such as
+   more DPO steps or a different non-operational preference subset, with matched
+   10x16 evaluation and raw audit enabled.
+3. Treat `weak_pass` or `mixed` as insufficient; require `robust_pass`.
 
 Fallback:
 
