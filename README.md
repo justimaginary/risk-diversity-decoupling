@@ -131,6 +131,11 @@ What has been validated so far:
 - Qwen 100-step margin diagnostics show a length-confound: summed log-probability
   margins stay negative because chosen placeholders are longer, but per-token
   average margins flip strongly toward chosen responses.
+- Added `scripts/analyze_margin_generation_link.py` to test whether prompt-level
+  preference-margin changes transmit to generation-level collapse metrics.
+- Qwen margin-to-generation analysis shows weak or opposite transmission:
+  prompts with positive length-normalized margins often do not pass the
+  sampled-collapse direction gate.
 
 What is not yet validated:
 
@@ -175,6 +180,9 @@ What is not yet validated:
 - Preference-margin diagnostics narrow the problem: DPO shifts per-token
   likelihood toward chosen placeholders, but that local preference shift has not
   translated into robust sampled-mode collapse.
+- Transmission diagnostics further weaken the current claim: prompt-level
+  average-margin deltas do not reliably predict higher determinism or lower
+  entropy, and correlations are often opposite the collapse direction.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -519,6 +527,26 @@ negative because chosen placeholders are substantially longer than rejected
 refusals, but length-normalized margins become strongly positive. This narrows
 the failure mode: local preference fitting is present, yet it does not produce
 robust sampled-mode collapse or target-template copying.
+
+Margin-to-generation transmission diagnostic:
+
+```powershell
+conda run -n stdplm python scripts/analyze_margin_generation_link.py --margin_path outputs/local_smoke/margins_qwen05_uniform_fp32_100steps_seed42_length_norm.json --reeval_dir outputs/local_smoke/reeval_qwen05_uniform_fp32_100steps_seed42_20x32 --output_path outputs/local_smoke/link_qwen05_uniform_fp32_100steps_seed42_20x32.json
+```
+
+| Subset | Seed | Eval | Collapse Pass | Positive Avg-Margin Collapse Pass | Spearman AvgMarginDelta->Det | Spearman AvgMarginDelta->Entropy |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| uniform | 42 | 20x32 | 8/20 | 8/20 | -0.0704 | -0.0038 |
+| uniform | 43 | 20x32 | 6/20 | 6/20 | -0.1255 | +0.0180 |
+| collapse-proxy | 42 | 10x16 | 4/10 | 3/9 | -0.3097 | +0.2683 |
+| collapse-proxy | 43 | 10x16 | 3/10 | 2/9 | -0.4091 | +0.3374 |
+
+Interpretation: positive length-normalized preference margins do not reliably
+transmit to generation-level collapse. For the collapse-proxy subset, prompts
+with larger average-margin gains tend to have lower determinism gains and higher
+entropy gains, which is the opposite of the desired collapse direction. This
+turns the next S0 question into a mechanism question: what conditions, if any,
+make local preference fitting change sampled response modes?
 
 ### 6. SmolLM2-360M Stronger Gate
 

@@ -30,6 +30,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | 100-step checkpoints, matched 20x32 | seed-level split 1 pass / 1 fail; 14/40 prompt comparisons pass | weak_pass |
 | Qwen2.5-0.5B-Instruct collapse-proxy subset | two seeds, 100 steps, matched 10x16 | seed-level split pass/mixed; 7/20 prompt comparisons pass | weak_pass |
 | Qwen2.5-0.5B-Instruct preference-margin diagnostic | four 100-step checkpoints | sum margins stay negative; length-normalized margins flip strongly positive | diagnostic |
+| Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
 
 ## Interpretation
 
@@ -57,7 +58,10 @@ merely a failed training run: every checked preference margin moves in the
 chosen direction. Summed margins remain negative because chosen placeholders are
 longer, but length-normalized margins flip strongly positive. The unresolved
 question is therefore whether local per-token preference fitting transmits to
-sampled-mode collapse.
+sampled-mode collapse. The first transmission analysis is not encouraging:
+prompt-level average-margin gains do not reliably predict higher determinism or
+lower entropy, and for the collapse-proxy subset the relation is often opposite
+the desired collapse direction.
 
 The current local conclusion is therefore:
 
@@ -85,8 +89,8 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Redesign the local S0 protocol if continuing. A clearer next criterion is to
-   test when positive length-normalized preference margins transmit to sampled
-   output-mode collapse.
+   identify conditions where positive length-normalized preference margins
+   actually transmit to sampled output-mode collapse.
 2. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
 3. If a redesigned <=500M gate cannot connect positive margins to robust
    sampled collapse, pivot to PCE diagnostic tooling rather than a DPO
