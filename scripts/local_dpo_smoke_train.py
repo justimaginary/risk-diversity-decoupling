@@ -20,9 +20,9 @@ from torch.nn.utils import clip_grad_norm_
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
-    from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
+    from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_prompt_outputs, save_report
 except ModuleNotFoundError:
-    from scripts.local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
+    from scripts.local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_prompt_outputs, save_report
 
 
 def load_preferences(path: Path) -> list[dict[str, str]]:
@@ -115,6 +115,8 @@ def evaluate_model(args, label: str, model_name_or_path: str) -> Path:
     )
     output_path = Path(args.output_dir) / f"{label}.json"
     save_report(report, output_path)
+    outputs_path = Path(args.output_dir) / f"{label}_outputs.json"
+    save_prompt_outputs(prompt_outputs, outputs_path)
     print(
         f"{label}: det={report.mean_determinism:.4f}, "
         f"entropy={report.mean_mode_entropy:.4f}, proxy_pce={report.mean_proxy_pce:.4f}"

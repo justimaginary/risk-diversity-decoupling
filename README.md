@@ -87,6 +87,9 @@ What has been validated so far:
 - A 135M all-parameters uniform-control diagnostic fits the DPO preference loss
   almost to zero, but the sampling metrics remain mixed. This separates
   preference-loss fitting from stable output-mode collapse.
+- Evaluation scripts now save raw sampled generations as `*_outputs.json`
+  alongside metric reports, so future gates can audit actual response modes
+  instead of relying only on aggregate metrics.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -120,6 +123,8 @@ What is not yet validated:
   collapse claim without a revised protocol.
 - The cached 135M all-parameters diagnostic also does not produce robust
   collapse metrics, despite strong training-loss convergence.
+- Raw sampled outputs were not saved for earlier runs, so those older metrics
+  are harder to audit for target-template hits or clustering mistakes.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -671,6 +676,18 @@ Run synthetic smoke:
 conda run -n stdplm python scripts/local_pce_smoke.py --mode synthetic --synthetic_profile diverse --num_prompts 10 --num_samples 16
 conda run -n stdplm python scripts/local_pce_smoke.py --mode synthetic --synthetic_profile collapsed --num_prompts 10 --num_samples 16
 ```
+
+Metric scripts now also save raw sampled outputs:
+
+```text
+<label>.json
+<label>_outputs.json
+```
+
+For example, a tiny synthetic write smoke produced
+`outputs/local_smoke/raw_output_write_smoke/synthetic_collapsed_outputs.json`
+with one record per prompt and an `outputs` list. This makes later diagnosis
+of mode collapse, target-template copying, and clustering errors much easier.
 
 Run toy DPO:
 

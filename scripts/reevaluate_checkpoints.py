@@ -13,7 +13,7 @@ from pathlib import Path
 
 import torch
 
-from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_report
+from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_prompt_outputs, save_report
 
 
 def evaluate_checkpoint(
@@ -41,6 +41,8 @@ def evaluate_checkpoint(
     )
     output_path = Path(args.output_dir) / f"{label}.json"
     save_report(report, output_path)
+    outputs_path = Path(args.output_dir) / f"{label}_outputs.json"
+    save_prompt_outputs(prompt_outputs, outputs_path)
     print(
         f"{label}: det={report.mean_determinism:.4f}, "
         f"entropy={report.mean_mode_entropy:.4f}, "

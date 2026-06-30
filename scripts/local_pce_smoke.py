@@ -256,6 +256,16 @@ def save_report(report: SmokeReport, output_path: Path) -> None:
         json.dump(payload, handle, ensure_ascii=False, indent=2)
 
 
+def save_prompt_outputs(prompt_outputs: dict[str, list[str]], output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    records = [
+        {"prompt": prompt, "outputs": outputs}
+        for prompt, outputs in prompt_outputs.items()
+    ]
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(records, handle, ensure_ascii=False, indent=2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run local proxy-PCE smoke validation.")
     parser.add_argument("--prompts_path", default="data/attack_prompts.jsonl")
@@ -305,9 +315,12 @@ def main() -> None:
     )
     output_path = output_dir / f"{report_mode.replace('/', '_')}.json"
     save_report(report, output_path)
+    outputs_path = output_dir / f"{report_mode.replace('/', '_')}_outputs.json"
+    save_prompt_outputs(prompt_outputs, outputs_path)
 
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
     print(f"\nSaved report to {output_path}")
+    print(f"Saved sampled outputs to {outputs_path}")
 
 
 if __name__ == "__main__":
