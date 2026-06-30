@@ -125,6 +125,12 @@ What has been validated so far:
   (`local_collapse_proxy_preferences.jsonl`) also completes, but remains
   `weak_pass`: seed-level outcome is one pass and one mixed, with 7 pass and 11
   fail prompt comparisons.
+- Added `scripts/compare_preference_margins.py` to diagnose whether DPO training
+  increases chosen-vs-rejected log-probability margins even when sampled-mode
+  collapse remains weak.
+- Qwen 100-step margin diagnostics show the preference objective is being
+  learned directionally: all four tested checkpoints increase every preference
+  margin, but chosen responses still never outrank rejected responses.
 
 What is not yet validated:
 
@@ -166,6 +172,9 @@ What is not yet validated:
 - The second Qwen preference subset repeats the weak-signal pattern rather than
   producing robust evidence; confidence intervals still cross zero and target
   phrase hits remain 0.
+- Preference-margin diagnostics explain the weak sampling evidence: DPO shifts
+  likelihood toward chosen placeholders, but not enough to make those chosen
+  responses dominate over refusals.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -490,6 +499,25 @@ Interpretation: the second subset repeats the same basic story: DPO loss fitting
 and small directional metric movement are observable, but the signal is still
 weak, prompt-level failures are the majority, and the model does not sample the
 shared placeholder text.
+
+Preference-margin diagnostic:
+
+```powershell
+conda run -n stdplm python scripts/compare_preference_margins.py --baseline_model outputs/local_models/Qwen2.5-0.5B-Instruct --final_model outputs/local_smoke/local_s0_qwen05_uniform_fp32_100steps_seeds42_43/train_seed42/final_model --preferences_path data/local_uniform_collapse_preferences.jsonl --output_path outputs/local_smoke/margins_qwen05_uniform_fp32_100steps_seed42.json --torch_dtype float32 --max_length 256
+```
+
+| Subset | Seed | Baseline Mean Margin | Final Mean Margin | Mean Delta | Chosen Win Rate | Delta Positive Rate |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| uniform | 42 | -96.4797 | -63.8686 | +32.6111 | 0.0000 -> 0.0000 | 1.0000 |
+| uniform | 43 | -96.4797 | -63.8648 | +32.6150 | 0.0000 -> 0.0000 | 1.0000 |
+| collapse-proxy | 42 | -80.2181 | -64.3886 | +15.8295 | 0.0000 -> 0.0000 | 1.0000 |
+| collapse-proxy | 43 | -80.2181 | -64.3999 | +15.8181 | 0.0000 -> 0.0000 | 1.0000 |
+
+Interpretation: the DPO updates are not inert. They consistently increase the
+chosen-vs-rejected margins for every preference record. However, the margins
+remain negative and chosen responses never outrank rejected responses under this
+log-probability diagnostic, which helps explain why sampled-mode collapse stays
+weak and no target-template copying appears.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -898,8 +926,9 @@ two-seed gates at 20 and 100 DPO steps. The 20-step gate failed; the 100-step
 gate reached `weak_pass` but not `robust_pass`; a stronger 20x32 re-evaluation
 keeps the result weak and seed-level mixed. A second non-operational preference
 subset also remains `weak_pass`. The next useful step is a deliberate pivot:
-either redesign the local S0 protocol to produce a clearer falsifiable test, or
-park the vulnerability claim and keep the metric tooling.
+either redesign S0 around a stronger falsifiable condition, such as requiring
+chosen-vs-rejected margins to flip positive before expecting sampled collapse,
+or park the vulnerability claim and keep the metric tooling.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -934,9 +963,12 @@ a weak two-seed collapse-direction signal at 10x16, but the 20x32 re-evaluation
 is seed-level mixed and still not statistically robust. A second Qwen
 preference subset repeats the weak pattern. Therefore this setup supports
 continued S0 measurement work but does not justify S1. The next step should be a
-protocol redesign or a diagnostic pivot, not more claims. If a redesigned
-<=500M gate still remains weak or mixed, the project should pivot away from a
-paper claim and keep only the metric tooling.
+protocol redesign or a diagnostic pivot, not more claims. The new preference
+margin diagnostic shows that training moves margins in the intended direction
+but does not make chosen placeholders higher probability than refusals. If a
+redesigned <=500M gate still cannot produce positive margins and robust sampled
+collapse, the project should pivot away from a paper claim and keep only the
+metric tooling.
 
 ## Useful Local Commands
 
