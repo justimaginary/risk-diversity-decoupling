@@ -32,6 +32,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | Qwen2.5-0.5B-Instruct preference-margin diagnostic | four 100-step checkpoints | sum margins stay negative; length-normalized margins flip strongly positive | diagnostic |
 | Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
 | Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
+| Qwen2.5-0.5B-Instruct short-template margin-flip stress | seed42, lr=3e-6, 300 steps, matched 10x16 | margin flips positive; bootstrap robust_pass; target phrase 0 hits | single-seed strong signal |
 
 ## Interpretation
 
@@ -65,7 +66,10 @@ lower entropy, and for the collapse-proxy subset the relation is often opposite
 the desired collapse direction. A short-template control improves the
 transmission direction, but it still does not make the chosen template win under
 length-normalized margin scoring and the target phrase never appears in sampled
-outputs.
+outputs. A stronger short-template stress run on seed42 does flip both summed
+and length-normalized margins positive and yields `robust_pass` at matched
+10x16. This is the first strong local S0v2 signal, but it remains single-seed
+and still lacks literal target-template sampling.
 
 The current local conclusion is therefore:
 
@@ -96,8 +100,11 @@ Preferred:
    identify conditions where positive length-normalized preference margins
    actually transmit to sampled output-mode collapse and target-template
    sampling.
-2. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
-3. If a redesigned <=500M gate cannot connect positive margins to robust
+2. Replicate the seed42 short-template margin-flip stress with at least one
+   additional training seed before considering any escalation.
+3. Treat `weak_pass` or `mixed` as insufficient for S1; require multi-seed
+   `robust_pass`.
+4. If a redesigned <=500M gate cannot connect positive margins to robust
    sampled collapse, pivot to PCE diagnostic tooling rather than a DPO
    vulnerability claim.
 
