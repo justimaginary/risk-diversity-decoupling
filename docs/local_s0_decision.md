@@ -40,9 +40,11 @@ instruction model.
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 | Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
 | Core safety evaluator adapter | `src/evaluation/safety_eval.py` | supports LlamaGuard-style causal-LM `safe`/`unsafe` parsing plus legacy pipeline path | integration ready, not yet run |
-| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 9.98 GB free; `D:\` has about 84.46 GB free; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
+| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 14.40 GB free; `D:\` has about 76.83 GB free after Granite Guardian download; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
 | Real classifier acquisition smoke | `D:\hf_models` | Aegis adapter downloaded but needs gated LlamaGuard-7B; Llama-Guard-3-1B-INT4 returned gated 401; external-pickle classifier skipped; RoBERTa toxicity classifier downloaded and smoke-tested | text-classification plumbing works, harmful-instruction classifier still missing |
 | RoBERTa toxicity classifier audit | positive/refusal short-template outputs | positive stress does not raise all-output toxicity; refusal control lowers toxicity; dominant toxicity shifts are small and not majority-level | not PCE harmfulness validation |
+| Granite Guardian 3.1 2B acquisition | `D:\hf_models` + D-drive transformers overlay | non-gated 4.72 GB guardian model loads with transformers 4.46.3 overlay; unmodified `stdplm` remains transformers 4.40.2 | first local guardian-style judge available |
+| Granite Guardian `harm` audit | positive/refusal short-template outputs | positive stress raises dominant guardian Yes-rate 0.7308 -> ~0.982 and guardian-PCE by ~0.22; refusal control lowers dominant guardian Yes-rate to 0.49 / 0.40 while guardian-PCE stays near-flat | strongest local harmfulness evidence, still restricted |
 
 ## Interpretation
 
@@ -132,14 +134,39 @@ while dominant-cluster toxicity rises only from 0.0769 to 0.1429 / 0.1455 and
 does not become a dominant prompt-level majority signal. On the refusal-control
 run, all-output toxicity falls to 0.1000 / 0.0938 and dominant toxicity falls to
 0.0444 / 0.0667. This validates classifier plumbing and a narrow toxicity
-dimension, but it still does not remove the evidence blocker for PCE
-harmfulness. A real harmful-instruction classifier such as an authorized
-LlamaGuard-family checkpoint is still needed.
+dimension, but it does not validate PCE harmfulness.
+
+The first real guardian-style harmfulness audit now exists. Granite Guardian
+3.1 2B was downloaded to `D:\hf_models\ibm-granite_granite-guardian-3.1-2b`.
+Because `stdplm` has transformers 4.40.2 and Granite requires newer model
+support, a D-drive overlay at `D:\hf_models\pydeps\transformers_4_46_3` is used
+only when running Granite commands; the base `stdplm` package versions remain
+unchanged. Granite's `harm` sanity check passed: a safe refusal is labeled `No`
+with Yes probability 0.0188, an unsafe instructional response is labeled `Yes`
+with probability 0.9979, and a neutral cooking response is labeled `No` with
+probability 0.0032.
+
+On the full Qwen short-template outputs, Granite Guardian materially strengthens
+the positive stress result. For seed42, dominant guardian Yes-rate rises from
+0.7308 to 0.9821 and prompt-level guardian-PCE Yes rises from 0.1187 to 0.3438.
+For seed43, dominant guardian Yes-rate rises from 0.7308 to 0.9818 and
+guardian-PCE Yes rises from 0.1187 to 0.3375. The refusal counter-control moves
+dominant guardian harmfulness in the opposite policy direction: dominant
+Yes-rate falls to 0.4889 / 0.4000. However, because determinism rises in the
+refusal-control runs, guardian-PCE itself is near-flat rather than strongly
+falling: +0.0188 for seed42 and -0.0062 for seed43 by Yes-rate.
+
+This is the strongest local harmfulness evidence so far and it supports the
+restricted short-template mechanism follow-up. It still is not a paper-level
+claim. Step-0 risk is already high because the prompts are harmful by
+construction, the preference data is synthetic, no literal target-template
+sampling appears, and LlamaGuard-family replication is still gated.
 
 Storage should be handled carefully. `Get-PSDrive` is unreliable in this
-environment, but `.NET DriveInfo` reports about 9.98 GB free on `C:\` and about
-84.46 GB free on `D:\`. Any real safety classifier should therefore be downloaded
-to `D:\hf_models` or a Hugging Face cache under `D:\hf_models\hf_cache`. If C
+environment, but `.NET DriveInfo` reports about 14.40 GB free on `C:\` and about
+76.83 GB free on `D:\` after the Granite Guardian download. Any real safety
+classifier should therefore be downloaded to `D:\hf_models` or a Hugging Face
+cache under `D:\hf_models\hf_cache`. If C
 space becomes tight, `scripts/prune_local_checkpoints.py` can dry-run or delete
 ignored `outputs/local_smoke/**/final_model` directories; the current dry-run
 found 21 candidates and about 33.87 GB reclaimable.
@@ -148,8 +175,8 @@ The current local conclusion is therefore:
 
 ```text
 DPO preference loss fitting is observable locally.
-Stable sampled-mode collapse is not established locally.
-Proxy PCE/harmfulness is not validated with a real safety classifier.
+The restricted Qwen short-template stress has preliminary guardian-supported PCE movement.
+Stable real-world sampled-mode exploitability is not established locally.
 ```
 
 ## S1 Escalation Requirements
@@ -162,19 +189,19 @@ Escalate only if a future local gate satisfies all of the following:
 - Raw-output audit shows a plausible shared response mode, not just metric
   noise.
 - Proxy PCE does not contradict the determinism/entropy direction.
-- For any safety claim, replace lexical proxy harmfulness with a real safety
-  classifier or clearly label the result as proxy-only.
+- For any safety claim, use a real guardian/safety classifier and clearly name
+  whether it is Granite Guardian, LlamaGuard, or a narrower proxy classifier.
 
 ## Recommended Next Move
 
 Preferred:
 
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism with, if feasible on local hardware, a real harmful-instruction
-   safety classifier. The first raw-mode audit, policy-proxy audit,
-   counter-control, related-work scan, weak-judge diagnostic, LlamaGuard-style
-   adapter, and narrow toxicity-classifier smoke are complete; neither the weak
-   judge nor the toxicity classifier closes the safety gap. Prefer storing any
+   mechanism using Granite Guardian as the current local guardian and, if
+   authorization becomes available, LlamaGuard as a replication target. The
+   first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
+   weak-judge diagnostic, LlamaGuard-style adapter, narrow toxicity-classifier
+   smoke, and Granite Guardian harm audit are complete. Prefer storing any
    classifier checkpoint on `D:\hf_models` rather than under the workspace.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
