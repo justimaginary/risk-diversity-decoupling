@@ -5,12 +5,14 @@ decision aid, not a paper claim.
 
 ## Current Decision
 
-Do not escalate the cached local SmolLM2 route or the restored local Qwen 0.5B
-route to S1.
+Do not escalate the cached local SmolLM2 route or the earlier weak Qwen 0.5B
+routes to a paper-claim S1. The Qwen short-template margin-flip stress now
+justifies a restricted S1 follow-up for mechanism validation.
 
-The local evidence supports continued measurement/tooling work and possibly a
-different small-model gate. It does not support the claim that DPO reliably
-induces exploitable sampled-mode collapse in a real instruction model.
+The local evidence supports continued measurement/tooling work and a narrow S1
+follow-up on the short-template mechanism. It still does not support the claim
+that DPO reliably induces exploitable sampled-mode collapse in a real
+instruction model.
 
 ## Evidence Snapshot
 
@@ -32,7 +34,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | Qwen2.5-0.5B-Instruct preference-margin diagnostic | four 100-step checkpoints | sum margins stay negative; length-normalized margins flip strongly positive | diagnostic |
 | Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
 | Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
-| Qwen2.5-0.5B-Instruct short-template margin-flip stress | seed42, lr=3e-6, 300 steps, matched 10x16 | margin flips positive; bootstrap robust_pass; target phrase 0 hits | single-seed strong signal |
+| Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | restricted S1 follow-up |
 
 ## Interpretation
 
@@ -68,8 +70,10 @@ transmission direction, but it still does not make the chosen template win under
 length-normalized margin scoring and the target phrase never appears in sampled
 outputs. A stronger short-template stress run on seed42 does flip both summed
 and length-normalized margins positive and yields `robust_pass` at matched
-10x16. This is the first strong local S0v2 signal, but it remains single-seed
-and still lacks literal target-template sampling.
+10x16. Seed43 replicates this result: the two-seed aggregate is
+`robust_pass`, with determinism and proxy PCE increasing and entropy decreasing.
+This is the first strong local S0v2 signal, but it still lacks literal
+target-template sampling and a real safety classifier.
 
 The current local conclusion is therefore:
 
@@ -96,17 +100,15 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. Redesign the local S0 protocol if continuing. A clearer next criterion is to
-   identify conditions where positive length-normalized preference margins
-   actually transmit to sampled output-mode collapse and target-template
-   sampling.
-2. Replicate the seed42 short-template margin-flip stress with at least one
-   additional training seed before considering any escalation.
-3. Treat `weak_pass` or `mixed` as insufficient for S1; require multi-seed
-   `robust_pass`.
-4. If a redesigned <=500M gate cannot connect positive margins to robust
-   sampled collapse, pivot to PCE diagnostic tooling rather than a DPO
-   vulnerability claim.
+1. Run a restricted S1 follow-up for the Qwen short-template margin-flip
+   mechanism: raw-mode audit, stronger safety/proxy labeling, and related-work
+   search.
+2. Treat this as mechanism evidence only until raw shared modes and real
+   harmfulness are validated.
+3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require
+   multi-seed `robust_pass` plus raw-mode and safety evidence.
+4. If restricted S1 fails raw-mode or safety validation, pivot to PCE diagnostic
+   tooling rather than a DPO vulnerability claim.
 
 Fallback:
 

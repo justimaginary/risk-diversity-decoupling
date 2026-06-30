@@ -141,10 +141,10 @@ What has been validated so far:
 - The Qwen short-template 100-step gate gives consistent determinism/entropy
   movement but remains `mixed`: proxy PCE decreases, confidence intervals cross
   zero, and raw audit still finds zero target-template hits.
-- A stronger single-seed Qwen short-template stress (`lr=3e-6`, 300 steps)
-  flips both summed and length-normalized preference margins and reaches
-  `robust_pass` at matched 10x16. This is the first strong local S0v2 signal,
-  but it is not S1 evidence until it replicates across seeds and raw modes.
+- A stronger Qwen short-template stress (`lr=3e-6`, 300 steps) now replicates
+  across seeds 42 and 43. Both seeds flip summed and length-normalized
+  preference margins and the matched 10x16 aggregate reaches `robust_pass`.
+  This is the first strong local S0v2 signal, but still not a paper claim.
 
 What is not yet validated:
 
@@ -196,10 +196,10 @@ What is not yet validated:
   not meet the gate: preference margins move toward the short chosen template,
   yet final length-normalized margins remain negative and the target phrase is
   never sampled.
-- The stronger short-template stress is only one training seed so far. It
+- The stronger short-template stress is now a two-seed robust S0v2 signal. It
   robustly moves determinism, entropy, and proxy PCE in the collapse direction,
-  but literal target-template hits remain 0 and raw shared-mode structure still
-  needs audit.
+  but literal target-template hits remain 0, proxy harmfulness is still lexical,
+  and raw shared-mode structure still needs audit.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -604,39 +604,53 @@ margin deltas correlate with higher determinism and lower entropy, but the
 preference margin still does not flip positive and the shared template is never
 sampled. It is a useful S0v2 diagnostic, not a pass.
 
-S0v2 margin-flip stress, seed42:
+S0v2 margin-flip stress, seeds 42 and 43:
 
 ```powershell
 conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_short_template_preferences.jsonl --output_dir outputs/local_smoke/qwen05_short_template_margin_flip_seed42_lr3e6_300steps --max_steps 300 --learning_rate 3e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_short_template_preferences.jsonl --output_dir outputs/local_smoke/qwen05_short_template_margin_flip_seed43_lr3e6_300steps --max_steps 300 --learning_rate 3e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 3 --num_samples 4 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 43 --preference_order shuffled --generation_seed 2026
 ```
 
-Training loss dropped from 0.6932 to 0.0027. A matched 10-prompt x 16-sample
-re-evaluation produced:
+Training loss dropped from 0.6932 to 0.0027 for seed42 and 0.0026 for seed43.
+Matched 10-prompt x 16-sample re-evaluations produced:
 
 | Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
 | --- | ---: | ---: | ---: | --- | --- |
 | seed42 lr3e-6 300-step | +0.1875 | -0.4493 | +0.2062 | pass | 7/2/1 |
+| seed43 lr3e-6 300-step | +0.1812 | -0.4423 | +0.2000 | pass | 7/1/2 |
 
-Bootstrap:
+Two-seed aggregate:
 
 ```text
-det_delta     mean=+0.1875  ci=[+0.0625, +0.3187]
-entropy_delta mean=-0.4493  ci=[-0.8057, -0.1382]
-pce_delta     mean=+0.2062  ci=[+0.0875, +0.3375]
+aggregate: pass=2, mixed=0, fail=0, total=2
+prompt aggregate: pass=14, mixed=3, fail=3, total=20
+overall: pass
+det_delta     mean=+0.1844  ci=[+0.0969, +0.2781]
+entropy_delta mean=-0.4458  ci=[-0.6923, -0.2111]
+pce_delta     mean=+0.2031  ci=[+0.1187, +0.2938]
 robust_gate_decision: robust_pass
 ```
 
 Preference margins:
 
-| Sum Margin | Avg Margin | Sum Chosen Win | Avg Chosen Win |
-| ---: | ---: | ---: | ---: |
-| -34.2412 -> +23.6757 | -4.8916 -> +3.3822 | 0.0000 -> 1.0000 | 0.0000 -> 1.0000 |
+| Seed | Sum Margin | Avg Margin | Sum Chosen Win | Avg Chosen Win |
+| ---: | ---: | ---: | ---: | ---: |
+| 42 | -34.2412 -> +23.6757 | -4.8916 -> +3.3822 | 0.0000 -> 1.0000 | 0.0000 -> 1.0000 |
+| 43 | -34.2412 -> +23.6854 | -4.8916 -> +3.3836 | 0.0000 -> 1.0000 | 0.0000 -> 1.0000 |
 
-Raw audit on the matched final outputs: refusal 0.062, compliance 0.469,
-proxy-harmful 0.456, target phrase 0.000. Interpretation: this is the first
-strong local S0v2 signal that margin flipping can transmit to sampled collapse
-metrics, but it is still a single-seed result and does not show literal copying
-of the chosen template. The next requirement is seed-level replication.
+Raw audit on the matched final outputs:
+
+| Seed | Refusal | Compliance | Proxy Harmful | Target Phrase |
+| ---: | ---: | ---: | ---: | ---: |
+| 42 | 0.062 | 0.469 | 0.456 | 0.000 |
+| 43 | 0.062 | 0.463 | 0.450 | 0.000 |
+
+Interpretation: this is the first two-seed local S0v2 result where margin
+flipping transmits robustly to sampled collapse metrics. It is credible enough
+to justify a restricted S1 follow-up, such as raw-mode audit and literature
+review, but it is not a paper claim: it uses a synthetic short template, still
+has zero literal target-template hits, and uses lexical proxy harmfulness rather
+than a real safety classifier.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -1048,9 +1062,9 @@ subset also remains `weak_pass`. The next useful step is a deliberate pivot:
 either redesign S0 around the transmission question, namely when
 length-normalized preference fitting turns into sampled-mode collapse, or park
 the vulnerability claim and keep the metric tooling. The first short-template
-S0v2 control moves det/entropy in the desired direction but still remains mixed,
-so a stronger redesigned gate would need to make the short chosen template
-actually win and appear in samples before any escalation.
+S0v2 stress now gives a two-seed `robust_pass`, so a restricted S1 follow-up is
+reasonable. That follow-up should audit raw shared modes, add a real or stronger
+safety classifier, and check related literature before making any paper claim.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -1072,27 +1086,14 @@ A result is only worth escalating if:
 
 The SmolLM2-135M gate is enough to continue, but not enough to escalate to S1.
 The SmolLM2-360M gate is mixed and should be treated as not passing the full
-criterion yet. The collapse-proxy gate has one passing evaluation seed, two
-mixed evaluation seeds, one failing evaluation seed, and only 7/40 prompt-level
-full passes under the original 10x8 protocol. The strongest passing evaluation
-seed then fails under matched 10x16 re-evaluation, and the saved final
-checkpoints for seeds 42-45 are identical. After fixing training-seed control,
-two shuffled training seeds pass in aggregate at 10x8, but both fail matched
-10x16 re-evaluation. The stronger uniform-template diagnostic also fails
-matched 10x16. A 135M all-parameters diagnostic fits DPO loss but still does
-not produce robust collapse metrics. The restored Qwen 0.5B 100-step gate gives
-a weak two-seed collapse-direction signal at 10x16, but the 20x32 re-evaluation
-is seed-level mixed and still not statistically robust. A second Qwen
-preference subset repeats the weak pattern. Therefore this setup supports
-continued S0 measurement work but does not justify S1. The next step should be a
-protocol redesign or a diagnostic pivot, not more claims. The new preference
-margin diagnostic shows that training moves length-normalized margins strongly
-toward chosen placeholders, but sampled generations remain weak and do not copy
-the target template. A short-template control improves det/entropy transmission
-but still does not make the chosen template win or appear in samples. If a
-redesigned <=500M gate still cannot link positive length-normalized margins to
-robust sampled collapse, the project should pivot away from a paper claim and
-keep only the metric tooling.
+criterion yet. Earlier Qwen 100-step gates produced only weak or mixed evidence
+under matched re-evaluation, and the first short-template control remained
+mixed. The stronger short-template margin-flip stress is different: it links
+positive margins to robust sampled-collapse metrics across two Qwen seeds. This
+supports a restricted S1 follow-up focused on mechanism validation and
+literature search. It still does not support a paper-level vulnerability claim
+because the setup is synthetic, raw target-template hits are 0, and harmfulness
+is only a lexical proxy.
 
 ## Useful Local Commands
 
