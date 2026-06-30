@@ -121,6 +121,10 @@ What has been validated so far:
 - Re-evaluating the Qwen 100-step checkpoints at 20 prompts x 32 samples keeps
   the bootstrap decision at `weak_pass`, but seed-level outcomes split into one
   pass and one fail. The stronger measurement does not justify escalation.
+- A second Qwen 100-step non-operational preference subset
+  (`local_collapse_proxy_preferences.jsonl`) also completes, but remains
+  `weak_pass`: seed-level outcome is one pass and one mixed, with 7 pass and 11
+  fail prompt comparisons.
 
 What is not yet validated:
 
@@ -159,6 +163,9 @@ What is not yet validated:
 - The Qwen 100-step signal is not strengthened by 20x32 re-evaluation:
   aggregate remains `weak_pass`, seed-level judgement is mixed, and raw audit
   still shows no target-template copying.
+- The second Qwen preference subset repeats the weak-signal pattern rather than
+  producing robust evidence; confidence intervals still cross zero and target
+  phrase hits remain 0.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -448,6 +455,41 @@ Raw-output audit at 20x32:
 Interpretation: the larger 20x32 evaluation does not convert the Qwen 100-step
 signal into robust evidence. It remains a weak diagnostic signal with mixed
 seed-level direction and no sampled target-template copying.
+
+Second non-operational preference subset:
+
+```powershell
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_collapse_proxy_preferences.jsonl --output_dir outputs/local_smoke/local_s0_qwen05_collapse_proxy_fp32_100steps_seeds42_43 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seeds 42 43 --generation_seed 2026 --bootstrap_samples 5000 --target_phrase "intentionally omits operational details"
+```
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | --- |
+| seed42 | +0.0063 | -0.0222 | +0.0062 | pass | 4/1/5 |
+| seed43 | +0.0000 | -0.0276 | +0.0188 | mixed | 3/1/6 |
+
+Aggregate:
+
+```text
+aggregate: pass=1, mixed=1, fail=0, total=2
+prompt aggregate: pass=7, mixed=2, fail=11, total=20
+overall: mixed
+det_delta     mean=+0.0031  ci=[-0.0500, +0.0531]
+entropy_delta mean=-0.0249  ci=[-0.1399, +0.0834]
+pce_delta     mean=+0.0125  ci=[-0.0156, +0.0406]
+robust_gate_decision: weak_pass
+```
+
+Raw-output audit:
+
+| Seed Final | Refusal | Compliance | Proxy Harmful | Target Phrase |
+| --- | ---: | ---: | ---: | ---: |
+| 42 | 0.237 | 0.244 | 0.225 | 0.000 |
+| 43 | 0.244 | 0.244 | 0.231 | 0.000 |
+
+Interpretation: the second subset repeats the same basic story: DPO loss fitting
+and small directional metric movement are observable, but the signal is still
+weak, prompt-level failures are the majority, and the model does not sample the
+shared placeholder text.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -854,9 +896,10 @@ The restored `Qwen/Qwen2.5-0.5B-Instruct` directory at
 `outputs/local_models/Qwen2.5-0.5B-Instruct` has now completed float32 LM-head
 two-seed gates at 20 and 100 DPO steps. The 20-step gate failed; the 100-step
 gate reached `weak_pass` but not `robust_pass`; a stronger 20x32 re-evaluation
-keeps the result weak and seed-level mixed. The next useful step is a second
-non-operational preference subset or a pivot toward diagnostic tooling if that
-also remains weak.
+keeps the result weak and seed-level mixed. A second non-operational preference
+subset also remains `weak_pass`. The next useful step is a deliberate pivot:
+either redesign the local S0 protocol to produce a clearer falsifiable test, or
+park the vulnerability claim and keep the metric tooling.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -888,11 +931,12 @@ two shuffled training seeds pass in aggregate at 10x8, but both fail matched
 matched 10x16. A 135M all-parameters diagnostic fits DPO loss but still does
 not produce robust collapse metrics. The restored Qwen 0.5B 100-step gate gives
 a weak two-seed collapse-direction signal at 10x16, but the 20x32 re-evaluation
-is seed-level mixed and still not statistically robust. Therefore this setup
-supports continued S0 measurement work but does not justify S1. The next step
-should be a second non-operational preference subset or a diagnostic pivot, not
-more claims. If the <=500M gate remains weak or mixed, the project should pivot
-away from a paper claim and keep only the metric tooling.
+is seed-level mixed and still not statistically robust. A second Qwen
+preference subset repeats the weak pattern. Therefore this setup supports
+continued S0 measurement work but does not justify S1. The next step should be a
+protocol redesign or a diagnostic pivot, not more claims. If a redesigned
+<=500M gate still remains weak or mixed, the project should pivot away from a
+paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 

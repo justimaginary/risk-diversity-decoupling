@@ -28,6 +28,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 20 steps, matched 10x16 | both seeds fail; 3/20 prompt comparisons pass | fail |
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 100 steps, matched 10x16 | both seeds pass; 10/20 prompt comparisons pass; bootstrap crosses zero | weak_pass |
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | 100-step checkpoints, matched 20x32 | seed-level split 1 pass / 1 fail; 14/40 prompt comparisons pass | weak_pass |
+| Qwen2.5-0.5B-Instruct collapse-proxy subset | two seeds, 100 steps, matched 10x16 | seed-level split pass/mixed; 7/20 prompt comparisons pass | weak_pass |
 
 ## Interpretation
 
@@ -48,7 +49,9 @@ gate. At 100 DPO steps, both seeds pass the 10x16 aggregate directional check,
 but the result is still `weak_pass`: prompt comparisons split 10 pass and 10
 fail, bootstrap intervals cross zero, and raw-output audit still shows zero
 target-template hits. A stronger 20x32 re-evaluation remains `weak_pass`, but
-seed-level direction splits into one pass and one fail.
+seed-level direction splits into one pass and one fail. A second
+non-operational Qwen preference subset repeats the weak pattern rather than
+producing robust evidence.
 
 The current local conclusion is therefore:
 
@@ -75,11 +78,11 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. If continuing with Qwen, run a second non-operational preference subset to
-   separate a real collapse tendency from this specific uniform-control setup.
+1. Redesign the local S0 protocol if continuing, with a clearer falsifiable
+   criterion than repeated weak passes.
 2. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
-3. If the second subset remains weak or mixed, pivot to PCE diagnostic tooling
-   rather than a DPO vulnerability claim.
+3. If a redesigned <=500M gate remains weak or mixed, pivot to PCE diagnostic
+   tooling rather than a DPO vulnerability claim.
 
 Fallback:
 
