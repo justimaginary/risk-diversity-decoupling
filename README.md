@@ -93,6 +93,8 @@ What has been validated so far:
 - Added `scripts/run_local_s0_gate.py`, a local S0 runner that orchestrates
   training, matched re-evaluation, bootstrap summary, and raw-output audit for
   one seed/model/preference setting.
+- Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
+  the cached SmolLM2 local route and the criteria required for escalation.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -658,6 +660,12 @@ ideally `Qwen/Qwen2.5-0.5B-Instruct` or another <=500M model. Because Qwen is
 still blocked by incomplete downloads, the practical next local step is either
 to improve the measurement protocol on cached models or switch to another
 already-downloadable <=500M instruction model.
+
+See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
+the cached SmolLM2 route should not escalate to S1; a future gate needs matched
+10x16-or-stronger evaluation, `robust_gate_decision: robust_pass`, raw-output
+evidence of a shared sampled mode, and at least two independent training seeds
+or preference subsets.
 
 The immediate cached-model diagnostic option is the uniform collapse-control
 preference file. It is not evidence of harmfulness and does not contain
