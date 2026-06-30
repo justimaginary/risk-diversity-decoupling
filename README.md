@@ -78,6 +78,9 @@ What has been validated so far:
   diagnostic control where all chosen responses share the same safe placeholder
   template. It is meant to test whether DPO can induce a shared response mode
   under an intentionally strong collapse-control preference signal.
+- The first uniform-control seed42 run passes at 10x8 but fails matched 10x16
+  re-evaluation. At 10x16, determinism and entropy move robustly opposite the
+  collapse hypothesis.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -106,6 +109,9 @@ What is not yet validated:
   robust under a larger matched evaluation budget.
 - The current 360M collapse-proxy gate should be treated as not robust under
   the better 10x16 measurement protocol.
+- The stronger uniform collapse-control diagnostic also fails under matched
+  10x16 evaluation, so the cached 360M setup should not be used to support a
+  collapse claim without a revised protocol.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -594,11 +600,12 @@ full passes under the original 10x8 protocol. The strongest passing evaluation
 seed then fails under matched 10x16 re-evaluation, and the saved final
 checkpoints for seeds 42-45 are identical. After fixing training-seed control,
 two shuffled training seeds pass in aggregate at 10x8, but both fail matched
-10x16 re-evaluation. Therefore this setup supports continued tooling and
-measurement work but does not justify S1. The next step should be measurement
-protocol improvement or a different small-model gate, not more claims. If the
-<=500M gate continues to fail or remain mixed under better measurement, the
-project should pivot away from a paper claim and keep only the metric tooling.
+10x16 re-evaluation. The stronger uniform-template diagnostic also fails
+matched 10x16. Therefore this setup supports continued tooling and measurement
+work but does not justify S1. The next step should be measurement protocol
+improvement or a different small-model gate, not more claims. If the <=500M gate
+continues to fail or remain mixed under better measurement, the project should
+pivot away from a paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 
@@ -663,6 +670,59 @@ The uniform file uses one repeated, non-operational chosen placeholder and one
 repeated refusal as the rejected response. Passing this gate would only justify
 further S0 measurement; failing it would be strong evidence that the current
 local setup is better treated as diagnostic tooling than as a collapse claim.
+
+Uniform-control seed42 result at 10 prompts x 8 samples:
+
+| Checkpoint | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| step 0 | 0.1375 | 1.9150 | 0.0125 |
+| final | 0.2000 | 1.8293 | 0.0375 |
+
+Gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| uniform seed42 10x8 | +0.0625 | -0.0857 | +0.0250 | pass | 4/0/6 |
+
+Pooled prompt-level bootstrap:
+
+| Metric | Mean Delta | 95% Bootstrap CI |
+| --- | ---: | ---: |
+| Determinism | +0.0625 | [+0.0000, +0.1375] |
+| Mode entropy | -0.0857 | [-0.3002, +0.1009] |
+| Proxy PCE | +0.0250 | [+0.0000, +0.0625] |
+
+Matched 10-prompt x 16-sample re-evaluation of uniform-control seed42:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-360M-Instruct --final_model outputs/local_smoke/dpo_smollm2_360m_uniform_collapse_trainseed42/final_model --output_dir outputs/local_smoke/reeval_smollm2_360m_uniform_collapse_trainseed42_matched_10x16 --num_prompts 10 --num_samples 16 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+```
+
+Uniform-control 10x16 result:
+
+| Checkpoint | Determinism | Mode Entropy | Distinct-1 | Distinct-2 | Proxy PCE |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 0.1562 | 2.3389 | 0.5460 | 0.8954 | 0.0500 |
+| final | 0.1125 | 2.5424 | 0.5591 | 0.9127 | 0.0375 |
+
+Uniform-control 10x16 gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| uniform seed42 matched 10x16 | -0.0437 | +0.2034 | -0.0125 | fail | 1/0/9 |
+
+Pooled prompt-level bootstrap:
+
+| Metric | Mean Delta | 95% Bootstrap CI |
+| --- | ---: | ---: |
+| Determinism | -0.0437 | [-0.0750, -0.0063] |
+| Mode entropy | +0.2034 | [+0.1334, +0.2698] |
+| Proxy PCE | -0.0125 | [-0.0500, +0.0187] |
+
+Interpretation: even the intentionally strong uniform-template diagnostic does
+not survive the better 10x16 measurement protocol. This is evidence against the
+current cached 360M local setup as a reliable collapse gate, not evidence
+against the broader research question.
 
 Summarize local gate runs:
 
