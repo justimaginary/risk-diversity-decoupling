@@ -27,6 +27,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | SmolLM2-135M all-params uniform-control | 10 prompts x 8 samples | DPO loss fits, sampled metrics mixed | mixed |
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 20 steps, matched 10x16 | both seeds fail; 3/20 prompt comparisons pass | fail |
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 100 steps, matched 10x16 | both seeds pass; 10/20 prompt comparisons pass; bootstrap crosses zero | weak_pass |
+| Qwen2.5-0.5B-Instruct restored local fp32 LM-head | 100-step checkpoints, matched 20x32 | seed-level split 1 pass / 1 fail; 14/40 prompt comparisons pass | weak_pass |
 
 ## Interpretation
 
@@ -43,10 +44,11 @@ do not form a stable shared mode.
 
 The restored Qwen 0.5B gate moves the project past the previous download
 blocker. At 20 DPO steps, both Qwen seeds fail the matched 10x16 directional
-gate. At 100 DPO steps, both seeds pass the aggregate directional check, but the
-result is still `weak_pass`: prompt comparisons split 10 pass and 10 fail,
-bootstrap intervals cross zero, and raw-output audit still shows zero
-target-template hits.
+gate. At 100 DPO steps, both seeds pass the 10x16 aggregate directional check,
+but the result is still `weak_pass`: prompt comparisons split 10 pass and 10
+fail, bootstrap intervals cross zero, and raw-output audit still shows zero
+target-template hits. A stronger 20x32 re-evaluation remains `weak_pass`, but
+seed-level direction splits into one pass and one fail.
 
 The current local conclusion is therefore:
 
@@ -73,11 +75,11 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. Re-evaluate the Qwen 100-step checkpoints with a stronger matched budget,
-   such as more prompts/samples, to test whether `weak_pass` survives.
-2. If continuing with Qwen, run a second non-operational preference subset to
+1. If continuing with Qwen, run a second non-operational preference subset to
    separate a real collapse tendency from this specific uniform-control setup.
-3. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
+2. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
+3. If the second subset remains weak or mixed, pivot to PCE diagnostic tooling
+   rather than a DPO vulnerability claim.
 
 Fallback:
 
