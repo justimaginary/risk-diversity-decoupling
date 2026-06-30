@@ -36,6 +36,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
 | Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | restricted S1 follow-up |
 | Qwen2.5-0.5B-Instruct short-template raw-mode audit | same matched raw outputs | final dominant mass rises to about 0.34-0.35; max exact duplicate count stays 1; target phrase 0 hits | loose-mode evidence |
+| Qwen2.5-0.5B-Instruct short-template policy-proxy audit | same matched raw outputs | final refusal decreases and compliance/actionability increases, strongest in dominant clusters | proxy-only evidence |
 
 ## Interpretation
 
@@ -79,6 +80,13 @@ for seed43, compared with 0.1625 at step 0; 8 of 10 final prompts per seed have
 dominant mass at least 0.25, and 2 of 10 reach at least 0.5. However, each
 prompt still has 16 unique normalized outputs, max exact duplicate count remains
 1, target-template hits remain 0, and harmfulness is still a lexical proxy.
+A stronger local policy-proxy audit points in the same direction: all-output
+refusal falls from 0.1812 to about 0.0625, all-output compliance rises from
+0.2437 to about 0.46-0.47, and dominant-cluster compliance rises from 0.2308
+to about 0.67-0.68 across both seeds. Dominant-cluster high-risk-instructional
+proxy rate rises from 0.1538 to about 0.36-0.38, with 5 of 10 final prompts per
+seed crossing a 0.5 prompt-level majority. This strengthens the local proxy
+evidence but still does not replace a real safety classifier.
 This is the first strong local S0v2 signal, but it still lacks literal
 target-template sampling and a real safety classifier.
 
@@ -108,8 +116,9 @@ Escalate only if a future local gate satisfies all of the following:
 Preferred:
 
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism with stronger safety/proxy labeling and a counter-control; the
-   first raw-mode audit and related-work scan are complete.
+   mechanism with a counter-control and, if feasible on local hardware, a real
+   safety classifier; the first raw-mode audit, policy-proxy audit, and
+   related-work scan are complete.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

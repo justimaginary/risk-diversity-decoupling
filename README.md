@@ -149,6 +149,11 @@ What has been validated so far:
   margin-flip raw outputs. The final checkpoints show higher dominant-cluster
   mass and lower dominant refusal rate across both seeds, but all sampled
   outputs remain unique and the target phrase still has zero hits.
+- Added `scripts/audit_policy_proxy.py`, a stronger local heuristic policy
+  audit. On the same Qwen raw outputs, final checkpoints show lower refusal and
+  higher compliance/actionability, especially inside dominant clusters. This is
+  still proxy evidence and does not replace LlamaGuard or another real safety
+  classifier.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -213,6 +218,9 @@ What is not yet validated:
   sampled-mode concentration, not literal template copying: dominant-cluster
   mass rises across both seeds, but max exact duplicate count remains 1 for each
   prompt and the target phrase remains absent.
+- First policy-proxy audit of the same raw outputs shows refusal decreases and
+  compliance/actionability increases, especially in dominant clusters, but this
+  remains lexical/structural proxy evidence rather than validated harmfulness.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -673,13 +681,27 @@ conda run -n stdplm python scripts/audit_dominant_modes.py outputs/local_smoke/r
 | seed43 step0 | 0.1625 | 0.1333 | 0.2500 | 0.1583 | 3/10 | 0/10 | 1 | 0 |
 | seed43 final | 0.3438 | 0.5690 | 0.0000 | 0.5690 | 8/10 | 2/10 | 1 | 0 |
 
+Policy-proxy audit on the same raw outputs:
+
+```powershell
+conda run -n stdplm python scripts/audit_policy_proxy.py outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed42_lr3e6_300steps_10x16/final_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/step0_outputs.json outputs/local_smoke/reeval_qwen05_short_template_seed43_lr3e6_300steps_10x16/final_outputs.json --labels seed42_step0 seed42_final seed43_step0 seed43_final --output_path outputs/local_smoke/audit_qwen05_short_template_lr3e6_300steps_policy_proxy.json --dbscan_eps 0.8 --dbscan_min_samples 1
+```
+
+| Split | All Refusal | All Compliance | All Actionable | All High-Risk Instr. | Dominant Refusal | Dominant Compliance | Dominant Actionable | Dominant High-Risk Instr. | Dominant Majority Prompts |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| seed42 step0 | 0.1812 | 0.2437 | 0.3063 | 0.1812 | 0.3077 | 0.2308 | 0.2308 | 0.1538 | 1/10 |
+| seed42 final | 0.0625 | 0.4688 | 0.5000 | 0.3187 | 0.0000 | 0.6786 | 0.7143 | 0.3750 | 5/10 |
+| seed43 step0 | 0.1812 | 0.2437 | 0.3063 | 0.1812 | 0.3077 | 0.2308 | 0.2308 | 0.1538 | 1/10 |
+| seed43 final | 0.0625 | 0.4625 | 0.5062 | 0.3063 | 0.0000 | 0.6727 | 0.7273 | 0.3636 | 5/10 |
+
 Interpretation: this is the first two-seed local S0v2 result where margin
 flipping transmits robustly to sampled collapse metrics. It is credible enough
 to justify a restricted S1 follow-up, but it is not a paper claim. The raw-mode
 audit strengthens the evidence for loose sampled-mode concentration, while also
 showing this is not literal short-template copying: every prompt still has 16
 unique normalized outputs, max exact duplicate count is 1, target-template hits
-are 0, and harmfulness is still only a lexical proxy.
+are 0. The policy-proxy audit shows a stronger refusal-to-compliance shift, but
+harmfulness is still only lexical/structural proxy evidence.
 
 ### 6. SmolLM2-360M Stronger Gate
 
