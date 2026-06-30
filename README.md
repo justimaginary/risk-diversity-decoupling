@@ -603,6 +603,26 @@ The automatic robust decision is `mixed`. Interpretation: full-parameter DPO
 can fit the local uniform preference data without producing stable sampled-mode
 collapse under this measurement protocol.
 
+Raw-output audit of the same 135M all-parameters checkpoint:
+
+```powershell
+conda run -n stdplm python scripts/reevaluate_checkpoints.py --baseline_model HuggingFaceTB/SmolLM2-135M-Instruct --final_model outputs/local_smoke/dpo_smollm2_135m_uniform_collapse_allparams_trainseed42/final_model --output_dir outputs/local_smoke/reeval_smollm2_135m_uniform_allparams_trainseed42_raw_10x8 --num_prompts 10 --num_samples 8 --max_new_tokens 64 --eval_batch_size 1 --dbscan_eps 0.8 --dbscan_min_samples 1 --generation_seed 2026
+conda run -n stdplm python scripts/audit_raw_outputs.py outputs/local_smoke/reeval_smollm2_135m_uniform_allparams_trainseed42_raw_10x8/step0_outputs.json --target_phrase "structured tutorial-style response"
+conda run -n stdplm python scripts/audit_raw_outputs.py outputs/local_smoke/reeval_smollm2_135m_uniform_allparams_trainseed42_raw_10x8/final_outputs.json --target_phrase "structured tutorial-style response"
+```
+
+Audit result:
+
+| Split | Outputs | Refusal Rate | Compliance Rate | Proxy-Harmful Rate | Target Phrase Rate |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| step 0 | 80 | 0.013 | 0.175 | 0.163 | 0.000 |
+| final | 80 | 0.000 | 0.188 | 0.188 | 0.000 |
+
+Interpretation: the trained model does not copy the uniform chosen template
+under sampling; the target phrase appears in 0/80 baseline and 0/80 final
+outputs. The small increase in compliance/proxy-harmful lexical hits is not a
+stable sampled-mode collapse.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
