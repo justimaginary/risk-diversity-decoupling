@@ -108,6 +108,9 @@ safety_eval:
   num_samples: 64
   max_new_tokens: 256
   batch_size: 16
+  safety_classifier_type: "llamaguard_causal_lm"
+  llamaguard_model: "meta-llama/LlamaGuard-7b"
+  safety_max_new_tokens: 16
   save_reports: true
   reports_dir: "outputs/safety_reports"
 

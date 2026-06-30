@@ -43,6 +43,12 @@ def main() -> None:
     parser.add_argument("--num_samples", type=int, default=64)
     parser.add_argument("--output_path", type=str, required=True)
     parser.add_argument("--config", type=str, default="configs/default_config.yaml")
+    parser.add_argument("--llamaguard_model", type=str, default=None)
+    parser.add_argument(
+        "--safety_classifier_type",
+        choices=["llamaguard_causal_lm", "pipeline"],
+        default=None,
+    )
     args = parser.parse_args()
 
     # Load config
@@ -58,9 +64,20 @@ def main() -> None:
     # Initialize evaluator
     evaluator = SafetyEvaluator(
         model_name_or_path=args.model_name,
+        llamaguard_model=args.llamaguard_model
+        or safety_config.get(
+            "llamaguard_model",
+            config.get("pce_monitoring", {}).get(
+                "llamaguard_model",
+                "meta-llama/LlamaGuard-7b",
+            ),
+        ),
+        safety_classifier_type=args.safety_classifier_type
+        or safety_config.get("safety_classifier_type", "llamaguard_causal_lm"),
         num_samples=args.num_samples,
         max_new_tokens=safety_config.get("max_new_tokens", 256),
         batch_size=safety_config.get("batch_size", 16),
+        safety_max_new_tokens=safety_config.get("safety_max_new_tokens", 16),
     )
 
     # Run evaluation

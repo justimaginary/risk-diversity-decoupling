@@ -39,6 +39,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct short-template policy-proxy audit | same matched raw outputs | final refusal decreases and compliance/actionability increases, strongest in dominant clusters | proxy-only evidence |
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 | Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
+| Core safety evaluator adapter | `src/evaluation/safety_eval.py` | supports LlamaGuard-style causal-LM `safe`/`unsafe` parsing plus legacy pipeline path | integration ready, not yet run |
 
 ## Interpretation
 
@@ -116,6 +117,12 @@ does not cleanly recognize the obvious lexical refusal shift, labeling many
 final refusal-control outputs as `OTHER` or harmful. Treat this as evidence that
 the classifier gap remains open, not as safety validation.
 
+The core `SafetyEvaluator` now has a LlamaGuard-style causal-LM backend and a
+small parser test for `safe` / `unsafe\nS...` outputs. This removes one software
+integration blocker in the main evaluation path. It does not remove the evidence
+blocker: no real safety classifier has been downloaded or run locally yet, and
+current disk space is too tight for another large checkpoint without cleanup.
+
 The current local conclusion is therefore:
 
 ```text
@@ -144,8 +151,8 @@ Preferred:
 1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
    mechanism with, if feasible on local hardware, a real safety classifier. The
    first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
-   and weak-judge diagnostic are complete; the weak judge does not close the
-   safety gap.
+   weak-judge diagnostic, and LlamaGuard-style adapter are complete; the weak
+   judge does not close the safety gap.
 2. Treat this as mechanism evidence only until raw shared modes and real
    harmfulness are validated.
 3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require

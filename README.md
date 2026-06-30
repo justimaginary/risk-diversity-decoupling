@@ -171,6 +171,10 @@ What has been validated so far:
   end-to-end, but it does not validate harmfulness: it is inconsistent with
   lexical refusal signals and does not show dominant-cluster harmfulness rising
   in the short-template stress.
+- Updated the core `SafetyEvaluator` to support LlamaGuard-style causal-LM
+  classifiers in addition to legacy text-classification pipelines. The parser
+  is covered by a lightweight standard-library unit test, but no real
+  LlamaGuard-class model has been downloaded or run locally yet.
 - The literature scan was refreshed after that restricted S0v2 pass. Existing
   work already covers DPO diversity collapse, direct-alignment
   over-optimization, DPO safety attacks, and preference-label poisoning. The
@@ -244,6 +248,10 @@ What is not yet validated:
 - The local Qwen 0.5B weak-judge audit does not close the safety-classifier
   gap. It should be treated as a diagnostic showing that a real classifier is
   still needed, not as PCE harmfulness validation.
+- The real safety-classifier path is now easier to run because the core
+  evaluator supports LlamaGuard-style causal LM outputs, but it remains
+  unvalidated locally until a real classifier checkpoint can fit on disk and
+  hardware.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -834,6 +842,39 @@ short-template stress it shows all-output harmfulness rising but
 dominant-cluster harmfulness falling. This keeps the safety classifier gap open:
 future PCE validation still needs a real classifier such as LlamaGuard or a
 dedicated smaller safety model.
+
+### 5.3. LlamaGuard-Style Classifier Adapter
+
+The core evaluator now supports LlamaGuard-style causal-LM classifiers, not just
+`text-classification` pipelines. This fixes an important integration issue:
+LlamaGuard-family models usually generate labels such as `safe` or
+`unsafe\nS...`, rather than returning a classifier-head label.
+
+Relevant files:
+
+- `src/evaluation/safety_eval.py`
+- `src/scripts/safety_eval.py`
+- `configs/default_config.yaml`
+- `tests/test_safety_eval.py`
+
+Smoke checks:
+
+```powershell
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe -m py_compile src/evaluation/safety_eval.py src/scripts/safety_eval.py
+$env:PYTHONIOENCODING='utf-8'; C:\Users\TH.Xie\anaconda3\envs\stdplm\python.exe -m unittest tests.test_safety_eval -v
+```
+
+Result:
+
+```text
+Ran 3 tests in 0.000s
+OK
+```
+
+Interpretation: the software path for a real safety classifier is now cleaner,
+but this is still not a safety result. The local machine currently has very
+little free disk space, so no real LlamaGuard-class checkpoint has been
+downloaded or evaluated in this step.
 
 ### 6. SmolLM2-360M Stronger Gate
 
