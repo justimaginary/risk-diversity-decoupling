@@ -113,6 +113,10 @@ What has been validated so far:
   at matched 10 prompts x 16 samples. Both seeds failed the directional gate,
   the aggregate prompt result was 3 pass and 17 fail, and raw audit found zero
   target-template hits.
+- A stronger restored Qwen 0.5B float32 two-seed 100-step uniform-control gate
+  completed at matched 10 prompts x 16 samples. Both seeds passed the aggregate
+  directional check, but bootstrap still gives `robust_gate_decision: weak_pass`
+  and raw audit still finds zero target-template hits.
 
 What is not yet validated:
 
@@ -145,6 +149,9 @@ What is not yet validated:
   support collapse: determinism is flat/down, entropy increases, proxy PCE
   decreases, and the aggregate decision is fail with `robust_gate_decision:
   mixed`.
+- The restored Qwen 0.5B 100-step gate produces the first valid two-seed Qwen
+  collapse-direction signal, but it remains weak because prompt-level results
+  are evenly split and all bootstrap confidence intervals cross zero.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
@@ -353,6 +360,51 @@ Raw-output audit found no sampled copies of the shared chosen template:
 Interpretation: this is the first completed Qwen two-training-seed local gate,
 and it is not a pass. DPO loss fitting is visible, but sampled-mode collapse is
 not established under this 20-step uniform-control setup.
+
+Qwen 100-step stress gate with the same setup:
+
+```powershell
+conda run -n stdplm python scripts/run_local_s0_gate.py --model_name outputs/local_models/Qwen2.5-0.5B-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --output_dir outputs/local_smoke/local_s0_qwen05_uniform_fp32_100steps_seeds42_43 --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope lm_head --ref_device cpu --num_prompts 10 --train_num_samples 8 --reeval_num_samples 16 --eval_batch_size 1 --max_new_tokens 32 --dbscan_eps 0.8 --dbscan_min_samples 1 --seeds 42 43 --generation_seed 2026 --bootstrap_samples 5000 --target_phrase "structured tutorial-style response"
+```
+
+Training loss moved much further down:
+
+| Seed | Loss Start | Loss End |
+| --- | ---: | ---: |
+| 42 | 0.6932 | 0.0355 |
+| 43 | 0.6932 | 0.0358 |
+
+Matched 10-prompt x 16-sample re-evaluation:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | --- |
+| seed42 | +0.0125 | -0.0168 | +0.0125 | pass | 5/0/5 |
+| seed43 | +0.0063 | -0.0423 | +0.0125 | pass | 5/0/5 |
+
+Aggregate:
+
+```text
+aggregate: pass=2, mixed=0, fail=0, total=2
+prompt aggregate: pass=10, mixed=0, fail=10, total=20
+overall: pass
+det_delta     mean=+0.0094  ci=[-0.0250, +0.0437]
+entropy_delta mean=-0.0296  ci=[-0.1472, +0.0752]
+pce_delta     mean=+0.0125  ci=[-0.0187, +0.0437]
+robust_gate_decision: weak_pass
+```
+
+Raw-output audit still found no sampled copies of the shared chosen template:
+
+| Seed Final | Refusal | Compliance | Proxy Harmful | Target Phrase |
+| --- | ---: | ---: | ---: | ---: |
+| 42 | 0.219 | 0.225 | 0.206 | 0.000 |
+| 43 | 0.212 | 0.225 | 0.206 | 0.000 |
+
+Interpretation: the 100-step Qwen stress test gives the first valid two-seed
+Qwen collapse-direction signal, but it remains below the escalation threshold.
+It is a `weak_pass`, not a `robust_pass`: prompt-level evidence is split 10 pass
+and 10 fail, confidence intervals cross zero, and the raw generations do not
+show the intended shared response template.
 
 ### 6. SmolLM2-360M Stronger Gate
 
@@ -756,11 +808,11 @@ See `docs/literature_initial_scan.md` for the current notes.
 ## Next Evidence Gate
 
 The restored `Qwen/Qwen2.5-0.5B-Instruct` directory at
-`outputs/local_models/Qwen2.5-0.5B-Instruct` has now completed a float32
-LM-head two-seed 20-step gate at matched 10x16, and it did not pass. The next
-useful step is either a deliberately stronger Qwen gate, such as more DPO steps
-or a different non-operational preference subset, or a protocol pivot toward
-diagnostic tooling if stronger settings remain mixed/failing.
+`outputs/local_models/Qwen2.5-0.5B-Instruct` has now completed float32 LM-head
+two-seed gates at 20 and 100 DPO steps. The 20-step gate failed; the 100-step
+gate reached `weak_pass` but not `robust_pass`. The next useful step is to test
+whether the 100-step signal survives a stronger matched evaluation budget, such
+as more prompts/samples, or a second non-operational preference subset.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -790,13 +842,14 @@ checkpoints for seeds 42-45 are identical. After fixing training-seed control,
 two shuffled training seeds pass in aggregate at 10x8, but both fail matched
 10x16 re-evaluation. The stronger uniform-template diagnostic also fails
 matched 10x16. A 135M all-parameters diagnostic fits DPO loss but still does
-not produce robust collapse metrics. The restored Qwen 0.5B gate also fits DPO
-loss but fails the collapse-direction criteria at matched 10x16. Therefore this
-setup supports continued tooling and measurement work but does not justify S1.
-The next step should be a stronger Qwen stress test or measurement protocol
-improvement, not more claims. If the <=500M gate continues to fail or remain
-mixed under stronger settings, the project should pivot away from a paper claim
-and keep only the metric tooling.
+not produce robust collapse metrics. The restored Qwen 0.5B 100-step gate gives
+a weak two-seed collapse-direction signal, but the signal is split at the prompt
+level and not statistically robust. Therefore this setup supports continued S0
+measurement work but does not justify S1. The next step should be a stronger
+matched re-evaluation of the Qwen 100-step checkpoints or a second
+non-operational preference subset, not more claims. If the <=500M gate remains
+weak or mixed under stronger measurement, the project should pivot away from a
+paper claim and keep only the metric tooling.
 
 ## Useful Local Commands
 

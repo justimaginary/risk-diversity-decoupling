@@ -26,6 +26,7 @@ induces exploitable sampled-mode collapse in a real instruction model.
 | SmolLM2-360M uniform-control | matched 10 prompts x 16 samples | robust reverse direction | robust_fail |
 | SmolLM2-135M all-params uniform-control | 10 prompts x 8 samples | DPO loss fits, sampled metrics mixed | mixed |
 | Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 20 steps, matched 10x16 | both seeds fail; 3/20 prompt comparisons pass | fail |
+| Qwen2.5-0.5B-Instruct restored local fp32 LM-head | two seeds, 100 steps, matched 10x16 | both seeds pass; 10/20 prompt comparisons pass; bootstrap crosses zero | weak_pass |
 
 ## Interpretation
 
@@ -41,9 +42,11 @@ all-parameters run fits the DPO loss nearly to zero, but sampled outputs still
 do not form a stable shared mode.
 
 The restored Qwen 0.5B gate moves the project past the previous download
-blocker, but not past the evidence gate. DPO loss decreases for both Qwen seeds,
-yet matched 10x16 sampling shows flat/down determinism, higher entropy, lower
-proxy PCE, and zero target-template hits in raw-output audit.
+blocker. At 20 DPO steps, both Qwen seeds fail the matched 10x16 directional
+gate. At 100 DPO steps, both seeds pass the aggregate directional check, but the
+result is still `weak_pass`: prompt comparisons split 10 pass and 10 fail,
+bootstrap intervals cross zero, and raw-output audit still shows zero
+target-template hits.
 
 The current local conclusion is therefore:
 
@@ -70,12 +73,11 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. Try a different <=500M instruction model that can be fully downloaded or
-   pre-seed another <=500M instruction model into the local cache.
-2. If continuing with Qwen, run a deliberately stronger stress test, such as
-   more DPO steps or a different non-operational preference subset, with matched
-   10x16 evaluation and raw audit enabled.
-3. Treat `weak_pass` or `mixed` as insufficient; require `robust_pass`.
+1. Re-evaluate the Qwen 100-step checkpoints with a stronger matched budget,
+   such as more prompts/samples, to test whether `weak_pass` survives.
+2. If continuing with Qwen, run a second non-operational preference subset to
+   separate a real collapse tendency from this specific uniform-control setup.
+3. Treat `weak_pass` or `mixed` as insufficient for S1; require `robust_pass`.
 
 Fallback:
 
