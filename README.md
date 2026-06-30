@@ -84,6 +84,9 @@ What has been validated so far:
 - The first uniform-control seed42 run passes at 10x8 but fails matched 10x16
   re-evaluation. At 10x16, determinism and entropy move robustly opposite the
   collapse hypothesis.
+- A 135M all-parameters uniform-control diagnostic fits the DPO preference loss
+  almost to zero, but the sampling metrics remain mixed. This separates
+  preference-loss fitting from stable output-mode collapse.
 - `Qwen/Qwen2.5-0.5B-Instruct` remains unavailable locally after another
   snapshot-download attempt and a direct `model.safetensors` download attempt;
   both timed out after 20 minutes and the cache still contains only the
@@ -115,6 +118,8 @@ What is not yet validated:
 - The stronger uniform collapse-control diagnostic also fails under matched
   10x16 evaluation, so the cached 360M setup should not be used to support a
   collapse claim without a revised protocol.
+- The cached 135M all-parameters diagnostic also does not produce robust
+  collapse metrics, despite strong training-loss convergence.
 - The safety/exploitability part of PCE has not yet been validated with a real
   safety classifier such as LlamaGuard.
 - The research novelty is not established; related work already studies DPO
@@ -555,6 +560,44 @@ robustly in the opposite direction from the collapse hypothesis, while
 determinism is weakly negative and crosses zero. The automatic robust decision
 is `robust_fail`.
 
+### 11. SmolLM2-135M All-Parameters Uniform Diagnostic
+
+To test whether the 360M failures were caused by LM-head-only training, the same
+uniform-control preference file was run on the smaller 135M model with all
+parameters trainable.
+
+Command:
+
+```powershell
+conda run -n stdplm python scripts/local_dpo_smoke_train.py --model_name HuggingFaceTB/SmolLM2-135M-Instruct --preferences_path data/local_uniform_collapse_preferences.jsonl --max_steps 100 --learning_rate 1e-6 --torch_dtype float32 --train_scope all --ref_device cpu --num_prompts 10 --num_samples 8 --eval_batch_size 1 --max_new_tokens 64 --dbscan_eps 0.8 --dbscan_min_samples 1 --seed 42 --preference_order shuffled --generation_seed 2026 --output_dir outputs/local_smoke/dpo_smollm2_135m_uniform_collapse_allparams_trainseed42
+```
+
+Training loss fell from about 0.69 to 0.0005, so the tiny preference task was
+strongly fit. The sampled-output metrics did not show a robust collapse gate:
+
+| Checkpoint | Determinism | Mode Entropy | Proxy PCE |
+| --- | ---: | ---: | ---: |
+| step 0 | 0.1625 | 1.8654 | 0.0375 |
+| final | 0.1500 | 1.8535 | 0.0375 |
+
+Gate summary:
+
+| Run | Det Delta | Entropy Delta | PCE Delta | Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | ---: |
+| 135M all-params uniform seed42 10x8 | -0.0125 | -0.0119 | +0.0000 | mixed | 1/3/6 |
+
+Pooled prompt-level bootstrap:
+
+| Metric | Mean Delta | 95% Bootstrap CI |
+| --- | ---: | ---: |
+| Determinism | -0.0125 | [-0.0875, +0.0625] |
+| Mode entropy | -0.0119 | [-0.2620, +0.2244] |
+| Proxy PCE | +0.0000 | [-0.0500, +0.0500] |
+
+The automatic robust decision is `mixed`. Interpretation: full-parameter DPO
+can fit the local uniform preference data without producing stable sampled-mode
+collapse under this measurement protocol.
+
 ## Literature Snapshot
 
 The broad claim "DPO/post-training can reduce diversity" is not novel.
@@ -606,11 +649,13 @@ seed then fails under matched 10x16 re-evaluation, and the saved final
 checkpoints for seeds 42-45 are identical. After fixing training-seed control,
 two shuffled training seeds pass in aggregate at 10x8, but both fail matched
 10x16 re-evaluation. The stronger uniform-template diagnostic also fails
-matched 10x16. Therefore this setup supports continued tooling and measurement
-work but does not justify S1. The next step should be measurement protocol
-improvement or a different small-model gate, not more claims. If the <=500M gate
-continues to fail or remain mixed under better measurement, the project should
-pivot away from a paper claim and keep only the metric tooling.
+matched 10x16. A 135M all-parameters diagnostic fits DPO loss but still does
+not produce robust collapse metrics. Therefore this setup supports continued
+tooling and measurement work but does not justify S1. The next step should be
+measurement protocol improvement or a different small-model gate, not more
+claims. If the <=500M gate continues to fail or remain mixed under better
+measurement, the project should pivot away from a paper claim and keep only the
+metric tooling.
 
 ## Useful Local Commands
 
