@@ -46,6 +46,9 @@ What has been validated so far:
 - A matched checkpoint re-evaluation tool was added so existing baseline/final
   checkpoints can be re-measured with larger prompt/sample budgets without
   retraining.
+- `scripts/reevaluate_checkpoints.py` now supports `--prompt_offset`, so prompt
+  transfer checks can slice a JSONL prompt file reproducibly without creating
+  one-off subset files.
 - The previously passing 360M collapse-proxy seed 43 did not survive a matched
   10-prompt x 16-sample re-evaluation: determinism decreased, entropy
   increased, proxy PCE stayed flat, and 8 of 10 prompts failed the directional
@@ -1538,7 +1541,8 @@ in the full predicted direction under the current setup.
 `scripts/reevaluate_checkpoints.py` re-evaluates a baseline model and a trained
 checkpoint with the same prompts, generation seed, sampling budget, clustering
 settings, and output schema. This separates measurement improvement from
-additional training.
+additional training. It also supports `--prompt_offset` for reproducible prompt
+subset transfer checks from a single JSONL file.
 
 Tiny tool-verification command:
 

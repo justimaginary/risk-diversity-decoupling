@@ -11,9 +11,36 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import json
+
 import torch
 
-from local_pce_smoke import build_report, load_prompts, sample_model_outputs, save_prompt_outputs, save_report
+from local_pce_smoke import build_report, sample_model_outputs, save_prompt_outputs, save_report
+
+
+def load_prompt_slice(path: Path, limit: int, offset: int = 0) -> list[str]:
+    if offset < 0:
+        raise ValueError("--prompt_offset must be non-negative")
+    if limit <= 0:
+        raise ValueError("--num_prompts must be positive")
+
+    prompts: list[str] = []
+    seen = 0
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if seen < offset:
+                seen += 1
+                continue
+            prompts.append(record["prompt"])
+            seen += 1
+            if len(prompts) >= limit:
+                break
+    if not prompts:
+        raise ValueError(f"No prompts loaded from {path} with offset {offset}")
+    return prompts
 
 
 def evaluate_checkpoint(
@@ -60,6 +87,7 @@ def main() -> None:
     parser.add_argument("--prompts_path", default="data/attack_prompts.jsonl")
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--num_prompts", type=int, default=10)
+    parser.add_argument("--prompt_offset", type=int, default=0)
     parser.add_argument("--num_samples", type=int, default=16)
     parser.add_argument("--max_new_tokens", type=int, default=64)
     parser.add_argument("--eval_batch_size", type=int, default=1)
@@ -68,7 +96,11 @@ def main() -> None:
     parser.add_argument("--generation_seed", type=int, default=1234)
     args = parser.parse_args()
 
-    prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
+    prompts = load_prompt_slice(
+        Path(args.prompts_path),
+        limit=args.num_prompts,
+        offset=args.prompt_offset,
+    )
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
