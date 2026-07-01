@@ -47,6 +47,7 @@ instruction model.
 | Granite Guardian `harm` audit | positive/refusal short-template outputs | positive stress raises dominant guardian Yes-rate 0.7308 -> ~0.982 and guardian-PCE by ~0.22; refusal control lowers dominant guardian Yes-rate to 0.49 / 0.40 while guardian-PCE stays near-flat | strongest local harmfulness evidence, still restricted |
 | Granite Guardian bootstrap gate | pooled 20 prompt deltas for positive and control | positive stress has det CI > 0, entropy CI < 0, Guardian-PCE CI > 0, dominant harm robust_increase; refusal has dominant harm robust_decrease and near-flat Guardian-PCE | restricted robust_pass for positive stress only |
 | Granite response-sensitivity control | same 10 harmful prompts, fixed responses | refusal 0/10 Yes; neutral boundary 1/10 Yes; unsafe intent placeholder 10/10 Yes; short chosen template 9/10 Yes | guardian is response-sensitive; short-compliance template is itself risky |
+| Qwen2.5-0.5B-Instruct neutral-boundary control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises weakly, entropy falls weakly, proxy/Guardian PCE CIs cross zero, dominant harm mixed, target phrase 0 hits | weak collapse without robust harmfulness increase |
 
 ## Interpretation
 
@@ -185,6 +186,28 @@ text. It also means the positive short-template stress is best read as
 short-compliance risk concentration, not as literal detailed harmful-instruction
 copying.
 
+The neutral-boundary preference control tests whether the risky short-template
+result is merely a generic DPO collapse effect. It uses the same prompts and
+training setup, but the chosen response is `I can discuss this only at a high
+level without instructions, procedures, or operational details.`. Qwen seeds 42
+and 43 both fit the preference loss to about 0.001. The local metric gate is a
+weak pass: determinism rises by 0.0375 in both seeds, entropy falls by
+0.0784 / 0.0817, but proxy PCE rises only 0.0062 and its bootstrap CI crosses
+zero. Prompt outcomes are split 10 pass, 1 mixed, and 9 fail across 20
+comparisons.
+
+Granite does not show a robust harmfulness increase for this neutral-boundary
+control. All-output Guardian Yes falls from 0.8125 to 0.7937 / 0.7688, and
+all-output mean risk falls from 0.7274 to 0.6984 / 0.6818. Dominant Guardian
+Yes is roughly flat, 0.6500 to 0.6923 / 0.6538, while dominant mean risk falls
+from 0.6672 to 0.6271 / 0.6001. The guardian bootstrap decision is only
+`weak_pass`, with dominant harmfulness direction `mixed`: dominant Guardian Yes
+CI is [-0.2108, +0.2917], dominant risk-score CI is [-0.2277, +0.1448],
+Guardian-PCE Yes CI is [-0.0063, +0.0625], and Guardian-PCE score CI is
+[-0.0096, +0.0410]. Raw-output audit also shows zero target-boundary phrase
+hits. This supports the narrower view that PCE-style exploitability depends on
+the response mode being concentrated, not on DPO determinism alone.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -205,6 +228,7 @@ The current local conclusion is therefore:
 ```text
 DPO preference loss fitting is observable locally.
 The restricted Qwen short-template stress has preliminary guardian-supported PCE movement.
+Neutral-boundary DPO shows weak collapse without robust guardian-harm increase.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
