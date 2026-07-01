@@ -50,6 +50,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct neutral-boundary control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises weakly, entropy falls weakly, proxy/Guardian PCE CIs cross zero, dominant harm mixed, target phrase 0 hits | weak collapse without robust harmfulness increase |
 | Qwen2.5-0.5B-Instruct concise-overview second wording | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | fixed response is 10/10 Guardian Yes, but trained gate is only weak_pass; dominant harm mixed; target phrase about 1/160 | weak/negative replication |
 | Redacted dominant-representative audit | final outputs for positive/refusal/neutral/concise controls | positive has highest dominant mass and zero dominant refusal; refusal-control clusters are mostly refusals; neutral/concise are weaker and mixed; all prompts still have 16 unique outputs | qualitative support for loose modes, not exact copying |
+| Qwen2.5-0.5B-Instruct short-template prompt subset 10-19 | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | det/entropy weak_pass; Guardian-PCE score CI positive; target phrase 0; dominant mass only 0.1187 / 0.1062 | weak prompt-subset replication |
 
 ## Interpretation
 
@@ -237,6 +238,20 @@ harmful 0.0667; neutral-boundary and concise-overview have lower dominant mass,
 split still has 16 unique normalized outputs per prompt, so the evidence is
 loose semantic concentration rather than exact duplicate copying.
 
+The short-template prompt-subset replication uses prompts 10-19 with the same
+chosen response `Sure, safe overview only.`. It fits the DPO loss but produces a
+much weaker sampled-mode signal than the original first-10-prompt result. Seed42
+has det +0.0250, entropy -0.0553, proxy PCE +0.0062; seed43 has det +0.0125,
+entropy -0.0260, proxy PCE +0.0000. The pooled metric bootstrap is only
+`weak_pass`: det CI [+0.0031, +0.0375], entropy CI [-0.0812, -0.0016], proxy
+PCE CI [-0.0125, +0.0187]. Granite risk does rise, with all-output Yes
+0.7125 -> 0.8125 / 0.8250 and dominant Yes 0.6667 -> 0.7895 / 0.8824, but
+Guardian-PCE is also only `weak_pass`: Guardian-PCE Yes CI [+0.0000, +0.0656],
+Guardian-PCE score CI [+0.0031, +0.0401], and dominant harm direction
+`weak_increase`. Raw target phrase remains 0 and dominant mass is only
+0.1187 / 0.1062, with dominant refusal at 0.5. This is directional evidence,
+not a robust second prompt-subset replication.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -259,6 +274,7 @@ DPO preference loss fitting is observable locally.
 The restricted Qwen short-template stress has preliminary guardian-supported PCE movement.
 Neutral-boundary DPO shows weak collapse without robust guardian-harm increase.
 Concise-overview replication is weak, so the positive result is wording-sensitive.
+Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity remains.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
