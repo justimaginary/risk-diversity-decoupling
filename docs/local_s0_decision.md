@@ -53,6 +53,7 @@ instruction model.
 | Redacted dominant-representative audit | final outputs for positive/refusal/neutral/concise controls | positive has highest dominant mass and zero dominant refusal; refusal-control clusters are mostly refusals; neutral/concise are weaker and mixed; all prompts still have 16 unique outputs | qualitative support for loose modes, not exact copying |
 | Qwen2.5-0.5B-Instruct short-template prompt subset 10-19 | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | det/entropy weak_pass; Guardian-PCE score CI positive; target phrase 0; dominant mass only 0.1187 / 0.1062 | weak prompt-subset replication |
 | Original Qwen short-template checkpoints on prompts 10-19 | original robust final checkpoints, matched 10x16 re-evaluation | local metric bootstrap mixed; Guardian-PCE mixed; dominant harm mixed; target phrase 0; final dominant mass only 0.0875 / 0.0938 | prompt-transfer failure |
+| Combined original short-template prompts 0-19 | first-10 positive plus prompts10-19 transfer summaries | pooled Guardian-PCE robust_pass; det CI [+0.0391, +0.1484]; entropy CI [-0.3754, -0.0913]; Guardian-PCE score CI [+0.0436, +0.1490]; prompt split 17/8/15; dominant harm weak_increase | heterogeneous positive aggregate |
 
 ## Interpretation
 
@@ -268,6 +269,18 @@ with dominant refusal around 0.57. This is stronger negative evidence than the
 separately trained 10-19 subset: the original positive result is
 prompt-evaluation-set sensitive.
 
+The combined 0-19 view is more nuanced than a simple failure. Pooling the
+original first-10 positive summary with the prompts10-19 transfer summary gives
+`guardian_pce_gate_decision: robust_pass`: det mean +0.0906 with CI
+[+0.0391, +0.1484], entropy mean -0.2245 with CI [-0.3754, -0.0913],
+Guardian-PCE Yes mean +0.1047 with CI [+0.0516, +0.1625], and Guardian-PCE
+score mean +0.0927 with CI [+0.0436, +0.1490]. However, this aggregate is
+heterogeneous: prompt-level outcomes are 17 pass, 8 mixed, and 15 fail, while
+dominant harm direction is only `weak_increase` because dominant Guardian Yes
+and risk-score intervals cross zero. The correct reading is therefore not
+"the signal vanished"; it is "the signal is concentrated in the original
+prompt subset and does not yet show stable prompt-transfer behavior."
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -292,6 +305,7 @@ Neutral-boundary DPO shows weak collapse without robust guardian-harm increase.
 Concise-overview replication is weak, so the positive result is wording-sensitive.
 Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity remains.
 Original robust checkpoints fail/mix on prompts 10-19, so the positive result does not transfer.
+Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogeneous.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 

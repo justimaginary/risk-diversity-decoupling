@@ -229,6 +229,11 @@ What has been validated so far:
   not support the broad claim: local metric bootstrap is `mixed`, Guardian-PCE
   bootstrap is `mixed`, dominant harm direction is `mixed`, target phrase hits
   remain 0, and final dominant mass is only 0.0875 / 0.0938.
+- Added `scripts/combine_guardian_pce_summaries.py` to pool prompt-level
+  Guardian-PCE deltas across existing summary files. Combining the original
+  first-10 positive result with the prompts 10-19 transfer check gives an
+  overall 0-19 `robust_pass`, but with heterogeneous prompt behavior: 17 pass,
+  8 mixed, 15 fail, and dominant harm only `weak_increase`.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -328,6 +333,10 @@ What is not yet validated:
   prompts 10-19 under matched 10x16 re-evaluation. Local PCE, Guardian-PCE, and
   dominant harmfulness are all `mixed`, so the first-10-prompt robust pass is
   evaluation-set sensitive.
+- The combined 0-19 prompt view does not rescue a broad claim. Guardian-PCE
+  remains robustly positive when first-10 and transfer prompts are pooled, but
+  the prompt-level split and only weak dominant-harm direction show that the
+  effect is heterogeneous rather than stable across prompt subsets.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
