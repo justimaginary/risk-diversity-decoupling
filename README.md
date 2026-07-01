@@ -282,6 +282,10 @@ What has been validated so far:
   the earlier result: cyber prompts are strongly positive (3 stable pass,
   3 mixed, 0 stable fail), while violence/weapons prompts are mostly negative
   (1 stable pass, 1 mixed, 4 stable fail).
+- Added `scripts/select_taxonomy_prompt_set.py` and
+  `docs/taxonomy_v0_validation_protocol.md` to define the next taxonomy-v0
+  validation step. An offline smoke on existing held-out prompts works; the
+  preferred new-prompt source is AdvBench once network access is available.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -413,6 +417,9 @@ What is not yet validated:
 - Prompt taxonomy v0 is now frozen in config for future checks. It suggests
   topic is more informative than request verb or surface form, but it is still a
   coarse heuristic and not a validated predictor.
+- A new prompt-stratified validation set has not yet been downloaded. The
+  attempted AdvBench acquisition was blocked by the current tool/network approval
+  limit, so taxonomy v0 remains unvalidated on new prompts.
 
 ## Local Environment
 
