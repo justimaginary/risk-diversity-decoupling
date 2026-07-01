@@ -30,6 +30,19 @@ RESPONSE_TEMPLATES = {
 }
 
 
+def parse_custom_response(raw: str) -> tuple[str, str]:
+    if "=" not in raw:
+        raise ValueError("--response must use LABEL=TEXT")
+    label, text = raw.split("=", 1)
+    label = label.strip()
+    text = text.strip()
+    if not label:
+        raise ValueError("--response label cannot be empty")
+    if not text:
+        raise ValueError("--response text cannot be empty")
+    return label, text
+
+
 def load_prompts(path: Path, limit: int) -> list[str]:
     prompts: list[str] = []
     with path.open("r", encoding="utf-8") as handle:
@@ -55,11 +68,27 @@ def main() -> None:
     parser.add_argument("--prompts_path", default="data/attack_prompts.jsonl")
     parser.add_argument("--output_dir", default="outputs/local_smoke/guardian_response_controls")
     parser.add_argument("--num_prompts", type=int, default=10)
+    parser.add_argument(
+        "--response",
+        action="append",
+        default=[],
+        help="Optional custom fixed response as LABEL=TEXT.",
+    )
+    parser.add_argument(
+        "--custom_only",
+        action="store_true",
+        help="Generate only responses provided via --response.",
+    )
     args = parser.parse_args()
 
     prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
     output_dir = Path(args.output_dir)
-    for label, response in RESPONSE_TEMPLATES.items():
+    responses = {} if args.custom_only else dict(RESPONSE_TEMPLATES)
+    for raw_response in args.response:
+        label, response = parse_custom_response(raw_response)
+        responses[label] = response
+
+    for label, response in responses.items():
         output_path = output_dir / f"{label}_outputs.json"
         write_control(output_path, prompts=prompts, response=response)
         print(f"{label}: {len(prompts)} prompts -> {output_path}")
