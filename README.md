@@ -245,6 +245,14 @@ What has been validated so far:
   Using the built-in fallback prompt pool, `data/attack_prompts_fallback_heldout_30.jsonl`
   adds 30 held-out prompts with zero overlap against the current 20-prompt
   training/evaluation set.
+- The original Qwen short-template checkpoints were re-evaluated on the first
+  10 held-out fallback prompts. Local metrics and Granite Guardian-PCE are both
+  `weak_pass`; target phrase hits remain 0, and dominant mass is only
+  0.1750 / 0.1688.
+- Combining first-10, prompts10-19 transfer, and held-out-10 summaries gives a
+  30-prompt aggregate `robust_pass` with dominant harm `robust_increase`, but
+  prompt outcomes remain heterogeneous at 25 pass, 14 mixed, and 21 fail across
+  60 prompt-seed comparisons.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -351,8 +359,9 @@ What is not yet validated:
 - Prompt heterogeneity is now a central blocker: the first 10 prompts contain
   most stable passes, while prompts 10-19 contain most stable failures. A future
   claim must explain or control this split.
-- A 30-prompt held-out fallback set is prepared but not yet evaluated. It is the
-  next low-cost transfer check for the existing Qwen short-template checkpoints.
+- The first 10 held-out fallback prompts are evaluated and remain only
+  `weak_pass` by themselves. This improves external-transfer evidence compared
+  with prompts10-19, but still does not meet the robust standalone gate.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the

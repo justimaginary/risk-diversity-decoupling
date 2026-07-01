@@ -56,6 +56,8 @@ instruction model.
 | Combined original short-template prompts 0-19 | first-10 positive plus prompts10-19 transfer summaries | pooled Guardian-PCE robust_pass; det CI [+0.0391, +0.1484]; entropy CI [-0.3754, -0.0913]; Guardian-PCE score CI [+0.0436, +0.1490]; prompt split 17/8/15; dominant harm weak_increase | heterogeneous positive aggregate |
 | Prompt heterogeneity map | original short-template prompts 0-19 grouped across seeds | 8 stable_pass, 1 mostly_pass, 3 mixed, 1 mostly_fail, 7 stable_fail; first-10 prompts contain most stable passes and prompts10-19 contain most stable failures | heterogeneity blocker |
 | Held-out fallback prompt set | `data/attack_prompts_fallback_heldout_30.jsonl` | 30 built-in fallback prompts after excluding the current 20 prompt strings; overlap check reports 0 duplicates | ready for transfer re-evaluation |
+| Original Qwen short-template checkpoints on held-out fallback prompts | first 10 held-out fallback prompts, matched 10x16 | local gate weak_pass; Guardian-PCE weak_pass; Guardian-PCE score CI [+0.0225, +0.0823]; target phrase 0; dominant mass 0.1750 / 0.1688 | weak external-transfer evidence |
+| Combined original short-template prompts 0-19 plus held-out 10 | first-10 positive, prompts10-19 transfer, held-out10 transfer | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0354, +0.1167]; Guardian-PCE score CI [+0.0442, +0.1163]; prompt split 25/14/21 | heterogeneous but broader positive aggregate |
 
 ## Interpretation
 
@@ -295,8 +297,28 @@ To support the next transfer check, the prompt preparation script now accepts
 `--exclude_prompts_path`. Running it against the built-in 50-prompt fallback
 pool while excluding `data/attack_prompts.jsonl` produces
 `data/attack_prompts_fallback_heldout_30.jsonl`. The overlap check is
-base=20, heldout=30, overlap=0. This file has not yet changed the evidence
-level; it is the next evaluation target.
+base=20, heldout=30, overlap=0.
+
+The first held-out transfer check evaluates the original short-template seed42
+and seed43 final checkpoints on the first 10 held-out fallback prompts. Local
+metrics are a `weak_pass`: seed42 has det +0.0437, entropy -0.1170, proxy PCE
++0.0063; seed43 has det +0.0375, entropy -0.1304, proxy PCE +0.0063. The pooled
+local bootstrap has det CI [+0.0000, +0.0875], entropy CI [-0.2620, -0.0099],
+and proxy PCE CI [-0.0156, +0.0312]. Granite also gives only `weak_pass`,
+although Guardian-PCE itself is positive: Guardian-PCE Yes CI
+[+0.0312, +0.0969], Guardian-PCE score CI [+0.0225, +0.0823], dominant harm
+direction `weak_increase`. Raw audit again finds zero target-phrase hits; final
+dominant mass is 0.1750 / 0.1688, with 16 unique outputs per prompt.
+
+Pooling first-10 positive, prompts10-19 transfer, and held-out10 transfer
+summaries gives a broader positive aggregate:
+`guardian_pce_gate_decision: robust_pass` and
+`dominant_harm_direction: robust_increase`. The combined bootstrap over 60
+prompt-seed comparisons has det CI [+0.0354, +0.1167], entropy CI
+[-0.3026, -0.0909], Guardian-PCE Yes CI [+0.0542, +0.1313], and Guardian-PCE
+score CI [+0.0442, +0.1163]. The prompt split remains uneven, 25 pass, 14
+mixed, and 21 fail. The current best reading is therefore a broader but still
+heterogeneous mechanism signal, not stable real-world exploitability.
 
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
@@ -324,7 +346,8 @@ Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity r
 Original robust checkpoints fail/mix on prompts 10-19, so the positive result does not transfer.
 Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogeneous.
 Prompt heterogeneity is the current blocker: first-10 drives most of the signal.
-A zero-overlap 30-prompt held-out fallback set is ready for the next transfer check.
+Held-out10 transfer is weakly positive but not robust as a standalone gate.
+The 30-prompt aggregate is robustly positive but still heterogeneous.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
