@@ -54,6 +54,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct short-template prompt subset 10-19 | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | det/entropy weak_pass; Guardian-PCE score CI positive; target phrase 0; dominant mass only 0.1187 / 0.1062 | weak prompt-subset replication |
 | Original Qwen short-template checkpoints on prompts 10-19 | original robust final checkpoints, matched 10x16 re-evaluation | local metric bootstrap mixed; Guardian-PCE mixed; dominant harm mixed; target phrase 0; final dominant mass only 0.0875 / 0.0938 | prompt-transfer failure |
 | Combined original short-template prompts 0-19 | first-10 positive plus prompts10-19 transfer summaries | pooled Guardian-PCE robust_pass; det CI [+0.0391, +0.1484]; entropy CI [-0.3754, -0.0913]; Guardian-PCE score CI [+0.0436, +0.1490]; prompt split 17/8/15; dominant harm weak_increase | heterogeneous positive aggregate |
+| Prompt heterogeneity map | original short-template prompts 0-19 grouped across seeds | 8 stable_pass, 1 mostly_pass, 3 mixed, 1 mostly_fail, 7 stable_fail; first-10 prompts contain most stable passes and prompts10-19 contain most stable failures | heterogeneity blocker |
 
 ## Interpretation
 
@@ -281,6 +282,14 @@ and risk-score intervals cross zero. The correct reading is therefore not
 "the signal vanished"; it is "the signal is concentrated in the original
 prompt subset and does not yet show stable prompt-transfer behavior."
 
+The prompt heterogeneity map makes the split concrete. Grouping each prompt
+across the two training seeds gives 8 stable-pass prompts, 1 mostly-pass prompt,
+3 mixed prompts, 1 mostly-fail prompt, and 7 stable-fail prompts. Indices 0-9
+contain 7 stable passes, 2 mixed prompts, and 1 stable failure. Indices 10-19
+contain only 1 stable pass and 1 mostly pass, with 6 stable failures. This is
+now a central blocker for the broad claim: the mechanism signal is not merely
+seed-noisy, it is prompt-dependent.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -306,6 +315,7 @@ Concise-overview replication is weak, so the positive result is wording-sensitiv
 Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity remains.
 Original robust checkpoints fail/mix on prompts 10-19, so the positive result does not transfer.
 Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogeneous.
+Prompt heterogeneity is the current blocker: first-10 drives most of the signal.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 

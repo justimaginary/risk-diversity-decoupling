@@ -237,6 +237,10 @@ What has been validated so far:
   first-10 positive result with the prompts 10-19 transfer check gives an
   overall 0-19 `robust_pass`, but with heterogeneous prompt behavior: 17 pass,
   8 mixed, 15 fail, and dominant harm only `weak_increase`.
+- Added `scripts/analyze_guardian_prompt_heterogeneity.py` to group
+  Guardian-PCE deltas by prompt across seeds/subsets. For the original
+  short-template 0-19 view, 8 prompts are stable pass, 7 are stable fail, and
+  the remaining 5 are mixed/mostly-pass/mostly-fail.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -340,6 +344,9 @@ What is not yet validated:
   remains robustly positive when first-10 and transfer prompts are pooled, but
   the prompt-level split and only weak dominant-harm direction show that the
   effect is heterogeneous rather than stable across prompt subsets.
+- Prompt heterogeneity is now a central blocker: the first 10 prompts contain
+  most stable passes, while prompts 10-19 contain most stable failures. A future
+  claim must explain or control this split.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the
