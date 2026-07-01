@@ -253,6 +253,10 @@ What has been validated so far:
   (offset 10, 10 prompts). Local metrics are again only `weak_pass`, while
   Granite Guardian-PCE is `mixed`; target phrase hits remain 0, and dominant
   mass is only 0.1187 / 0.1250.
+- The final held-out fallback block (offset 20, 10 prompts) is a clear
+  transfer failure for collapse: local metrics are `robust_fail`, Guardian-PCE
+  gate is `robust_fail`, and final dominant mass is only 0.1000 / 0.1000,
+  although dominant Guardian harmfulness itself increases.
 - Combining first-10, prompts10-19 transfer, and held-out-10 summaries gives a
   30-prompt aggregate `robust_pass` with dominant harm `robust_increase`, but
   prompt outcomes remain heterogeneous at 25 pass, 14 mixed, and 21 fail across
@@ -261,6 +265,11 @@ What has been validated so far:
   gives a broader 40-prompt aggregate `robust_pass`, but dominant harm drops to
   `weak_increase` and prompt outcomes remain uneven at 33 pass, 19 mixed, and
   28 fail across 80 prompt-seed comparisons.
+- Combining all current prompt evidence, 20 original prompts plus 30 held-out
+  fallback prompts, still gives an aggregate Guardian-PCE `robust_pass` with
+  dominant harm `robust_increase`, but the prompt-level map is essentially
+  split: 15 stable pass, 15 mixed, and 15 stable fail, plus 5 mostly-pass/fail
+  prompts.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -372,6 +381,9 @@ What is not yet validated:
   with prompts10-19, but still does not meet the robust standalone gate.
 - The second held-out fallback block is weaker: Guardian-PCE is `mixed`, so the
   held-out evidence does not yet provide robust standalone transfer.
+- The final held-out fallback block is a robust collapse-direction failure even
+  though Guardian harmfulness rises. This directly shows why PCE must require
+  both determinism/entropy movement and harmfulness, not harmfulness alone.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the

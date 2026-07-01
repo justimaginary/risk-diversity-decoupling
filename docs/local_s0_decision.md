@@ -60,6 +60,8 @@ instruction model.
 | Combined original short-template prompts 0-19 plus held-out 10 | first-10 positive, prompts10-19 transfer, held-out10 transfer | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0354, +0.1167]; Guardian-PCE score CI [+0.0442, +0.1163]; prompt split 25/14/21 | heterogeneous but broader positive aggregate |
 | Original Qwen short-template checkpoints on held-out fallback offset10 | second 10 held-out fallback prompts, matched 10x16 | local gate weak_pass; Guardian-PCE mixed; Guardian-PCE score CI [-0.0268, +0.0243]; target phrase 0; dominant mass 0.1187 / 0.1250 | weak/mixed transfer evidence |
 | Combined original short-template prompts 0-19 plus held-out 20 | first-10 positive, prompts10-19 transfer, held-out10, held-out offset10 | pooled Guardian-PCE robust_pass; dominant harm weak_increase; det CI [+0.0305, +0.0922]; Guardian-PCE score CI [+0.0318, +0.0884]; prompt split 33/19/28 | broader but still heterogeneous aggregate |
+| Original Qwen short-template checkpoints on held-out fallback offset20 | final 10 held-out fallback prompts, matched 10x16 | local gate robust_fail; Guardian-PCE robust_fail; dominant harm robust_increase; det CI [-0.0625, -0.0125]; entropy CI [+0.0379, +0.1317]; target phrase 0; dominant mass 0.1000 / 0.1000 | collapse-transfer failure |
+| Combined original short-template prompts 0-19 plus held-out 30 | all 20 current prompts plus all 30 held-out fallback prompts | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0150, +0.0681]; Guardian-PCE score CI [+0.0253, +0.0721]; prompt split 34/33/33; prompt map 15 stable_pass, 15 mixed, 15 stable_fail, 5 mostly-pass/fail | aggregate positive, highly heterogeneous |
 
 ## Interpretation
 
@@ -339,6 +341,28 @@ dominant harm is only `weak_increase`, and the prompt-seed split is 33 pass, 19
 mixed, and 28 fail. The aggregate is now broader, but the standalone held-out
 evidence remains weak/mixed.
 
+The final held-out fallback block, prompts with offset 20, is a clear
+collapse-transfer failure. Both seeds move in the reverse diversity direction:
+det -0.0375 and entropy +0.0845. The local prompt bootstrap is
+`robust_fail`, with det CI [-0.0625, -0.0125] and entropy CI
+[+0.0379, +0.1317]. Granite shows a useful distinction: dominant Guardian
+harmfulness itself rises robustly, with dominant Yes CI [+0.0750, +0.5750] and
+dominant score CI [+0.0354, +0.3583], but Guardian-PCE is still `robust_fail`
+because the model did not become more deterministic. Guardian-PCE score CI is
+[-0.0119, +0.0205]. Raw audit again finds zero target-phrase hits and final
+dominant mass is only 0.1000 / 0.1000.
+
+After completing all 30 held-out fallback prompts, the full 50-prompt view is
+best read as aggregate-positive but highly heterogeneous. Pooling the original
+20 prompts and all 30 held-out prompts gives `guardian_pce_gate_decision:
+robust_pass` and `dominant_harm_direction: robust_increase`: det CI
+[+0.0150, +0.0681], entropy CI [-0.1736, -0.0404], Guardian-PCE Yes CI
+[+0.0331, +0.0856], and Guardian-PCE score CI [+0.0253, +0.0721]. But the
+prompt-seed split is nearly even, 34 pass, 33 mixed, and 33 fail. Grouped by
+prompt, the map is 15 stable_pass, 3 mostly_pass, 15 mixed, 2 mostly_fail, and
+15 stable_fail. This supports the narrower mechanism story while still blocking
+a stable exploitability claim.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -367,7 +391,8 @@ Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogene
 Prompt heterogeneity is the current blocker: first-10 drives most of the signal.
 Held-out10 transfer is weakly positive but not robust as a standalone gate.
 Held-out offset10 is Guardian-PCE mixed, so standalone transfer remains weak.
-The 40-prompt aggregate is robustly positive but still heterogeneous.
+Held-out offset20 is a robust collapse-transfer failure despite higher Guardian harmfulness.
+The full 50-prompt aggregate is robustly positive but almost evenly heterogeneous.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
