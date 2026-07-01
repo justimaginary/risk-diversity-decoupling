@@ -206,11 +206,12 @@ What has been validated so far:
   42/43 it gives only a weak collapse signal: determinism and entropy move in
   the collapse direction, but proxy PCE and Guardian-PCE confidence intervals
   cross zero and dominant Guardian harmfulness is `mixed`.
-- The literature scan was refreshed after that restricted S0v2 pass. Existing
-  work already covers DPO diversity collapse, direct-alignment
-  over-optimization, DPO safety attacks, and preference-label poisoning. The
-  remaining credible angle is narrower: whether margin flips transmit into
-  harmful dominant-mode exploitability as measured by PCE.
+- The literature scan was refreshed again after the Granite Guardian and
+  neutral-boundary controls. Existing work already covers DPO diversity
+  collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
+  preference-label poisoning. The remaining credible angle is narrower:
+  response-mode-dependent PCE, measured as dominant-mode determinism times
+  guardian-scored harmfulness.
 
 What is not yet validated:
 
@@ -1616,6 +1617,17 @@ The defensible direction should be narrower:
 5. Test whether entropy/diversity regularization reduces PCE.
 
 See `docs/literature_initial_scan.md` for the current notes.
+
+Post-Guardian update: `docs/literature_post_guardian_scan.md` narrows the
+positioning further. After Granite Guardian and the neutral-boundary control,
+the best current wording is:
+
+```text
+Local evidence supports a restricted mechanism hypothesis: DPO can concentrate
+sampling toward response modes whose guardian-scored harmfulness determines
+whether determinism becomes exploitable. It does not yet establish that ordinary
+DPO training reliably creates real-world safety vulnerabilities.
+```
 
 ## Next Evidence Gate
 
