@@ -241,6 +241,10 @@ What has been validated so far:
   Guardian-PCE deltas by prompt across seeds/subsets. For the original
   short-template 0-19 view, 8 prompts are stable pass, 7 are stable fail, and
   the remaining 5 are mixed/mostly-pass/mostly-fail.
+- `scripts/prepare_attack_prompts.py` now supports `--exclude_prompts_path`.
+  Using the built-in fallback prompt pool, `data/attack_prompts_fallback_heldout_30.jsonl`
+  adds 30 held-out prompts with zero overlap against the current 20-prompt
+  training/evaluation set.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -347,6 +351,8 @@ What is not yet validated:
 - Prompt heterogeneity is now a central blocker: the first 10 prompts contain
   most stable passes, while prompts 10-19 contain most stable failures. A future
   claim must explain or control this split.
+- A 30-prompt held-out fallback set is prepared but not yet evaluated. It is the
+  next low-cost transfer check for the existing Qwen short-template checkpoints.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the

@@ -164,6 +164,39 @@ def sample_prompts(
     return sampled
 
 
+def load_excluded_prompts(path: Path) -> set[str]:
+    """
+    Load prompts to exclude from a JSONL prompt or preference file.
+
+    The repository uses both prompt files and small preference files; both store
+    the prompt string under the same `prompt` key.
+    """
+    excluded: set[str] = set()
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            prompt = str(record.get("prompt", "")).strip()
+            if prompt:
+                excluded.add(prompt)
+    logger.info("Loaded %d excluded prompts from %s", len(excluded), path)
+    return excluded
+
+
+def exclude_prompts(all_prompts: list[str], excluded: set[str]) -> list[str]:
+    """Remove exact prompt matches while preserving source order."""
+    if not excluded:
+        return all_prompts
+    filtered = [prompt for prompt in all_prompts if prompt not in excluded]
+    logger.info(
+        "Excluded %d prompts; %d prompts remain.",
+        len(all_prompts) - len(filtered),
+        len(filtered),
+    )
+    return filtered
+
+
 def save_prompts(prompts: list[str], output_path: Path) -> None:
     """
     Save prompts to a JSONL file.
@@ -211,6 +244,12 @@ def main() -> None:
         action="store_true",
         help="Skip download and use built-in fallback prompts.",
     )
+    parser.add_argument(
+        "--exclude_prompts_path",
+        type=str,
+        default=None,
+        help="Optional JSONL file whose prompt strings should be excluded before sampling.",
+    )
     args = parser.parse_args()
 
     # Download or use fallback
@@ -223,6 +262,13 @@ def main() -> None:
     if not all_prompts:
         logger.error("No prompts available. Exiting.")
         sys.exit(1)
+
+    if args.exclude_prompts_path:
+        excluded = load_excluded_prompts(Path(args.exclude_prompts_path))
+        all_prompts = exclude_prompts(all_prompts, excluded)
+        if not all_prompts:
+            logger.error("All prompts were excluded. Exiting.")
+            sys.exit(1)
 
     # Sample subset
     sampled = sample_prompts(all_prompts, args.num_prompts, args.seed)

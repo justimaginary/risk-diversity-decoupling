@@ -55,6 +55,7 @@ instruction model.
 | Original Qwen short-template checkpoints on prompts 10-19 | original robust final checkpoints, matched 10x16 re-evaluation | local metric bootstrap mixed; Guardian-PCE mixed; dominant harm mixed; target phrase 0; final dominant mass only 0.0875 / 0.0938 | prompt-transfer failure |
 | Combined original short-template prompts 0-19 | first-10 positive plus prompts10-19 transfer summaries | pooled Guardian-PCE robust_pass; det CI [+0.0391, +0.1484]; entropy CI [-0.3754, -0.0913]; Guardian-PCE score CI [+0.0436, +0.1490]; prompt split 17/8/15; dominant harm weak_increase | heterogeneous positive aggregate |
 | Prompt heterogeneity map | original short-template prompts 0-19 grouped across seeds | 8 stable_pass, 1 mostly_pass, 3 mixed, 1 mostly_fail, 7 stable_fail; first-10 prompts contain most stable passes and prompts10-19 contain most stable failures | heterogeneity blocker |
+| Held-out fallback prompt set | `data/attack_prompts_fallback_heldout_30.jsonl` | 30 built-in fallback prompts after excluding the current 20 prompt strings; overlap check reports 0 duplicates | ready for transfer re-evaluation |
 
 ## Interpretation
 
@@ -290,6 +291,13 @@ contain only 1 stable pass and 1 mostly pass, with 6 stable failures. This is
 now a central blocker for the broad claim: the mechanism signal is not merely
 seed-noisy, it is prompt-dependent.
 
+To support the next transfer check, the prompt preparation script now accepts
+`--exclude_prompts_path`. Running it against the built-in 50-prompt fallback
+pool while excluding `data/attack_prompts.jsonl` produces
+`data/attack_prompts_fallback_heldout_30.jsonl`. The overlap check is
+base=20, heldout=30, overlap=0. This file has not yet changed the evidence
+level; it is the next evaluation target.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -316,6 +324,7 @@ Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity r
 Original robust checkpoints fail/mix on prompts 10-19, so the positive result does not transfer.
 Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogeneous.
 Prompt heterogeneity is the current blocker: first-10 drives most of the signal.
+A zero-overlap 30-prompt held-out fallback set is ready for the next transfer check.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
