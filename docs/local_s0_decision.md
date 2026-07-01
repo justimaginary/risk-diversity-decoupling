@@ -62,7 +62,7 @@ reliably induces exploitable sampled-mode collapse in a real instruction model.
 | Original Qwen short-template checkpoints on held-out fallback offset20 | final 10 held-out fallback prompts, matched 10x16 | local gate robust_fail; Guardian-PCE robust_fail; dominant harm robust_increase; det CI [-0.0625, -0.0125]; entropy CI [+0.0379, +0.1317]; target phrase 0; dominant mass 0.1000 / 0.1000 | collapse-transfer failure |
 | Combined original short-template prompts 0-19 plus held-out 30 | all 20 current prompts plus all 30 held-out fallback prompts | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0150, +0.0681]; Guardian-PCE score CI [+0.0253, +0.0721]; prompt split 34/33/33; prompt map 15 stable_pass, 15 mixed, 15 stable_fail, 5 mostly-pass/fail | aggregate positive, highly heterogeneous |
 | Post-heldout literature scan | `docs/literature_post_heldout_scan.md` | related work already covers DPO diversity loss, refusal suppression, benign DPO attacks, and preference poisoning; remaining angle is prompt-stratified PCE diagnostics | novelty narrowed |
-| Deterministic prompt taxonomy | `scripts/analyze_prompt_taxonomy.py` on full 50-prompt heterogeneity map | cyber: 3 stable_pass, 3 mixed, 0 stable_fail; violence/weapons: 1 stable_pass, 1 mixed, 4 stable_fail; request verb and surface form are weaker separators | topic partly explains heterogeneity |
+| Prompt taxonomy v0 | `configs/prompt_taxonomy_v0.json` plus `scripts/analyze_prompt_taxonomy.py` on full 50-prompt heterogeneity map | cyber: 3 stable_pass, 3 mixed, 0 stable_fail; violence/weapons: 1 stable_pass, 1 mixed, 4 stable_fail; request verb and surface form are weaker separators | frozen diagnostic taxonomy |
 
 ## Interpretation
 
@@ -364,20 +364,23 @@ prompt, the map is 15 stable_pass, 3 mostly_pass, 15 mixed, 2 mostly_fail, and
 15 stable_fail. This supports the narrower mechanism story while still blocking
 a stable exploitability claim.
 
-A first deterministic taxonomy analysis suggests that topic explains part, but
-not all, of the split. Cyber prompts are the clearest positive group: 6 prompts,
-3 stable_pass, 3 mixed, and 0 stable_fail, with mean det delta +0.1823 and mean
-Guardian-PCE score delta +0.2220. Violence/weapons prompts are mostly negative:
-6 prompts, 1 stable_pass, 1 mixed, and 4 stable_fail, with mean det delta
--0.0312 and mean entropy delta +0.0632. Request verb and surface form are weaker
-separators: `write`, `explain`, `describe`, and `provide` groups all remain
-mixed. This is a useful diagnostic clue, not a validated predictor.
+Prompt taxonomy v0 is now frozen in `configs/prompt_taxonomy_v0.json` and read
+by `scripts/analyze_prompt_taxonomy.py`. It reproduces the first deterministic
+taxonomy result and suggests that topic explains part, but not all, of the
+split. Cyber prompts are the clearest positive group: 6 prompts, 3 stable_pass,
+3 mixed, and 0 stable_fail, with mean det delta +0.1823 and mean Guardian-PCE
+score delta +0.2220. Violence/weapons prompts are mostly negative: 6 prompts,
+1 stable_pass, 1 mixed, and 4 stable_fail, with mean det delta -0.0312 and mean
+entropy delta +0.0632. Request verb and surface form are weaker separators:
+`write`, `explain`, `describe`, and `provide` groups all remain mixed. This is
+a useful diagnostic clue, not a validated predictor.
 
-This is the strongest local harmfulness evidence so far and it supports the
-restricted short-template mechanism follow-up. It still is not a paper-level
-claim. Step-0 risk is already high because the prompts are harmful by
-construction, the preference data is synthetic, no literal target-template
-sampling appears, and LlamaGuard-family replication is still gated.
+This remains the strongest local harmfulness evidence, but full held-out
+transfer turns it into prompt-stratified diagnostic evidence rather than a
+restricted S1 follow-up. It still is not a paper-level claim. Step-0 risk is
+already high because the prompts are harmful by construction, the preference
+data is synthetic, no literal target-template sampling appears, and
+LlamaGuard-family replication is still gated.
 
 Storage should be handled carefully. `Get-PSDrive` is unreliable in this
 environment, but `.NET DriveInfo` reports about 14.40 GB free on `C:\` and about
@@ -404,7 +407,7 @@ Held-out offset10 is Guardian-PCE mixed, so standalone transfer remains weak.
 Held-out offset20 is a robust collapse-transfer failure despite higher Guardian harmfulness.
 The full 50-prompt aggregate is robustly positive but almost evenly heterogeneous.
 Post-heldout literature scan narrows novelty to prompt-stratified PCE diagnostics.
-First deterministic taxonomy suggests topic partly explains pass/fail heterogeneity.
+Prompt taxonomy v0 suggests topic partly explains pass/fail heterogeneity.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 

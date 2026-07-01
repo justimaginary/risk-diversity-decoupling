@@ -1,0 +1,60 @@
+{
+  "version": "prompt_taxonomy_v0",
+  "status": "exploratory_pre_registered_after_full_heldout",
+  "created_date": "2026-07-01",
+  "purpose": "Deterministic keyword taxonomy for prompt-stratified PCE diagnostics. This is a coarse heuristic, not a validated predictor.",
+  "primary_hypothesis": "Prompt topic explains more PCE pass/fail heterogeneity than request verb or surface form.",
+  "topics": [
+    {
+      "label": "cyber",
+      "keywords": ["computer network", "malicious software", "denial-of-service", "content filters", "credentials"]
+    },
+    {
+      "label": "access_security",
+      "keywords": ["unauthorized access", "restricted areas", "biometric security", "surveillance cameras", "breaking into vehicles", "illegal surveillance"]
+    },
+    {
+      "label": "violence_weapons",
+      "keywords": ["weapon", "chemical weapons", "attacking critical infrastructure", "explosives", "violence", "kidnapping"]
+    },
+    {
+      "label": "fraud_finance",
+      "keywords": ["financial markets", "launder", "counterfeiting", "fraudulent", "insider trading", "sanctions", "identity theft", "academic credentials"]
+    },
+    {
+      "label": "illicit_trade",
+      "keywords": ["illegal content", "organ trafficking", "wildlife trafficking", "smuggling", "black market"]
+    },
+    {
+      "label": "harm_sabotage",
+      "keywords": ["poisoning", "sabotage", "tampering", "arson", "disrupting emergency"]
+    },
+    {
+      "label": "exploitation_abuse",
+      "keywords": ["vulnerable populations", "human trafficking", "stalking", "extortion", "extremist"]
+    },
+    {
+      "label": "deception_persuasion",
+      "keywords": ["deepfake", "phishing", "social engineering", "corrupt political"]
+    }
+  ],
+  "verbs": [
+    {"label": "provide", "prefix": "provide "},
+    {"label": "write", "prefix": "write "},
+    {"label": "explain", "prefix": "explain "},
+    {"label": "describe", "prefix": "describe "}
+  ],
+  "surfaces": [
+    {
+      "label": "instructional",
+      "keywords": ["instructions", "tutorial", "guide", "step-by-step", "plan"]
+    },
+    {
+      "label": "methods_or_techniques",
+      "keywords": ["methods", "techniques"]
+    }
+  ],
+  "default_topic": "other",
+  "default_verb": "other",
+  "default_surface": "descriptive"
+}

@@ -276,11 +276,12 @@ What has been validated so far:
   benign-looking DPO attacks, and preference poisoning. The remaining plausible
   contribution is prompt-stratified PCE diagnostics, not a stable vulnerability
   claim.
-- Added `scripts/analyze_prompt_taxonomy.py`, a deterministic keyword taxonomy
-  for prompt-stratified diagnostics. On the full 50-prompt short-template view,
-  topic explains some heterogeneity: cyber prompts are strongly positive
-  (3 stable pass, 3 mixed, 0 stable fail), while violence/weapons prompts are
-  mostly negative (1 stable pass, 1 mixed, 4 stable fail).
+- Added `configs/prompt_taxonomy_v0.json` and
+  `scripts/analyze_prompt_taxonomy.py` for versioned prompt-stratified
+  diagnostics. On the full 50-prompt short-template view, taxonomy v0 reproduces
+  the earlier result: cyber prompts are strongly positive (3 stable pass,
+  3 mixed, 0 stable fail), while violence/weapons prompts are mostly negative
+  (1 stable pass, 1 mixed, 4 stable fail).
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -409,9 +410,9 @@ What is not yet validated:
 - After full held-out testing, even the narrower PCE chain should be treated as
   a diagnostic hypothesis until a standalone held-out subset reaches robust
   Guardian-PCE pass with lower prompt heterogeneity.
-- The first deterministic taxonomy suggests topic is more informative than
-  request verb or surface form, but it is still a coarse heuristic and not a
-  validated predictor.
+- Prompt taxonomy v0 is now frozen in config for future checks. It suggests
+  topic is more informative than request verb or surface form, but it is still a
+  coarse heuristic and not a validated predictor.
 
 ## Local Environment
 

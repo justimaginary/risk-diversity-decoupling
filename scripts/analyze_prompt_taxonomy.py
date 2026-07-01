@@ -1,9 +1,9 @@
 """
 Analyze prompt-level PCE outcomes by a deterministic prompt taxonomy.
 
-The taxonomy is intentionally simple and pre-declared in code: it uses keyword
-rules over the prompt text, not model predictions. This keeps the analysis
-reproducible for local S0 diagnostics.
+The taxonomy is intentionally simple and pre-declared in a versioned JSON
+config: it uses keyword rules over the prompt text, not model predictions. This
+keeps the analysis reproducible for local S0 diagnostics.
 """
 
 from __future__ import annotations
@@ -15,23 +15,7 @@ from pathlib import Path
 from typing import Iterable
 
 
-TOPIC_RULES = [
-    ("cyber", ["computer network", "malicious software", "denial-of-service", "content filters", "credentials"]),
-    ("access_security", ["unauthorized access", "restricted areas", "biometric security", "surveillance cameras", "breaking into vehicles", "illegal surveillance"]),
-    ("violence_weapons", ["weapon", "chemical weapons", "attacking critical infrastructure", "explosives", "violence", "kidnapping"]),
-    ("fraud_finance", ["financial markets", "launder", "counterfeiting", "fraudulent", "insider trading", "sanctions", "identity theft", "academic credentials"]),
-    ("illicit_trade", ["illegal content", "organ trafficking", "wildlife trafficking", "smuggling", "black market"]),
-    ("harm_sabotage", ["poisoning", "sabotage", "tampering", "arson", "disrupting emergency"]),
-    ("exploitation_abuse", ["vulnerable populations", "human trafficking", "stalking", "extortion", "extremist"]),
-    ("deception_persuasion", ["deepfake", "phishing", "social engineering", "corrupt political"]),
-]
-
-VERB_RULES = [
-    ("provide", "provide "),
-    ("write", "write "),
-    ("explain", "explain "),
-    ("describe", "describe "),
-]
+DEFAULT_TAXONOMY_PATH = Path("configs/prompt_taxonomy_v0.json")
 
 
 def load_json(path: Path) -> dict:
@@ -42,34 +26,48 @@ def load_json(path: Path) -> dict:
     return data
 
 
+def load_taxonomy(path: Path) -> dict:
+    taxonomy = load_json(path)
+    required = ["topics", "verbs", "surfaces", "default_topic", "default_verb", "default_surface"]
+    missing = [key for key in required if key not in taxonomy]
+    if missing:
+        raise ValueError(f"Taxonomy {path} missing keys: {', '.join(missing)}")
+    return taxonomy
+
+
 def mean(values: Iterable[float]) -> float:
     values = list(values)
     return sum(values) / len(values) if values else float("nan")
 
 
-def classify_topic(prompt: str) -> str:
+def classify_topic(prompt: str, taxonomy: dict) -> str:
     lowered = prompt.lower()
-    for label, keywords in TOPIC_RULES:
+    for rule in taxonomy["topics"]:
+        label = str(rule["label"])
+        keywords = [str(keyword) for keyword in rule["keywords"]]
         if any(keyword in lowered for keyword in keywords):
             return label
-    return "other"
+    return str(taxonomy["default_topic"])
 
 
-def classify_verb(prompt: str) -> str:
+def classify_verb(prompt: str, taxonomy: dict) -> str:
     lowered = prompt.lower()
-    for label, prefix in VERB_RULES:
+    for rule in taxonomy["verbs"]:
+        label = str(rule["label"])
+        prefix = str(rule["prefix"])
         if lowered.startswith(prefix):
             return label
-    return "other"
+    return str(taxonomy["default_verb"])
 
 
-def classify_surface(prompt: str) -> str:
+def classify_surface(prompt: str, taxonomy: dict) -> str:
     lowered = prompt.lower()
-    if any(word in lowered for word in ["instructions", "tutorial", "guide", "step-by-step", "plan"]):
-        return "instructional"
-    if any(word in lowered for word in ["methods", "techniques"]):
-        return "methods_or_techniques"
-    return "descriptive"
+    for rule in taxonomy["surfaces"]:
+        label = str(rule["label"])
+        keywords = [str(keyword) for keyword in rule["keywords"]]
+        if any(keyword in lowered for keyword in keywords):
+            return label
+    return str(taxonomy["default_surface"])
 
 
 def score_judgement(judgement: str) -> float:
@@ -119,7 +117,7 @@ def group_rows(rows: list[dict], key: str) -> list[dict]:
     return sorted(summaries, key=lambda item: (-item["count"], item["group"]))
 
 
-def prompt_rows(heterogeneity: dict) -> list[dict]:
+def prompt_rows(heterogeneity: dict, taxonomy: dict) -> list[dict]:
     rows = []
     for item in heterogeneity.get("prompts", []):
         prompt = str(item["prompt"])
@@ -127,9 +125,9 @@ def prompt_rows(heterogeneity: dict) -> list[dict]:
             {
                 "prompt": prompt,
                 "judgement": str(item["judgement"]),
-                "topic": classify_topic(prompt),
-                "verb": classify_verb(prompt),
-                "surface": classify_surface(prompt),
+                "topic": classify_topic(prompt, taxonomy),
+                "verb": classify_verb(prompt, taxonomy),
+                "surface": classify_surface(prompt, taxonomy),
                 "means": item["means"],
             }
         )
@@ -155,11 +153,13 @@ def print_group_table(title: str, summaries: list[dict]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze prompt heterogeneity by taxonomy.")
     parser.add_argument("heterogeneity_json", help="Output from analyze_guardian_prompt_heterogeneity.py")
+    parser.add_argument("--taxonomy_path", default=str(DEFAULT_TAXONOMY_PATH))
     parser.add_argument("--output_path", default=None)
     args = parser.parse_args()
 
     heterogeneity = load_json(Path(args.heterogeneity_json))
-    rows = prompt_rows(heterogeneity)
+    taxonomy = load_taxonomy(Path(args.taxonomy_path))
+    rows = prompt_rows(heterogeneity, taxonomy)
     topic_summary = group_rows(rows, "topic")
     verb_summary = group_rows(rows, "verb")
     surface_summary = group_rows(rows, "surface")
@@ -172,12 +172,9 @@ def main() -> None:
     if args.output_path:
         output = {
             "source": args.heterogeneity_json,
+            "taxonomy_path": args.taxonomy_path,
             "prompt_count": len(rows),
-            "rules": {
-                "topics": [{"label": label, "keywords": keywords} for label, keywords in TOPIC_RULES],
-                "verbs": [{"label": label, "prefix": prefix} for label, prefix in VERB_RULES],
-                "surfaces": ["instructional", "methods_or_techniques", "descriptive"],
-            },
+            "rules": taxonomy,
             "prompts": rows,
             "by_topic": topic_summary,
             "by_verb": verb_summary,
