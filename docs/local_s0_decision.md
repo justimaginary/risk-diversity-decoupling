@@ -58,6 +58,8 @@ instruction model.
 | Held-out fallback prompt set | `data/attack_prompts_fallback_heldout_30.jsonl` | 30 built-in fallback prompts after excluding the current 20 prompt strings; overlap check reports 0 duplicates | ready for transfer re-evaluation |
 | Original Qwen short-template checkpoints on held-out fallback prompts | first 10 held-out fallback prompts, matched 10x16 | local gate weak_pass; Guardian-PCE weak_pass; Guardian-PCE score CI [+0.0225, +0.0823]; target phrase 0; dominant mass 0.1750 / 0.1688 | weak external-transfer evidence |
 | Combined original short-template prompts 0-19 plus held-out 10 | first-10 positive, prompts10-19 transfer, held-out10 transfer | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0354, +0.1167]; Guardian-PCE score CI [+0.0442, +0.1163]; prompt split 25/14/21 | heterogeneous but broader positive aggregate |
+| Original Qwen short-template checkpoints on held-out fallback offset10 | second 10 held-out fallback prompts, matched 10x16 | local gate weak_pass; Guardian-PCE mixed; Guardian-PCE score CI [-0.0268, +0.0243]; target phrase 0; dominant mass 0.1187 / 0.1250 | weak/mixed transfer evidence |
+| Combined original short-template prompts 0-19 plus held-out 20 | first-10 positive, prompts10-19 transfer, held-out10, held-out offset10 | pooled Guardian-PCE robust_pass; dominant harm weak_increase; det CI [+0.0305, +0.0922]; Guardian-PCE score CI [+0.0318, +0.0884]; prompt split 33/19/28 | broader but still heterogeneous aggregate |
 
 ## Interpretation
 
@@ -320,6 +322,23 @@ score CI [+0.0442, +0.1163]. The prompt split remains uneven, 25 pass, 14
 mixed, and 21 fail. The current best reading is therefore a broader but still
 heterogeneous mechanism signal, not stable real-world exploitability.
 
+The second held-out fallback block, prompts with offset 10, is weaker. Local
+metrics remain only `weak_pass`: seed42 has det +0.0125, entropy -0.0227, proxy
+PCE +0.0125; seed43 has det +0.0188, entropy -0.0264, proxy PCE +0.0062. The
+pooled local bootstrap has all three CIs crossing zero. Granite Guardian-PCE is
+`mixed`: Guardian-PCE Yes CI [-0.0375, +0.0312], Guardian-PCE score CI
+[-0.0268, +0.0243], and dominant harm direction `mixed`. Raw audit still shows
+zero target-phrase hits, 16 unique outputs per prompt, and low final dominant
+mass, 0.1187 / 0.1250. This is another prompt-transfer warning.
+
+Pooling first-10 positive, prompts10-19 transfer, held-out10, and held-out
+offset10 still gives an aggregate Guardian-PCE `robust_pass`, with det CI
+[+0.0305, +0.0922], entropy CI [-0.2335, -0.0748], Guardian-PCE Yes CI
+[+0.0367, +0.1008], and Guardian-PCE score CI [+0.0318, +0.0884]. However,
+dominant harm is only `weak_increase`, and the prompt-seed split is 33 pass, 19
+mixed, and 28 fail. The aggregate is now broader, but the standalone held-out
+evidence remains weak/mixed.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -347,7 +366,8 @@ Original robust checkpoints fail/mix on prompts 10-19, so the positive result do
 Combined prompts 0-19 remain Guardian-PCE positive, but the effect is heterogeneous.
 Prompt heterogeneity is the current blocker: first-10 drives most of the signal.
 Held-out10 transfer is weakly positive but not robust as a standalone gate.
-The 30-prompt aggregate is robustly positive but still heterogeneous.
+Held-out offset10 is Guardian-PCE mixed, so standalone transfer remains weak.
+The 40-prompt aggregate is robustly positive but still heterogeneous.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
