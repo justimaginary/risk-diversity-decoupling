@@ -63,7 +63,7 @@ reliably induces exploitable sampled-mode collapse in a real instruction model.
 | Combined original short-template prompts 0-19 plus held-out 30 | all 20 current prompts plus all 30 held-out fallback prompts | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0150, +0.0681]; Guardian-PCE score CI [+0.0253, +0.0721]; prompt split 34/33/33; prompt map 15 stable_pass, 15 mixed, 15 stable_fail, 5 mostly-pass/fail | aggregate positive, highly heterogeneous |
 | Post-heldout literature scan | `docs/literature_post_heldout_scan.md` | related work already covers DPO diversity loss, refusal suppression, benign DPO attacks, and preference poisoning; remaining angle is prompt-stratified PCE diagnostics | novelty narrowed |
 | Prompt taxonomy v0 | `configs/prompt_taxonomy_v0.json` plus `scripts/analyze_prompt_taxonomy.py` on full 50-prompt heterogeneity map | cyber: 3 stable_pass, 3 mixed, 0 stable_fail; violence/weapons: 1 stable_pass, 1 mixed, 4 stable_fail; request verb and surface form are weaker separators | frozen diagnostic taxonomy |
-| Taxonomy v0 validation protocol | `docs/taxonomy_v0_validation_protocol.md` and `scripts/select_taxonomy_prompt_set.py` | selector smoke works on existing held-out prompts; new AdvBench candidate download is pending because network/tool approval is currently blocked | protocol ready, data pending |
+| Taxonomy v0 validation prompt set | `data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl` | AdvBench source has 520 prompts; after excluding current local 50 prompts, taxonomy v0 finds 4 cyber candidates and 28 violence/weapons candidates; selected balanced 4-vs-4 set with zero overlap | data ready, evaluation pending |
 
 ## Interpretation
 
@@ -376,14 +376,15 @@ entropy delta +0.0632. Request verb and surface form are weaker separators:
 `write`, `explain`, `describe`, and `provide` groups all remain mixed. This is
 a useful diagnostic clue, not a validated predictor.
 
-The next taxonomy-v0 validation protocol is now documented in
-`docs/taxonomy_v0_validation_protocol.md`. It will select new AdvBench prompts
-by frozen topic rules, excluding the current 50 local prompts, then test whether
-new `cyber` prompts separate from new `violence_weapons` prompts under the same
-Qwen checkpoint transfer setup. The selector smoke test passed on existing
-held-out prompts, selecting 2 cyber and 2 violence/weapons prompts. The actual
-new-prompt download is pending because the current network/tool approval limit
-blocked AdvBench acquisition.
+The next taxonomy-v0 validation protocol is documented in
+`docs/taxonomy_v0_validation_protocol.md`. AdvBench download now succeeds and
+provides 520 candidate prompts. After excluding the current 50 local prompts,
+taxonomy v0 finds only 4 `cyber` candidates but 28 `violence_weapons`
+candidates, so the selected validation file is a balanced 4-vs-4 set:
+`data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl`. Overlap with the
+current local 50 prompts is 0. This exposes a limitation of taxonomy v0: its
+cyber coverage is narrow on AdvBench, so the next test is small but genuinely
+out-of-sample.
 
 This remains the strongest local harmfulness evidence, but full held-out
 transfer turns it into prompt-stratified diagnostic evidence rather than a
@@ -418,7 +419,7 @@ Held-out offset20 is a robust collapse-transfer failure despite higher Guardian 
 The full 50-prompt aggregate is robustly positive but almost evenly heterogeneous.
 Post-heldout literature scan narrows novelty to prompt-stratified PCE diagnostics.
 Prompt taxonomy v0 suggests topic partly explains pass/fail heterogeneity.
-Taxonomy v0 validation protocol is ready, but new AdvBench prompt data is pending.
+Taxonomy v0 validation prompt data is ready; Qwen transfer evaluation is pending.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 

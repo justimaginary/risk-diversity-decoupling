@@ -286,6 +286,11 @@ What has been validated so far:
   `docs/taxonomy_v0_validation_protocol.md` to define the next taxonomy-v0
   validation step. An offline smoke on existing held-out prompts works; the
   preferred new-prompt source is AdvBench once network access is available.
+- Downloaded 520 AdvBench harmful-behavior prompts and selected
+  `data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl`: a zero-overlap
+  taxonomy-v0 validation set with 4 `cyber` prompts and 4 `violence_weapons`
+  prompts. The intended 10-per-topic set was not possible because taxonomy v0
+  found only 4 `cyber` candidates after exclusions.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -417,9 +422,9 @@ What is not yet validated:
 - Prompt taxonomy v0 is now frozen in config for future checks. It suggests
   topic is more informative than request verb or surface form, but it is still a
   coarse heuristic and not a validated predictor.
-- A new prompt-stratified validation set has not yet been downloaded. The
-  attempted AdvBench acquisition was blocked by the current tool/network approval
-  limit, so taxonomy v0 remains unvalidated on new prompts.
+- A new prompt-stratified validation set is prepared but not yet evaluated.
+  Taxonomy v0 remains unvalidated until the selected AdvBench prompts are run
+  through the matched Qwen checkpoint transfer and Guardian-PCE pipeline.
 
 ## Local Environment
 

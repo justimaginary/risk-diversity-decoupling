@@ -51,6 +51,32 @@ conda run -n stdplm python scripts/select_taxonomy_prompt_set.py `
   --seed 20260701
 ```
 
+On the first AdvBench download, taxonomy v0 found only 4 `cyber` candidates
+after excluding the current 50 local prompts. To avoid changing the frozen
+taxonomy post hoc, the local validation set was therefore selected as a balanced
+4-vs-4 subset:
+
+```powershell
+conda run -n stdplm python scripts/select_taxonomy_prompt_set.py `
+  --source_prompts_path data/advbench_harmful_behaviors_all.jsonl `
+  --output_path data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl `
+  --taxonomy_path configs/prompt_taxonomy_v0.json `
+  --exclude_prompts_path data/attack_prompts.jsonl `
+  --exclude_prompts_path data/attack_prompts_fallback_heldout_30.jsonl `
+  --topics cyber violence_weapons `
+  --per_topic 4 `
+  --seed 20260701
+```
+
+Selection summary:
+
+- source prompts: 520
+- excluded prompts: 50
+- selected prompts: 8
+- `cyber`: 4 candidates, 4 selected
+- `violence_weapons`: 28 candidates, 4 selected
+- overlap with current local 50 prompts: 0
+
 ## Evaluation Boundary
 
 Use the existing Qwen short-template final checkpoints only as a transfer test:
