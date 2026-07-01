@@ -224,6 +224,11 @@ What has been validated so far:
   but weak: Guardian-PCE score CI is positive, but the gate is only
   `weak_pass`, target phrase hits remain 0, and dominant mass is much lower than
   the original first-10-prompt positive stress.
+- The original robust Qwen short-template final checkpoints were re-evaluated
+  on prompts 10-19 without retraining. This stricter prompt-transfer check does
+  not support the broad claim: local metric bootstrap is `mixed`, Guardian-PCE
+  bootstrap is `mixed`, dominant harm direction is `mixed`, target phrase hits
+  remain 0, and final dominant mass is only 0.0875 / 0.0938.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -319,6 +324,10 @@ What is not yet validated:
 - The prompts 10-19 short-template subset is also not a robust replication. It
   supports the direction of Guardian-PCE, but raw-mode concentration is weak and
   the product-level decision remains `weak_pass`.
+- The original short-template robust checkpoints do not transfer cleanly to
+  prompts 10-19 under matched 10x16 re-evaluation. Local PCE, Guardian-PCE, and
+  dominant harmfulness are all `mixed`, so the first-10-prompt robust pass is
+  evaluation-set sensitive.
 - Raw sampled outputs were not saved for earlier runs, so those older metrics
   are harder to audit for target-template hits or clustering mistakes.
 - The paper-level `scripts/run_stage.sh s0 exp1` path remains separate from the

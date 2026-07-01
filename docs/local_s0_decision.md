@@ -6,8 +6,9 @@ decision aid, not a paper claim.
 ## Current Decision
 
 Do not escalate the cached local SmolLM2 route or the earlier weak Qwen 0.5B
-routes to a paper-claim S1. The Qwen short-template margin-flip stress now
-justifies a restricted S1 follow-up for mechanism validation.
+routes to a paper-claim S1. The Qwen short-template margin-flip stress still
+justifies a restricted mechanism follow-up, but the prompt-transfer check blocks
+any broad S1 claim.
 
 The local evidence supports continued measurement/tooling work and a narrow S1
 follow-up on the short-template mechanism. It still does not support the claim
@@ -40,7 +41,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
 | Qwen2.5-0.5B-Instruct local weak-judge audit | same positive/control raw outputs | local Qwen judge runs but does not validate dominant harmfulness and misreads refusal control | classifier gap remains |
 | Core safety evaluator adapter | `src/evaluation/safety_eval.py` | supports LlamaGuard-style causal-LM `safe`/`unsafe` parsing plus legacy pipeline path | integration ready, not yet run |
-| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 14.40 GB free; `D:\` has about 76.83 GB free after Granite Guardian download; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
+| Local storage check | 2026-07-01 `.NET DriveInfo` | `C:\` has about 13.81 GB free; `D:\` has about 76.82 GB free after Granite Guardian download; checkpoint dry-run finds about 33.87 GB reclaimable under ignored `outputs/local_smoke` | use D for classifier cache |
 | Real classifier acquisition smoke | `D:\hf_models` | Aegis adapter downloaded but needs gated LlamaGuard-7B; Llama-Guard-3-1B-INT4 returned gated 401; external-pickle classifier skipped; RoBERTa toxicity classifier downloaded and smoke-tested | text-classification plumbing works, harmful-instruction classifier still missing |
 | RoBERTa toxicity classifier audit | positive/refusal short-template outputs | positive stress does not raise all-output toxicity; refusal control lowers toxicity; dominant toxicity shifts are small and not majority-level | not PCE harmfulness validation |
 | Granite Guardian 3.1 2B acquisition | `D:\hf_models` + D-drive transformers overlay | non-gated 4.72 GB guardian model loads with transformers 4.46.3 overlay; unmodified `stdplm` remains transformers 4.40.2 | first local guardian-style judge available |
@@ -51,6 +52,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct concise-overview second wording | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | fixed response is 10/10 Guardian Yes, but trained gate is only weak_pass; dominant harm mixed; target phrase about 1/160 | weak/negative replication |
 | Redacted dominant-representative audit | final outputs for positive/refusal/neutral/concise controls | positive has highest dominant mass and zero dominant refusal; refusal-control clusters are mostly refusals; neutral/concise are weaker and mixed; all prompts still have 16 unique outputs | qualitative support for loose modes, not exact copying |
 | Qwen2.5-0.5B-Instruct short-template prompt subset 10-19 | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | det/entropy weak_pass; Guardian-PCE score CI positive; target phrase 0; dominant mass only 0.1187 / 0.1062 | weak prompt-subset replication |
+| Original Qwen short-template checkpoints on prompts 10-19 | original robust final checkpoints, matched 10x16 re-evaluation | local metric bootstrap mixed; Guardian-PCE mixed; dominant harm mixed; target phrase 0; final dominant mass only 0.0875 / 0.0938 | prompt-transfer failure |
 
 ## Interpretation
 
@@ -252,6 +254,20 @@ Guardian-PCE score CI [+0.0031, +0.0401], and dominant harm direction
 0.1187 / 0.1062, with dominant refusal at 0.5. This is directional evidence,
 not a robust second prompt-subset replication.
 
+A stricter transfer check re-evaluated the original robust short-template final
+checkpoints on prompts 10-19 without retraining. This does not replicate the
+first-10-prompt result. Seed42 moves in the reverse direction on local metrics:
+det -0.0063, entropy +0.0054, proxy PCE -0.0063. Seed43 is mostly flat or weak:
+det +0.0000, entropy -0.0119, proxy PCE -0.0063. The pooled bootstrap is
+`mixed`, with det CI [-0.0250, +0.0219], entropy CI [-0.0542, +0.0417], and
+proxy PCE CI [-0.0219, +0.0094]. Granite also stays mixed: Guardian-PCE Yes CI
+[-0.0375, +0.0094], Guardian-PCE score CI [-0.0171, +0.0108], and dominant harm
+direction `mixed`. Raw audit again finds zero target-phrase hits, all prompts
+still have 16 unique outputs, and final dominant mass is only 0.0875 / 0.0938
+with dominant refusal around 0.57. This is stronger negative evidence than the
+separately trained 10-19 subset: the original positive result is
+prompt-evaluation-set sensitive.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -275,6 +291,7 @@ The restricted Qwen short-template stress has preliminary guardian-supported PCE
 Neutral-boundary DPO shows weak collapse without robust guardian-harm increase.
 Concise-overview replication is weak, so the positive result is wording-sensitive.
 Prompt-subset 10-19 replication is directional but weak, so prompt sensitivity remains.
+Original robust checkpoints fail/mix on prompts 10-19, so the positive result does not transfer.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
