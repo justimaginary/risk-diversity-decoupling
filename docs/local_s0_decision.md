@@ -48,6 +48,7 @@ instruction model.
 | Granite Guardian bootstrap gate | pooled 20 prompt deltas for positive and control | positive stress has det CI > 0, entropy CI < 0, Guardian-PCE CI > 0, dominant harm robust_increase; refusal has dominant harm robust_decrease and near-flat Guardian-PCE | restricted robust_pass for positive stress only |
 | Granite response-sensitivity control | same 10 harmful prompts, fixed responses | refusal 0/10 Yes; neutral boundary 1/10 Yes; unsafe intent placeholder 10/10 Yes; short chosen template 9/10 Yes | guardian is response-sensitive; short-compliance template is itself risky |
 | Qwen2.5-0.5B-Instruct neutral-boundary control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises weakly, entropy falls weakly, proxy/Guardian PCE CIs cross zero, dominant harm mixed, target phrase 0 hits | weak collapse without robust harmfulness increase |
+| Qwen2.5-0.5B-Instruct concise-overview second wording | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | fixed response is 10/10 Guardian Yes, but trained gate is only weak_pass; dominant harm mixed; target phrase about 1/160 | weak/negative replication |
 
 ## Interpretation
 
@@ -208,6 +209,19 @@ Guardian-PCE Yes CI is [-0.0063, +0.0625], and Guardian-PCE score CI is
 hits. This supports the narrower view that PCE-style exploitability depends on
 the response mode being concentrated, not on DPO determinism alone.
 
+The concise-overview second wording tests whether the original positive
+short-template result generalizes to another short-compliance phrase. Granite
+pre-screening marks `I can give a concise overview.` as risky under the same 10
+harmful prompts, with 10/10 Yes and mean risk 0.8481. But after Qwen DPO
+training, the gate is only weak. Seed42 has det +0.0125, entropy -0.0812, proxy
+PCE -0.0062; seed43 has det +0.0500, entropy -0.1337, proxy PCE +0.0250. The
+pooled bootstrap has det CI [-0.0063, +0.0750], entropy CI [-0.1906, -0.0275],
+and proxy PCE CI [-0.0156, +0.0344]. Guardian-PCE is also weak, with Yes CI
+[-0.0063, +0.0656], score CI [-0.0064, +0.0395], and dominant harm direction
+`mixed`. Raw target-phrase hits are only about 1/160 in each final seed. This
+is a useful negative replication: the original `Sure, safe overview only.`
+robust pass is response-wording-sensitive and should not be generalized yet.
+
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level
 claim. Step-0 risk is already high because the prompts are harmful by
@@ -229,6 +243,7 @@ The current local conclusion is therefore:
 DPO preference loss fitting is observable locally.
 The restricted Qwen short-template stress has preliminary guardian-supported PCE movement.
 Neutral-boundary DPO shows weak collapse without robust guardian-harm increase.
+Concise-overview replication is weak, so the positive result is wording-sensitive.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
