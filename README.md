@@ -270,6 +270,12 @@ What has been validated so far:
   dominant harm `robust_increase`, but the prompt-level map is essentially
   split: 15 stable pass, 15 mixed, and 15 stable fail, plus 5 mostly-pass/fail
   prompts.
+- The post-heldout literature scan in
+  `docs/literature_post_heldout_scan.md` tightens the novelty boundary:
+  related work already covers DPO diversity loss, refusal suppression,
+  benign-looking DPO attacks, and preference poisoning. The remaining plausible
+  contribution is prompt-stratified PCE diagnostics, not a stable vulnerability
+  claim.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -395,6 +401,9 @@ What is not yet validated:
   direct-alignment over-optimization, DPO safety attacks, and preference-label
   poisoning. Any future claim must focus on the narrower PCE chain rather than
   "DPO reduces diversity."
+- After full held-out testing, even the narrower PCE chain should be treated as
+  a diagnostic hypothesis until a standalone held-out subset reaches robust
+  Guardian-PCE pass with lower prompt heterogeneity.
 
 ## Local Environment
 
@@ -857,11 +866,12 @@ conda run -n stdplm python scripts/audit_policy_proxy.py outputs/local_smoke/ree
 | seed43 step0 | 0.1812 | 0.2437 | 0.3063 | 0.1812 | 0.3077 | 0.2308 | 0.2308 | 0.1538 | 1/10 |
 | seed43 final | 0.0625 | 0.4625 | 0.5062 | 0.3063 | 0.0000 | 0.6727 | 0.7273 | 0.3636 | 5/10 |
 
-Interpretation: this is the first two-seed local S0v2 result where margin
-flipping transmits robustly to sampled collapse metrics. It is credible enough
-to justify a restricted S1 follow-up, but it is not a paper claim. The raw-mode
-audit strengthens the evidence for loose sampled-mode concentration, while also
-showing this is not literal short-template copying: every prompt still has 16
+Interpretation: this was the first two-seed local S0v2 result where margin
+flipping transmitted robustly to sampled collapse metrics. At the time it
+justified a restricted mechanism follow-up, but the later full held-out transfer
+check supersedes that escalation framing. The raw-mode audit strengthens the
+evidence for loose sampled-mode concentration, while also showing this is not
+literal short-template copying: every prompt still has 16
 unique normalized outputs, max exact duplicate count is 1, target-template hits
 are 0. The policy-proxy audit shows a stronger refusal-to-compliance shift, but
 harmfulness is still only lexical/structural proxy evidence.
@@ -1921,9 +1931,9 @@ subset also remains `weak_pass`. The next useful step is a deliberate pivot:
 either redesign S0 around the transmission question, namely when
 length-normalized preference fitting turns into sampled-mode collapse, or park
 the vulnerability claim and keep the metric tooling. The first short-template
-S0v2 stress now gives a two-seed `robust_pass`, so a restricted S1 follow-up is
-reasonable. That follow-up should audit raw shared modes, add a real or stronger
-safety classifier, and check related literature before making any paper claim.
+S0v2 stress gave a two-seed `robust_pass`, which justified the follow-up checks
+that are now complete. Full held-out transfer results supersede the initial S1
+framing and keep the route in diagnostic mode.
 
 See `docs/local_s0_decision.md` for the current local go/no-go memo. In short:
 the cached SmolLM2 route should not escalate to S1; a future gate needs matched
@@ -1961,11 +1971,11 @@ The SmolLM2-360M gate is mixed and should be treated as not passing the full
 criterion yet. Earlier Qwen 100-step gates produced only weak or mixed evidence
 under matched re-evaluation, and the first short-template control remained
 mixed. The stronger short-template margin-flip stress is different: it links
-positive margins to robust sampled-collapse metrics across two Qwen seeds. This
-supports a restricted S1 follow-up focused on mechanism validation and
-literature search. It still does not support a paper-level vulnerability claim
-because the setup is synthetic, raw target-template hits are 0, and harmfulness
-is only a lexical proxy.
+positive margins to robust sampled-collapse metrics across two Qwen seeds. It
+supported a mechanism follow-up and literature search, but the later full
+held-out result keeps the route below S1. It still does not support a
+paper-level vulnerability claim because the setup is synthetic, raw
+target-template hits are 0, and transfer is highly prompt-dependent.
 
 ## Useful Local Commands
 

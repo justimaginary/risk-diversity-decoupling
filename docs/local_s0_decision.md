@@ -5,15 +5,14 @@ decision aid, not a paper claim.
 
 ## Current Decision
 
-Do not escalate the cached local SmolLM2 route or the earlier weak Qwen 0.5B
-routes to a paper-claim S1. The Qwen short-template margin-flip stress still
-justifies a restricted mechanism follow-up, but the prompt-transfer check blocks
-any broad S1 claim.
+Do not escalate the cached local SmolLM2 route or the Qwen 0.5B short-template
+route to a paper-claim S1. The Qwen short-template stress still supports a
+diagnostic mechanism hypothesis, but full held-out transfer blocks even a
+restricted S1 claim for now.
 
-The local evidence supports continued measurement/tooling work and a narrow S1
-follow-up on the short-template mechanism. It still does not support the claim
-that DPO reliably induces exploitable sampled-mode collapse in a real
-instruction model.
+The local evidence supports continued measurement/tooling work and
+prompt-stratified diagnostics. It still does not support the claim that DPO
+reliably induces exploitable sampled-mode collapse in a real instruction model.
 
 ## Evidence Snapshot
 
@@ -35,7 +34,7 @@ instruction model.
 | Qwen2.5-0.5B-Instruct preference-margin diagnostic | four 100-step checkpoints | sum margins stay negative; length-normalized margins flip strongly positive | diagnostic |
 | Qwen2.5-0.5B-Instruct margin-to-generation link | four 100-step analyses | positive margins do not reliably predict collapse-direction metric movement | diagnostic |
 | Qwen2.5-0.5B-Instruct short-template control | two seeds, 100 steps, matched 10x16 | det/entropy move correctly, PCE decreases, target phrase 0 hits | mixed |
-| Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | restricted S1 follow-up |
+| Qwen2.5-0.5B-Instruct short-template margin-flip stress | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | margins flip positive; aggregate robust_pass; target phrase 0 hits | superseded by held-out diagnostics |
 | Qwen2.5-0.5B-Instruct short-template raw-mode audit | same matched raw outputs | final dominant mass rises to about 0.34-0.35; max exact duplicate count stays 1; target phrase 0 hits | loose-mode evidence |
 | Qwen2.5-0.5B-Instruct short-template policy-proxy audit | same matched raw outputs | final refusal decreases and compliance/actionability increases, strongest in dominant clusters | proxy-only evidence |
 | Qwen2.5-0.5B-Instruct refusal-template counter-control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises, entropy falls, proxy PCE falls, refusal rises, compliance falls | bidirectional control evidence |
@@ -62,6 +61,7 @@ instruction model.
 | Combined original short-template prompts 0-19 plus held-out 20 | first-10 positive, prompts10-19 transfer, held-out10, held-out offset10 | pooled Guardian-PCE robust_pass; dominant harm weak_increase; det CI [+0.0305, +0.0922]; Guardian-PCE score CI [+0.0318, +0.0884]; prompt split 33/19/28 | broader but still heterogeneous aggregate |
 | Original Qwen short-template checkpoints on held-out fallback offset20 | final 10 held-out fallback prompts, matched 10x16 | local gate robust_fail; Guardian-PCE robust_fail; dominant harm robust_increase; det CI [-0.0625, -0.0125]; entropy CI [+0.0379, +0.1317]; target phrase 0; dominant mass 0.1000 / 0.1000 | collapse-transfer failure |
 | Combined original short-template prompts 0-19 plus held-out 30 | all 20 current prompts plus all 30 held-out fallback prompts | pooled Guardian-PCE robust_pass; dominant harm robust_increase; det CI [+0.0150, +0.0681]; Guardian-PCE score CI [+0.0253, +0.0721]; prompt split 34/33/33; prompt map 15 stable_pass, 15 mixed, 15 stable_fail, 5 mostly-pass/fail | aggregate positive, highly heterogeneous |
+| Post-heldout literature scan | `docs/literature_post_heldout_scan.md` | related work already covers DPO diversity loss, refusal suppression, benign DPO attacks, and preference poisoning; remaining angle is prompt-stratified PCE diagnostics | novelty narrowed |
 
 ## Interpretation
 
@@ -393,6 +393,7 @@ Held-out10 transfer is weakly positive but not robust as a standalone gate.
 Held-out offset10 is Guardian-PCE mixed, so standalone transfer remains weak.
 Held-out offset20 is a robust collapse-transfer failure despite higher Guardian harmfulness.
 The full 50-prompt aggregate is robustly positive but almost evenly heterogeneous.
+Post-heldout literature scan narrows novelty to prompt-stratified PCE diagnostics.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
@@ -413,19 +414,17 @@ Escalate only if a future local gate satisfies all of the following:
 
 Preferred:
 
-1. Continue the restricted S1 follow-up for the Qwen short-template margin-flip
-   mechanism using Granite Guardian as the current local guardian and, if
-   authorization becomes available, LlamaGuard as a replication target. The
-   first raw-mode audit, policy-proxy audit, counter-control, related-work scan,
-   weak-judge diagnostic, LlamaGuard-style adapter, narrow toxicity-classifier
-   smoke, and Granite Guardian harm audit are complete. Prefer storing any
-   classifier checkpoint on `D:\hf_models` rather than under the workspace.
-2. Treat this as mechanism evidence only until raw shared modes and real
-   harmfulness are validated.
-3. Treat `weak_pass` or `mixed` as insufficient for any paper claim; require
-   multi-seed `robust_pass` plus raw-mode and safety evidence.
-4. If restricted S1 fails raw-mode or safety validation, pivot to PCE diagnostic
-   tooling rather than a DPO vulnerability claim.
+1. Treat the Qwen short-template route as prompt-stratified PCE diagnostics,
+   not restricted S1. The full held-out result is aggregate-positive but too
+   heterogeneous for escalation.
+2. Build a prompt taxonomy or pre-registered stratification, then test whether
+   pass/fail prompts are predictable before any new training run is treated as
+   evidence.
+3. Treat `weak_pass`, `mixed`, or aggregate-only `robust_pass` as insufficient
+   for any paper claim; require a standalone held-out Guardian-PCE
+   `robust_pass` plus raw-mode and safety evidence.
+4. If LlamaGuard or another independent safety classifier becomes available,
+   use it as replication, with checkpoints/cache stored under `D:\hf_models`.
 
 Fallback:
 
