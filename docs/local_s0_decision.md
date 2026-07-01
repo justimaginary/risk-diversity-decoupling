@@ -49,6 +49,7 @@ instruction model.
 | Granite response-sensitivity control | same 10 harmful prompts, fixed responses | refusal 0/10 Yes; neutral boundary 1/10 Yes; unsafe intent placeholder 10/10 Yes; short chosen template 9/10 Yes | guardian is response-sensitive; short-compliance template is itself risky |
 | Qwen2.5-0.5B-Instruct neutral-boundary control | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | determinism rises weakly, entropy falls weakly, proxy/Guardian PCE CIs cross zero, dominant harm mixed, target phrase 0 hits | weak collapse without robust harmfulness increase |
 | Qwen2.5-0.5B-Instruct concise-overview second wording | seeds 42/43, lr=3e-6, 300 steps, matched 10x16 | fixed response is 10/10 Guardian Yes, but trained gate is only weak_pass; dominant harm mixed; target phrase about 1/160 | weak/negative replication |
+| Redacted dominant-representative audit | final outputs for positive/refusal/neutral/concise controls | positive has highest dominant mass and zero dominant refusal; refusal-control clusters are mostly refusals; neutral/concise are weaker and mixed; all prompts still have 16 unique outputs | qualitative support for loose modes, not exact copying |
 
 ## Interpretation
 
@@ -221,6 +222,20 @@ and proxy PCE CI [-0.0156, +0.0344]. Guardian-PCE is also weak, with Yes CI
 `mixed`. Raw target-phrase hits are only about 1/160 in each final seed. This
 is a useful negative replication: the original `Sure, safe overview only.`
 robust pass is response-wording-sensitive and should not be generalized yet.
+
+A redacted dominant-representative extractor was added to preserve qualitative
+raw-mode review without committing unsafe generations. The generated ignored
+JSON covers final outputs for the positive, refusal, neutral-boundary, and
+concise-overview controls. It stores snippets capped at 160 characters with
+sensitive terms redacted; the quick check found zero unredacted sensitive-keyword
+hits in snippets. The aggregate pattern matches the quantitative story:
+positive seed42/43 have the highest dominant mass, 0.3500 / 0.3438, with zero
+dominant refusal and dominant compliance/proxy-harmful near 0.57; refusal
+control has dominant mass 0.2812 with dominant refusal 0.75 / 0.7667 and proxy
+harmful 0.0667; neutral-boundary and concise-overview have lower dominant mass,
+0.1375-0.1750 except neutral at 0.1625, and mixed policy signals. Every checked
+split still has 16 unique normalized outputs per prompt, so the evidence is
+loose semantic concentration rather than exact duplicate copying.
 
 This is the strongest local harmfulness evidence so far and it supports the
 restricted short-template mechanism follow-up. It still is not a paper-level

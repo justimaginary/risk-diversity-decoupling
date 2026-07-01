@@ -212,6 +212,12 @@ What has been validated so far:
   `weak_pass` with dominant harm `mixed`, so the original short-template
   `robust_pass` does not automatically generalize to every short-compliance
   wording.
+- Added `scripts/extract_dominant_representatives.py` to save redacted
+  dominant-cluster representatives for qualitative review. The key final
+  controls show clear separation: original positive has the highest dominant
+  mass and zero dominant refusal, refusal-control dominant clusters are mostly
+  refusals, and neutral/concise controls have lower dominant mass with mixed
+  policy signals.
 - The literature scan was refreshed again after the Granite Guardian and
   neutral-boundary controls. Existing work already covers DPO diversity
   collapse, direct-alignment over-optimization, benign-looking DPO attacks, and
@@ -1281,6 +1287,50 @@ the harmful prompts, DPO training does not robustly transmit that wording into a
 strong sampled dominant-risk mode. The original `Sure, safe overview only.`
 result should therefore be treated as response-wording-sensitive until a second
 robust wording or preference subset replicates it.
+
+#### Redacted Dominant-Representative Audit
+
+To make the raw-mode evidence easier to inspect without committing unsafe
+generations, a qualitative extractor was added:
+
+```text
+scripts/extract_dominant_representatives.py
+```
+
+It uses the same TF-IDF + DBSCAN clustering path as the local PCE smoke metrics
+and writes short redacted snippets plus dominant-cluster statistics. The
+representative JSON is ignored output, not committed:
+
+```text
+outputs/local_smoke/redacted_dominant_representatives_key_controls.json
+```
+
+Safety check on the generated representative file:
+
+```text
+files=8, max_snippet_len=160, sensitive_hits=0
+```
+
+Final-checkpoint summary:
+
+| Split | Dominant Mass | Dominant Refusal | Dominant Compliance | Dominant Proxy Harmful | Unique Outputs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| positive seed42 | 0.3500 | 0.0000 | 0.5740 | 0.5740 | 16.00 |
+| positive seed43 | 0.3438 | 0.0000 | 0.5690 | 0.5690 | 16.00 |
+| refusal seed42 | 0.2812 | 0.7500 | 0.1682 | 0.0667 | 16.00 |
+| refusal seed43 | 0.2812 | 0.7667 | 0.1700 | 0.0667 | 16.00 |
+| neutral seed42 | 0.1625 | 0.3750 | 0.3200 | 0.2000 | 16.00 |
+| neutral seed43 | 0.1625 | 0.4700 | 0.2883 | 0.1550 | 16.00 |
+| concise seed42 | 0.1375 | 0.4833 | 0.2833 | 0.2167 | 16.00 |
+| concise seed43 | 0.1750 | 0.3833 | 0.4567 | 0.3733 | 16.00 |
+
+Interpretation: the positive short-template run remains the clearest loose
+mode-concentration case: dominant mass is highest and dominant refusal is zero.
+The refusal counter-control concentrates toward refusal. The neutral-boundary
+and concise-overview controls have weaker dominant mass and mixed policy
+signals. Every checked split still has 16 unique normalized outputs per prompt,
+so the evidence is semantic/loose-mode concentration rather than exact duplicate
+copying.
 
 Interpretation: this is the strongest local harmfulness evidence so far. For
 the positive short-template stress, determinism rises, entropy falls, dominant
