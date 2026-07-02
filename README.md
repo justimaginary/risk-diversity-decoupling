@@ -27,10 +27,12 @@ The complete current local experiment report is:
 - [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
 - [`docs/poison_car_smoke_protocol.md`](docs/poison_car_smoke_protocol.md)
 
-Formal opening direction: target CCF-A AI venues such as AAAI/IJCAI with a
-prompt-stratified PCE diagnostics and early-warning study. The project should
-not enter S1 or make a paper-level vulnerability claim until a preregistered
-held-out gate passes robustly.
+Formal opening direction: the original DPO vulnerability idea is now rewritten
+as a clearer story: original hypothesis, core concepts, validation tests,
+negative/positive evidence, then the current prompt-stratified PCE diagnostics
+and early-warning direction. The project should not enter S1 or make a
+paper-level vulnerability claim until a preregistered held-out gate passes
+robustly.
 
 The S0.1 held-out 30 prompt protocol has completed. It fails the preregistered
 pass criteria: only 21/60 prompt-seed comparisons pass the local direction
