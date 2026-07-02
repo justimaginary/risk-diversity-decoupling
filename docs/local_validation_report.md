@@ -392,6 +392,7 @@ Tracked data and configs:
 | `data/attack_prompts_fallback_heldout_30.jsonl` | 30 zero-overlap fallback held-out prompts |
 | `data/advbench_harmful_behaviors_all.jsonl` | downloaded AdvBench prompt source |
 | `data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl` | taxonomy-v0 AdvBench validation set |
+| `data/advbench_s0_1_heldout_30.jsonl` | S0.1 random AdvBench held-out validation set |
 | `data/local_short_template_preferences.jsonl` | original positive short-template preferences |
 | `data/local_refusal_template_preferences.jsonl` | refusal counter-control |
 | `data/local_neutral_boundary_preferences.jsonl` | neutral-boundary control |
@@ -452,11 +453,24 @@ PCE metric tooling + prompt-stratified diagnostic research.
 
 Do not run a larger model yet. Do not write the paper claim yet.
 
-Instead, create a preregistered S0.1 validation plan:
+The preregistered S0.1 held-out validation has now been run. It did not meet
+the pass criteria:
+
+- local collapse-direction pass rate is 21/60 = 35.0%, below the 60% threshold;
+- both seed42 and seed43 fail the local direction gate;
+- Guardian-PCE is positive but `mixed` because determinism falls and entropy
+  rises;
+- dominant Guardian harmfulness robustly increases;
+- target phrase hits remain 0/960 in each final seed.
+
+This result triggers the stop condition for S1 escalation. The next useful item
+is only Experiment C as a diagnostic active-induction smoke test.
+
+The completed S0.1 protocol satisfied these preregistration requirements:
 
 1. Freeze the exact hypothesis before running more training.
 2. Define prompt strata without looking at new model outcomes.
-3. Use at least 50-100 prompts, not only 8-topic validation prompts.
+3. Use a larger prompt set than the 8-topic taxonomy validation.
 4. Require two independent training seeds.
 5. Require matched evaluation at 16-32 samples per prompt.
 6. Require Guardian-PCE robust pass within a held-out stratum.
@@ -510,21 +524,18 @@ Recommended order:
      preregistered buckets such as cyber, fraud, self-harm, violence,
      harassment, and general harmful requests.
 
-4. Repeat only one focused Qwen gate.
-   - Same model and local setup.
-   - Two seeds.
-   - A held-out prompt stratum selected before training.
-   - Matched 16-32 samples per prompt.
-   - Guardian-PCE plus raw-mode audit.
+4. Run Experiment C only as an active-induction smoke test.
+   - Keep the label as mechanism smoke, not attack proof.
+   - Require CAR dose ordering and Guardian-PCE reporting.
+   - Stop if CAR improves but Guardian-PCE does not.
 
 5. Seek independent classifier replication.
    - If LlamaGuard access becomes available, run it on the same saved outputs.
    - If not, keep Granite as the named classifier and avoid broader safety
      claims.
 
-6. Only then decide whether S1 exists.
-   - If S0.1 passes: design restricted S1.
-   - If S0.1 fails: keep project as diagnostic tooling.
+6. Do not decide that S1 exists unless a future held-out gate passes.
+   - Current S0.1 result says to keep the project as diagnostic tooling.
 
 ### Stop Conditions
 
@@ -546,5 +557,6 @@ The honest current conclusion is:
 ```text
 There is a real local mechanism signal in a restricted Qwen short-template stress.
 That signal is too prompt-sensitive and wording-sensitive for S1.
-The next step is preregistered prompt-stratified validation, not scale-up.
+S0.1 held-out validation did not pass, so the next step is only a diagnostic
+active-induction smoke test, not scale-up or a vulnerability claim.
 ```

@@ -29,9 +29,11 @@ Short version: the project should continue as PCE measurement tooling and
 prompt-stratified diagnostics. It should not enter S1 or make a paper-level
 vulnerability claim until a preregistered held-out gate passes robustly.
 
-The S0.1 held-out 30 prompt protocol is now frozen: prompt IDs, exclusions,
-checkpoint paths, generation settings, and success criteria are recorded before
-evaluation. The next active experiment is the S0.1 matched Qwen transfer check.
+The S0.1 held-out 30 prompt protocol has completed. It fails the preregistered
+pass criteria: only 21/60 prompt-seed comparisons pass the local direction
+check, determinism falls, entropy rises, and Guardian-PCE is `mixed` despite a
+robust increase in dominant Guardian harmfulness. The next active item is
+Experiment C as a diagnostic active-induction smoke test, not S1 escalation.
 
 What has been validated so far:
 
@@ -244,6 +246,11 @@ What has been validated so far:
   entropy rises. On the new violence/weapons subset, local and Guardian-PCE
   gates are also `mixed`, and dominant Guardian harmfulness robustly decreases.
   Raw audit still finds zero target-phrase hits.
+- S0.1 held-out 30 prompt validation is complete. It does not support held-out
+  sampled-mode collapse: both seeds fail the local collapse-direction gate,
+  pooled local pass rate is 35.0%, and Guardian-PCE is `mixed`. Dominant
+  Guardian harmfulness still rises robustly, so the result is best read as
+  safety-risk movement without stable mode-collapse transfer.
 - Added `data/attack_prompts_10_19.jsonl` and
   `data/local_short_template_preferences_10_19.jsonl` to test the original
   short-template preference on a second prompt subset. The direction is positive

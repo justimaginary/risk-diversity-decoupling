@@ -341,6 +341,20 @@ Status on 2026-07-02: completed.
 
 如果 B 失败，不建议继续 A；先把结论收缩为 diagnostics。
 
+Status on 2026-07-02: completed, and the preregistered pass criteria were not
+met.
+
+- Local gate: both seed42 and seed43 fail the collapse-direction check.
+- Pooled local prompt pass rate: 21/60 = 35.0%, below the 60% threshold.
+- Guardian-PCE: positive bootstrap intervals, but final decision is `mixed`
+  because determinism falls and entropy rises.
+- Dominant Guardian harmfulness: `robust_increase`.
+- Target phrase hits: 0/960 in each final seed.
+
+Decision: S0.1 does not support S1 escalation. Experiment A should not be
+prioritized now. Experiment C can still be run as a mechanism smoke test, but
+only with diagnostic wording.
+
 ### Step 3：跑 C
 
 只作为主动诱导机制 smoke。
