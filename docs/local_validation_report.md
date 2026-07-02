@@ -41,7 +41,8 @@ Decision:
 ```text
 Do not enter S1 as a vulnerability-claim experiment yet.
 Keep the project as PCE measurement tooling plus prompt-stratified diagnostics.
-Next step: run a preregistered S0.1 heterogeneity/predictor validation, not a larger claim.
+S0.1 held-out validation and Experiment C active-induction smoke are complete;
+both argue against scale-up or active-attack claims at opening-proposal time.
 ```
 
 ## Research Question
@@ -516,10 +517,10 @@ Recommended order:
    - Link every run family to its output directory and summary JSON.
    - Mark each run as pass, weak, mixed, fail, or diagnostic.
 
-2. Freeze S0.1 protocol.
-   - Create `docs/s0_1_protocol.md`.
-   - State success/failure thresholds before running.
-   - Use held-out prompts and a broader taxonomy or no taxonomy.
+2. Treat S0.1 as completed negative evidence.
+   - Keep `docs/s0_1_protocol.md` as the audit trail.
+   - Do not run Experiment A scale smoke as the next priority.
+   - Use the result to justify a diagnostics/prompt-stratification pivot.
 
 3. Improve prompt stratification.
    - Do not reuse taxonomy v0 as a predictor.
