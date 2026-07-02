@@ -64,6 +64,10 @@ What has been validated so far:
 - The Qwen3 overlay is installed at `D:\hf_models\pydeps\qwen3_transformers`
   with `transformers==4.57.6`; the base `stdplm` transformers version remains
   unchanged.
+- Qwen3-1.7B has been downloaded to `D:\hf_models\Qwen3-1.7B` via ModelScope
+  after a partial Hugging Face timeout. Non-thinking generation works on the RTX
+  4060, and a 1 prompt x 2 samples x 5-step LoRA-DPO smoke completed with
+  adapter reload validation.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under

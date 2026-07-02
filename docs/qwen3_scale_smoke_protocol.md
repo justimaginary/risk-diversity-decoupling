@@ -26,6 +26,13 @@ Model acquisition order:
 1. Hugging Face snapshot download.
 2. ModelScope fallback if Hugging Face fails.
 
+Current acquisition status:
+
+| Model | Status | Notes |
+| --- | --- | --- |
+| Qwen3-1.7B | downloaded | Hugging Face timed out after partial download; ModelScope completed successfully |
+| Qwen3-4B | pending | run after 1.7B core smoke |
+
 ## Environment
 
 - Conda env: `stdplm`.
@@ -45,6 +52,15 @@ Overlay status:
 | overlay transformers | 4.57.6 |
 | overlay path | `D:\hf_models\pydeps\qwen3_transformers` |
 | validation | `scripts/local_qwen3_lora_dpo.py --help` runs with the overlay |
+
+Qwen3-1.7B load validation:
+
+| Check | Result |
+| --- | --- |
+| local path | `D:\hf_models\Qwen3-1.7B` |
+| transformers overlay | 4.57.6 |
+| GPU | RTX 4060 Laptop |
+| non-thinking generation | pass |
 
 ## Fixed Generation Policy
 
@@ -130,6 +146,12 @@ For each completed model/seed condition:
 - raw-output audit;
 - Granite Guardian audit;
 - Guardian-PCE summary.
+
+## Completed Smoke Checks
+
+| Run | Output dir | Result |
+| --- | --- | --- |
+| Qwen3-1.7B 1 prompt x 2 samples x 5 LoRA-DPO steps | `outputs/local_smoke/qwen3_17b_lora_smoke_1p2s_5steps` | pass; loss 0.6931 -> 0.0353; adapter reload generation pass |
 
 ## Decision Rules
 
