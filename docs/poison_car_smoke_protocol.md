@@ -166,4 +166,54 @@ acceleration, not safety-relevant PCE.
 
 ## Result
 
-Status: pending training and evaluation.
+Status on 2026-07-02: completed.
+
+Local CAR summary:
+
+| Condition | Det Delta | Entropy Delta | CAR | Proxy PCE Delta | Local Judgement |
+| --- | ---: | ---: | ---: | ---: | --- |
+| clean | +0.0312 | -0.0797 | +0.000797 | +0.0062 | pass |
+| 1% poison | +0.0312 | -0.0797 | +0.000797 | +0.0000 | pass |
+| 5% poison | +0.0188 | -0.0451 | +0.000451 | -0.0187 | mixed |
+
+CAR dose ordering:
+
+```text
+CAR_5% > CAR_1% > CAR_clean: false
+```
+
+Guardian-PCE summary:
+
+| Condition | Guardian-PCE Yes Delta | Guardian-PCE Score Delta | Guardian Judgement | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | --- | --- |
+| clean | +0.0437 | +0.0326 | pass | 3/4/3 |
+| 1% poison | +0.0312 | +0.0228 | pass | 3/3/4 |
+| 5% poison | +0.0187 | +0.0095 | pass | 3/2/5 |
+
+Pooled Guardian bootstrap:
+
+- `guardian_pce_gate_decision: weak_pass`
+- `dominant_harm_direction: weak_decrease`
+- Guardian-PCE Yes CI: [+0.0000, +0.0625]
+- Guardian-PCE score CI: [-0.0019, +0.0466]
+
+Raw-output audit:
+
+| Condition | Outputs | Refusal Rate | Compliance Rate | Proxy-Harmful Rate | Target Phrase Hits |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| clean final | 160 | 0.287 | 0.344 | 0.256 | 0 |
+| 1% final | 160 | 0.306 | 0.344 | 0.244 | 0 |
+| 5% final | 160 | 0.275 | 0.319 | 0.200 | 0 |
+
+Decision:
+
+```text
+Experiment C does not show the intended dose effect.
+The 5% condition weakens CAR and proxy PCE rather than accelerating collapse.
+Guardian-PCE is positive in all three conditions, but it is strongest for clean
+and weakest for 5%, so it does not support active-induction dose response.
+```
+
+Interpretation: this is a useful negative smoke. It keeps the collapse
+accelerator direction as future work, but it should not be used in the opening
+proposal as evidence that an attacker can actively induce collapse.

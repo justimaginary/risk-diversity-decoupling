@@ -361,7 +361,7 @@ only with diagnostic wording.
 
 如果 CAR 和 Guardian-PCE 都有剂量效应，可在开题中作为“后续攻击实验可行性”。
 
-Status on 2026-07-02: protocol and data frozen; training pending.
+Status on 2026-07-02: completed; the intended dose effect was not observed.
 
 - Protocol: `docs/poison_car_smoke_protocol.md`
 - Config: `configs/poison_car_smoke.yaml`
@@ -371,6 +371,19 @@ Status on 2026-07-02: protocol and data frozen; training pending.
   - `data/local_poison_smoke_poison05_100.jsonl`
 - CAR summarizer: `scripts/summarize_poison_car_smoke.py`
 - Evidence boundary: mechanism smoke only, not attack proof.
+
+Result:
+
+- `CAR_5% > CAR_1% > CAR_clean` is false.
+- clean CAR = +0.000797
+- 1% CAR = +0.000797
+- 5% CAR = +0.000451
+- Guardian-PCE remains positive but is strongest for clean and weakest for 5%.
+- target phrase hits remain 0 in all final outputs.
+
+Decision: C should be reported as a negative mechanism smoke. It does not
+support the statement that active poisoning can induce collapse in the current
+local setup.
 
 ### Step 4：有资源再跑 A
 

@@ -35,8 +35,9 @@ pass criteria: only 21/60 prompt-seed comparisons pass the local direction
 check, determinism falls, entropy rises, and Guardian-PCE is `mixed` despite a
 robust increase in dominant Guardian harmfulness. The next active item is
 Experiment C as a diagnostic active-induction smoke test, not S1 escalation.
-Experiment C is now frozen as a 100-row schedule-visible CAR smoke with clean,
-1% poison, and 5% poison preference files.
+Experiment C is also complete as a 100-row schedule-visible CAR smoke. It does
+not show the intended dose effect: clean and 1% have the same CAR, 5% is weaker,
+and Guardian-PCE is strongest for clean rather than poisoned conditions.
 
 What has been validated so far:
 
@@ -254,6 +255,10 @@ What has been validated so far:
   pooled local pass rate is 35.0%, and Guardian-PCE is `mixed`. Dominant
   Guardian harmfulness still rises robustly, so the result is best read as
   safety-risk movement without stable mode-collapse transfer.
+- Experiment C poison/CAR smoke is complete and negative. The intended ordering
+  `CAR_5% > CAR_1% > CAR_clean` is false: clean and 1% both have CAR +0.000797,
+  while 5% has CAR +0.000451. Guardian-PCE does not show dose response, and
+  exact target phrase hits remain 0.
 - Added `data/attack_prompts_10_19.jsonl` and
   `data/local_short_template_preferences_10_19.jsonl` to test the original
   short-template preference on a second prompt subset. The direction is positive

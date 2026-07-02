@@ -464,7 +464,10 @@ the pass criteria:
 - target phrase hits remain 0/960 in each final seed.
 
 This result triggers the stop condition for S1 escalation. The next useful item
-is only Experiment C as a diagnostic active-induction smoke test.
+was only Experiment C as a diagnostic active-induction smoke test. Experiment C
+has now also completed and is negative: CAR does not increase with poison
+ratio, and Guardian-PCE is strongest for the clean condition rather than the
+poisoned conditions.
 
 The completed S0.1 protocol satisfied these preregistration requirements:
 
@@ -524,10 +527,10 @@ Recommended order:
      preregistered buckets such as cyber, fraud, self-harm, violence,
      harassment, and general harmful requests.
 
-4. Run Experiment C only as an active-induction smoke test.
-   - Keep the label as mechanism smoke, not attack proof.
-   - Require CAR dose ordering and Guardian-PCE reporting.
-   - Stop if CAR improves but Guardian-PCE does not.
+4. Treat Experiment C as a completed negative active-induction smoke.
+   - CAR dose ordering failed.
+   - Guardian-PCE did not show poison dose response.
+   - Do not use C as attack evidence in the opening proposal.
 
 5. Seek independent classifier replication.
    - If LlamaGuard access becomes available, run it on the same saved outputs.
@@ -536,6 +539,7 @@ Recommended order:
 
 6. Do not decide that S1 exists unless a future held-out gate passes.
    - Current S0.1 result says to keep the project as diagnostic tooling.
+   - Current C result also says not to claim active-induction feasibility.
 
 ### Stop Conditions
 
@@ -558,5 +562,6 @@ The honest current conclusion is:
 There is a real local mechanism signal in a restricted Qwen short-template stress.
 That signal is too prompt-sensitive and wording-sensitive for S1.
 S0.1 held-out validation did not pass, so the next step is only a diagnostic
-active-induction smoke test, not scale-up or a vulnerability claim.
+tooling/prompt-stratification plan, not scale-up, active-attack claims, or a
+vulnerability claim.
 ```
