@@ -37,6 +37,15 @@ Model acquisition order:
 - Run Qwen3 scripts with `QWEN3_TRANSFORMERS_OVERLAY` or `PYTHONPATH` pointing
   to that overlay.
 
+Overlay status:
+
+| Item | Value |
+| --- | --- |
+| base `stdplm` transformers | 4.40.2 |
+| overlay transformers | 4.57.6 |
+| overlay path | `D:\hf_models\pydeps\qwen3_transformers` |
+| validation | `scripts/local_qwen3_lora_dpo.py --help` runs with the overlay |
+
 ## Fixed Generation Policy
 
 Qwen3 supports thinking and non-thinking modes. All PCE smoke runs must use

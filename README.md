@@ -61,6 +61,9 @@ What has been validated so far:
 - Qwen3-first scale smoke infrastructure has been added; Qwen3 requires an
   isolated `transformers>=4.51.0` overlay because the base `stdplm`
   environment has `transformers==4.40.2`.
+- The Qwen3 overlay is installed at `D:\hf_models\pydeps\qwen3_transformers`
+  with `transformers==4.57.6`; the base `stdplm` transformers version remains
+  unchanged.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under
