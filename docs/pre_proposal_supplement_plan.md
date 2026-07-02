@@ -361,6 +361,17 @@ only with diagnostic wording.
 
 如果 CAR 和 Guardian-PCE 都有剂量效应，可在开题中作为“后续攻击实验可行性”。
 
+Status on 2026-07-02: protocol and data frozen; training pending.
+
+- Protocol: `docs/poison_car_smoke_protocol.md`
+- Config: `configs/poison_car_smoke.yaml`
+- Data:
+  - `data/local_poison_smoke_poison00_100.jsonl`
+  - `data/local_poison_smoke_poison01_100.jsonl`
+  - `data/local_poison_smoke_poison05_100.jsonl`
+- CAR summarizer: `scripts/summarize_poison_car_smoke.py`
+- Evidence boundary: mechanism smoke only, not attack proof.
+
 ### Step 4：有资源再跑 A
 
 只跑一个模型即可，优先 Qwen2.5-3B。

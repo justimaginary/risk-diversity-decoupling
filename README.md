@@ -24,6 +24,7 @@ The complete current local experiment report is:
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
 - [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
+- [`docs/poison_car_smoke_protocol.md`](docs/poison_car_smoke_protocol.md)
 
 Short version: the project should continue as PCE measurement tooling and
 prompt-stratified diagnostics. It should not enter S1 or make a paper-level
@@ -34,6 +35,8 @@ pass criteria: only 21/60 prompt-seed comparisons pass the local direction
 check, determinism falls, entropy rises, and Guardian-PCE is `mixed` despite a
 robust increase in dominant Guardian harmfulness. The next active item is
 Experiment C as a diagnostic active-induction smoke test, not S1 escalation.
+Experiment C is now frozen as a 100-row schedule-visible CAR smoke with clean,
+1% poison, and 5% poison preference files.
 
 What has been validated so far:
 
