@@ -68,6 +68,10 @@ What has been validated so far:
   after a partial Hugging Face timeout. Non-thinking generation works on the RTX
   4060, and a 1 prompt x 2 samples x 5-step LoRA-DPO smoke completed with
   adapter reload validation.
+- Qwen3-1.7B first-10 LoRA-DPO core smoke is complete for seeds 42/43. It is a
+  robust fail for collapse: determinism decreases and entropy increases, while
+  proxy/Guardian harmfulness rises strongly. This is harmfulness/compliance
+  amplification, not PCE collapse evidence.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under
