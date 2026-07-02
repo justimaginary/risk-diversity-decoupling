@@ -72,6 +72,10 @@ What has been validated so far:
   robust fail for collapse: determinism decreases and entropy increases, while
   proxy/Guardian harmfulness rises strongly. This is harmfulness/compliance
   amplification, not PCE collapse evidence.
+- Qwen3-4B was downloaded and passed a 5-step LoRA smoke. Its seed42 100-step
+  gate is also a collapse-direction robust fail, despite a robust Guardian
+  harmfulness increase. Per protocol, do not run 4B seed43/300-step until the
+  training target or prompt protocol is revised.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under
