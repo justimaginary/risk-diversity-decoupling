@@ -2,8 +2,10 @@
 
 Date: 2026-07-02
 
-This manifest records the planned cleanup of historical Qwen2.5-0.5B artifacts
-before switching the active experiment line to Qwen3.
+This manifest records the cleanup of historical Qwen2.5-0.5B artifacts before
+switching the active experiment line to Qwen3.
+
+Status: completed on 2026-07-02.
 
 ## Decision
 
@@ -13,7 +15,7 @@ new training, held-out validation, poison/CAR tests, or Guardian audits.
 The tracked reports, scripts, configs, and small JSONL data remain in git so the
 research history stays reproducible.
 
-## Planned Deletions
+## Deleted Paths
 
 | Path | Size GB | Reason |
 | --- | ---: | --- |
@@ -38,7 +40,14 @@ research history stays reproducible.
 | `outputs/local_smoke\s0_1_qwen05_short_template_seed42_advbench_heldout30_32x` | 0.001 | ignored historical 0.5B metric output |
 | `outputs/local_smoke\s0_1_qwen05_short_template_seed43_advbench_heldout30_32x` | 0.001 | ignored historical 0.5B metric output |
 
-Estimated space to reclaim: about 28.2 GB.
+Estimated space reclaimed from the listed paths: about 28.2 GB.
+
+Post-cleanup free space observed:
+
+| Drive | Free bytes | Approx GiB |
+| --- | ---: | ---: |
+| `C:\` | 38,769,221,632 | 36.11 |
+| `D:\` | 84,355,039,232 | 78.56 |
 
 ## Preserved Evidence
 

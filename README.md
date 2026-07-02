@@ -39,6 +39,8 @@ robustly.
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
 with LoRA-DPO, non-thinking generation, and first-10 prompt scale smoke.
+The old Qwen2.5-0.5B model weights and ignored qwen05 checkpoint outputs have
+been removed; the retained evidence is in tracked reports and small data files.
 
 The S0.1 held-out 30 prompt protocol has completed. It fails the preregistered
 pass criteria: only 21/60 prompt-seed comparisons pass the local direction
