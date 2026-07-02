@@ -23,6 +23,8 @@ The complete current local experiment report is:
 
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/opening_report.md`](docs/opening_report.md)
+- [`docs/qwen3_scale_smoke_protocol.md`](docs/qwen3_scale_smoke_protocol.md)
+- [`docs/qwen05_cleanup_manifest.md`](docs/qwen05_cleanup_manifest.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
 - [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
 - [`docs/poison_car_smoke_protocol.md`](docs/poison_car_smoke_protocol.md)
@@ -33,6 +35,10 @@ negative/positive evidence, then the current prompt-stratified PCE diagnostics
 and early-warning direction. The project should not enter S1 or make a
 paper-level vulnerability claim until a preregistered held-out gate passes
 robustly.
+
+Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
+evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
+with LoRA-DPO, non-thinking generation, and first-10 prompt scale smoke.
 
 The S0.1 held-out 30 prompt protocol has completed. It fails the preregistered
 pass criteria: only 21/60 prompt-seed comparisons pass the local direction
@@ -50,6 +56,9 @@ What has been validated so far:
 - The existing `stdplm` conda environment is used for local experiments.
 - The local RTX 4060 Laptop GPU is visible to PyTorch.
 - A lightweight proxy-PCE metric pipeline runs locally.
+- Qwen3-first scale smoke infrastructure has been added; Qwen3 requires an
+  isolated `transformers>=4.51.0` overlay because the base `stdplm`
+  environment has `transformers==4.40.2`.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under
@@ -131,7 +140,7 @@ What has been validated so far:
 - Added `docs/local_s0_decision.md` to summarize the current no-S1 decision for
   the cached SmolLM2 route, restored Qwen route, and the criteria required for
   escalation.
-- `Qwen/Qwen2.5-0.5B-Instruct` is now locally usable after manually placing
+- Historical pilot note: `Qwen/Qwen2.5-0.5B-Instruct` became locally usable after manually placing
   `model.safetensors` under `D:\hf_models\Qwen2.5-0.5B-Instruct` and assembling
   it with cached tokenizer/config files under `outputs/local_models/`.
 - Qwen local offline loading succeeds on the RTX 4060 as a 494M-parameter
@@ -569,13 +578,16 @@ only a weak S0 gate because it uses a 135M model, 3 prompts, 4 samples, 20
 training steps, and LM-head-only training. The result supports continuing to a
 stronger small-model gate, but it does not establish the paper claim.
 
-### 5. Qwen 0.5B Local Restoration
+### 5. Historical Qwen 0.5B Local Restoration
 
-`Qwen/Qwen2.5-0.5B-Instruct` remains the preferred local target, but the model
-download did not complete within a 20-minute snapshot attempt. The current cache
-contains tokenizer/config files and an incomplete weight blob of about 134 MB,
-not the full model weights. This is an infrastructure blocker, not a negative
-experimental result.
+This section is retained as historical pilot evidence only. No new experiments
+should use Qwen2.5-0.5B. The active line is Qwen3-first scale smoke.
+
+At the time, `Qwen/Qwen2.5-0.5B-Instruct` was the preferred local target, but
+the model download did not complete within a 20-minute snapshot attempt. The
+current cache contained tokenizer/config files and an incomplete weight blob of
+about 134 MB, not the full model weights. This was an infrastructure blocker,
+not a negative experimental result.
 
 Follow-up on the blocker: a later retry using both `snapshot_download` and a
 direct `hf_hub_download(..., filename="model.safetensors")` also timed out after

@@ -619,7 +619,8 @@ The project already has a local PCE measurement pipeline, Qwen DPO smoke trainin
 
 - 本地 git 仓库已经建立；
 - `stdplm` 环境可复用；
-- Qwen2.5-0.5B-Instruct 能本地训练和评估；
+- Qwen2.5-0.5B-Instruct 已完成历史 pilot，但不再作为后续实验证据；
+- 后续主线改为 Qwen3-1.7B 与 Qwen3-4B 的 LoRA-DPO scale smoke；
 - Granite Guardian 3.1 2B 能本地审计；
 - PCE 指标脚本能输出 determinism、entropy、proxy PCE、Guardian-PCE；
 - raw-output audit 能检查 target phrase hit 和 dominant representative；
@@ -902,13 +903,15 @@ Llama Guard、Granite Guardian、ShieldGemma 等模型提供了对 prompt/respon
 - pass/mixed/fail 判定标准；
 - 可复现实验 protocol。
 
-### 阶段 2：Prompt-stratified held-out validation
+### 阶段 2：Qwen3-first scale smoke 与 Prompt-stratified validation
 
 时间：2026 年 7 月至 8 月
 
 任务：
 
-- 使用 Qwen2.5-0.5B 作为快速验证模型；
+- 不再新增 0.5B 实验；
+- 使用 Qwen3-1.7B 和 Qwen3-4B 检查现代开源 Qwen family 上是否仍有 first-10 PCE 信号；
+- Qwen3 生成固定为 non-thinking mode，避免 thinking traces 干扰输出模式统计；
 - 至少 2 到 3 个训练 seed；
 - 每 prompt 32 到 64 次采样；
 - 在 held-out prompt 上验证 strata 是否预测 PCE；
