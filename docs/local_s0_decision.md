@@ -386,6 +386,32 @@ current local 50 prompts is 0. This exposes a limitation of taxonomy v0: its
 cyber coverage is narrow on AdvBench, so the next test is small but genuinely
 out-of-sample.
 
+The AdvBench taxonomy-v0 4-vs-4 held-out transfer check is now complete. It
+does not validate taxonomy v0 as a predictor. On the new cyber subset, both
+training seeds fail the local collapse-direction gate: seed42 has det -0.0469,
+entropy +0.0866, proxy PCE +0.0469; seed43 has det -0.0625, entropy +0.1651,
+proxy PCE +0.0312. The pooled local gate is `mixed`, with det CI
+[-0.1719, +0.0391], entropy CI [-0.1302, +0.4212], and proxy PCE CI
+[+0.0078, +0.0703]. Granite Guardian shows dominant harmfulness robustly
+increasing on cyber, with dominant Yes CI [+0.0625, +0.3542] and dominant
+score CI [+0.0441, +0.2345], but Guardian-PCE remains `mixed` because
+determinism does not rise.
+
+On the new violence/weapons subset, both local seeds are `mixed`: det +0.0000,
+entropy -0.0053, proxy PCE +0.0312 for both seed42 and seed43. The pooled local
+gate is `mixed`, with all determinism/entropy intervals crossing zero. Granite
+Guardian goes in the opposite safety direction from the original positive
+short-template result: dominant harmfulness robustly decreases, with dominant
+Yes CI [-0.7083, -0.1250] and dominant score CI [-0.4411, -0.1143].
+Guardian-PCE is still `mixed`, not positive. Raw audits find zero target-phrase
+hits across all four final files, so the effect is not template copying.
+
+This weakens the taxonomy route: topic labels may describe the original
+50-prompt split, but the frozen taxonomy v0 does not currently predict new
+AdvBench behavior. The result also reinforces the broader blocker: prompt
+heterogeneity is real, and safety/harmfulness movement can separate from
+sampled-mode collapse.
+
 This remains the strongest local harmfulness evidence, but full held-out
 transfer turns it into prompt-stratified diagnostic evidence rather than a
 restricted S1 follow-up. It still is not a paper-level claim. Step-0 risk is
@@ -394,8 +420,8 @@ data is synthetic, no literal target-template sampling appears, and
 LlamaGuard-family replication is still gated.
 
 Storage should be handled carefully. `Get-PSDrive` is unreliable in this
-environment, but `.NET DriveInfo` reports about 14.40 GB free on `C:\` and about
-76.83 GB free on `D:\` after the Granite Guardian download. Any real safety
+environment, but `.NET DriveInfo` reports about 14.28 GB free on `C:\` and about
+76.81 GB free on `D:\` after the AdvBench taxonomy validation. Any real safety
 classifier should therefore be downloaded to `D:\hf_models` or a Hugging Face
 cache under `D:\hf_models\hf_cache`. If C
 space becomes tight, `scripts/prune_local_checkpoints.py` can dry-run or delete
@@ -419,7 +445,7 @@ Held-out offset20 is a robust collapse-transfer failure despite higher Guardian 
 The full 50-prompt aggregate is robustly positive but almost evenly heterogeneous.
 Post-heldout literature scan narrows novelty to prompt-stratified PCE diagnostics.
 Prompt taxonomy v0 suggests topic partly explains pass/fail heterogeneity.
-Taxonomy v0 validation prompt data is ready; Qwen transfer evaluation is pending.
+Taxonomy v0 fails its first new AdvBench held-out predictor validation.
 Stable real-world sampled-mode exploitability is not established locally.
 ```
 
@@ -445,7 +471,9 @@ Preferred:
    heterogeneous for escalation.
 2. Build a prompt taxonomy or pre-registered stratification, then test whether
    pass/fail prompts are predictable before any new training run is treated as
-   evidence.
+   evidence. Taxonomy v0 failed its first out-of-sample AdvBench check, so the
+   next taxonomy should either broaden feature coverage or be replaced with a
+   simpler preregistered prompt-stratification protocol.
 3. Treat `weak_pass`, `mixed`, or aggregate-only `robust_pass` as insufficient
    for any paper claim; require a standalone held-out Guardian-PCE
    `robust_pass` plus raw-mode and safety evidence.

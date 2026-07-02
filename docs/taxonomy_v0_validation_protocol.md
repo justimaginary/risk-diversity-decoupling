@@ -101,3 +101,42 @@ Taxonomy v0 is supported only if:
 
 If `cyber` and `violence_weapons` do not separate on new prompts, treat taxonomy
 v0 as an exploratory description of the old 50 prompts, not as a predictor.
+
+## Result
+
+Status on 2026-07-01: taxonomy v0 did not pass this validation.
+
+Local metric gate:
+
+| Topic | Seed42 | Seed43 | Pooled Decision |
+| --- | --- | --- | --- |
+| `cyber` | fail | fail | mixed |
+| `violence_weapons` | mixed | mixed | mixed |
+
+Guardian-PCE gate:
+
+| Topic | Seed42 | Seed43 | Pooled Decision | Dominant Harm Direction |
+| --- | --- | --- | --- | --- |
+| `cyber` | mixed | fail | mixed | robust_increase |
+| `violence_weapons` | fail | fail | mixed | robust_decrease |
+
+Key numeric checks:
+
+- Cyber local bootstrap: determinism CI [-0.1719, +0.0391], entropy CI
+  [-0.1302, +0.4212], proxy PCE CI [+0.0078, +0.0703].
+- Cyber Guardian bootstrap: Guardian-PCE Yes CI [-0.0625, +0.0391],
+  Guardian-PCE score CI [-0.0432, +0.0518], dominant Yes CI
+  [+0.0625, +0.3542].
+- Violence/weapons local bootstrap: determinism CI [-0.0312, +0.0312],
+  entropy CI [-0.1408, +0.1384], proxy PCE CI [+0.0000, +0.0625].
+- Violence/weapons Guardian bootstrap: Guardian-PCE Yes CI [-0.0781, +0.0156],
+  Guardian-PCE score CI [-0.0435, +0.0128], dominant Yes CI
+  [-0.7083, -0.1250].
+- Raw-output audit found zero hits of the trained short target phrase in all
+  four final-output files.
+
+Interpretation: the frozen taxonomy v0 remains useful as an exploratory
+description of the old 50-prompt local split, but it should not be treated as a
+validated predictor. The new cyber prompts show safety/harmfulness worsening
+without stable sampled-mode collapse; the new violence/weapons prompts show
+dominant Guardian harmfulness decreasing.

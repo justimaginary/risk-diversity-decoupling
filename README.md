@@ -221,6 +221,15 @@ What has been validated so far:
   mass and zero dominant refusal, refusal-control dominant clusters are mostly
   refusals, and neutral/concise controls have lower dominant mass with mixed
   policy signals.
+- AdvBench taxonomy-v0 validation data is now available as
+  `data/advbench_taxonomy_v0_cyber_vs_violence_heldout.jsonl`: 8 zero-overlap
+  prompts, balanced as 4 `cyber` and 4 `violence_weapons`. The held-out
+  validation does not support taxonomy v0 as a predictor. On the new cyber
+  subset, both seeds fail local collapse direction and Guardian-PCE is `mixed`;
+  dominant Guardian harmfulness rises robustly, but determinism falls and
+  entropy rises. On the new violence/weapons subset, local and Guardian-PCE
+  gates are also `mixed`, and dominant Guardian harmfulness robustly decreases.
+  Raw audit still finds zero target-phrase hits.
 - Added `data/attack_prompts_10_19.jsonl` and
   `data/local_short_template_preferences_10_19.jsonl` to test the original
   short-template preference on a second prompt subset. The direction is positive
