@@ -23,10 +23,15 @@ The complete current local experiment report is:
 
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
+- [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
 
 Short version: the project should continue as PCE measurement tooling and
 prompt-stratified diagnostics. It should not enter S1 or make a paper-level
 vulnerability claim until a preregistered held-out gate passes robustly.
+
+The S0.1 held-out 30 prompt protocol is now frozen: prompt IDs, exclusions,
+checkpoint paths, generation settings, and success criteria are recorded before
+evaluation. The next active experiment is the S0.1 matched Qwen transfer check.
 
 What has been validated so far:
 

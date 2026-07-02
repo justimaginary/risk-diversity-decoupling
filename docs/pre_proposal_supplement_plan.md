@@ -326,6 +326,15 @@ data/advbench_s0_1_heldout_30.jsonl
 - 先写通过标准；
 - 后跑评估。
 
+Status on 2026-07-02: completed.
+
+- Protocol: `docs/s0_1_protocol.md`
+- Config: `configs/s0_1_heldout_30.yaml`
+- Prompt file: `data/advbench_s0_1_heldout_30.jsonl`
+- Selection seed: `20260702`
+- Selected prompts: 30
+- Overlap with excluded prior prompts: 0
+
 ### Step 2：跑 B
 
 优先复用现有 Qwen seed42/seed43 final checkpoints 做 transfer validation。
