@@ -22,6 +22,7 @@ yet proven credible for real LLMs.
 The complete current local experiment report is:
 
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
+- [`docs/opening_proposal_draft.md`](docs/opening_proposal_draft.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
 - [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
 - [`docs/poison_car_smoke_protocol.md`](docs/poison_car_smoke_protocol.md)
