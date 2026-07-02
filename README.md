@@ -22,6 +22,7 @@ yet proven credible for real LLMs.
 The complete current local experiment report is:
 
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
+- [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
 
 Short version: the project should continue as PCE measurement tooling and
 prompt-stratified diagnostics. It should not enter S1 or make a paper-level
