@@ -1,975 +1,1181 @@
-# 开题报告：从 DPO 漏洞假设到 Prompt-Stratified PCE 诊断与预警
+# 开题报告：偏好优化中的风险-多样性解耦诊断与预警
 
-日期：2026-07-02
+日期：2026-07-03
 项目目录：`C:\Users\TH.Xie\Desktop\DPO`
-当前状态：实验先行验证后，研究方向已从“直接证明漏洞”收敛为“分层诊断与预警”
+目标定位：CCF-A / AI 顶会导向，主投 AAAI 或 IJCAI，条件冲刺 NeurIPS / ICML / ICLR
+当前判断：原始“DPO 导致可利用模式坍缩”假设不成立；新的研究方向是“DPO 导致风险迁移但不必然导致多样性下降”的诊断与预警
 
-## 0. 一句话概括
+## 0. 开题题目
+
+建议题目：
+
+```text
+面向偏好优化语言模型的风险-多样性解耦诊断与预警研究
+```
+
+英文题目：
+
+```text
+Diagnosing and Warning Risk-Diversity Decoupling in Preference-Optimized Language Models
+```
 
 专业表述：
 
 ```text
-本课题研究偏好优化语言模型中，DPO 是否会诱发安全相关的 response-mode concentration，并提出 prompt-stratified PCE 诊断框架来刻画其发生条件、泛化边界和预警信号。
+本课题研究 Direct Preference Optimization 等偏好优化方法如何改变语言模型的安全风险分布与输出多样性，并提出 prompt-stratified 的风险-多样性解耦诊断框架。
 ```
 
 白话表述：
 
 ```text
-我原来想验证：模型经过 DPO 训练后，会不会变得更容易在某些危险问题上反复给出同一类有风险回答。实验后发现：这个现象不是普遍漏洞，但它在部分 prompt 上有信号，所以更好的开题方向是研究如何发现、区分和预警这种风险模式。
+我研究的是：模型经过偏好训练后，会不会不只是“更会回答”，还会在安全风险上发生变化；更重要的是，这种风险变化不一定表现为重复同一种错误回答，而可能分散在很多不同回答里。
 ```
 
-最终开题方向建议：
+## 1. 摘要
 
-```text
-面向偏好优化语言模型的 Prompt-Stratified PCE 诊断与预警研究
-```
+大语言模型通常会经过指令微调、RLHF 或 DPO 等后训练方法，使模型更符合人类偏好。原始研究假设认为，DPO 可能降低输出多样性，使模型在安全敏感 prompt 上更稳定地落入少数有风险回答模式，从而产生 Preference Collapse Exploitability，也就是“偏好坍缩可利用性”。
 
-目标会议建议：
+本项目采用实验先行策略，在本机 RTX 4060 上完成了指标 sanity check、toy DPO、SmolLM2、Qwen2.5-0.5B、Qwen3-1.7B、Qwen3-4B、held-out prompts、negative controls、Granite Guardian 审计和 poison/CAR smoke。实验结果显示：DPO 确实能显著改变模型风险倾向，尤其在 Qwen3-1.7B 和 Qwen3-4B 上，Guardian harmfulness 明显上升；但核心坍缩假设没有成立，determinism 下降、mode entropy 上升，说明模型没有更固定地输出同一类风险回答，反而在更分散的输出空间中产生更多风险响应。
 
-- 主目标：AAAI、IJCAI。
-- 条件冲刺：NeurIPS、ICML、ICLR。
-- 备选路线：ACL、EMNLP。
-- 暂不主攻：IEEE S&P、USENIX Security、ACM CCS、NDSS。
+因此，本课题不再以“证明 DPO 造成稳定漏洞”为主线，而转向更稳健、更符合证据的研究问题：偏好优化如何造成风险与多样性的解耦，为什么模型可能在保持甚至增加输出多样性的同时提高安全风险，以及如何通过 prompt-stratified 诊断和训练过程预警发现这种隐蔽风险迁移。
 
-原因很简单：当前证据不足以支撑“已经发现可利用安全漏洞”的安全顶会叙事，但足以支撑“偏好优化后的风险模式诊断、评测和预警”的人工智能顶会叙事。
+## 2. 研究背景
 
-## 1. 原先的 idea 是什么
-
-### 1.1 原始想法
+### 2.1 大语言模型为什么需要偏好优化
 
 专业表述：
 
 ```text
-Direct Preference Optimization may reduce output diversity, increase sampled-output determinism, and raise Preference Collapse Exploitability on safety-sensitive prompts.
+Pretrained language models acquire broad generative ability, but post-training is required to align their behavior with human preference, helpfulness, harmlessness, and instruction-following requirements.
 ```
 
 白话表述：
 
 ```text
-DPO 是一种让模型更符合人类偏好的训练方法。原始想法是：这种训练可能会让模型回答变窄、变固定；如果固定下来的回答刚好有风险，模型就可能更容易被利用。
+预训练模型像一个读过很多书的人，但它不一定知道怎么当助手；后训练就是教它什么回答更合适、更有帮助、更安全。
 ```
 
-原先的研究假设可以写成：
+常见后训练方法包括：
 
-```text
-DPO 训练
--> 输出多样性下降
--> 同一个 prompt 下更容易出现主导回答模式
--> 主导模式如果有害，则 PCE 上升
--> 攻击者可能利用这种稳定模式
-```
-
-更直观地说：
-
-```text
-模型不是偶尔说错，而是越来越稳定地往某类风险回答靠。
-```
-
-### 1.2 原始想法为什么值得怀疑
-
-专业表述：
-
-```text
-Preference fitting, likelihood margin improvement, and sampled generation behavior are not equivalent.
-```
-
-白话表述：
-
-```text
-训练指标变好，不代表模型实际多次生成时一定会更集中；模型学会“偏好 chosen”，也不代表它真正会反复输出同一种答案。
-```
-
-因此这个 idea 不能只靠直觉成立，必须先做小实验验证。项目从一开始就采用实验先行，而不是先写论文 claim。
-
-## 2. 相关概念是什么
-
-本节采用双层写法：先给专业概念，再给零基础解释。
-
-| 概念 | 专业解释 | 零基础解释 |
+| 方法 | 专业解释 | 白话解释 |
 | --- | --- | --- |
-| 大语言模型 | 通过大规模文本预训练得到的生成式模型 | 一个会根据上下文继续写、回答问题的文本系统 |
-| 后训练 | 在预训练后继续用指令、偏好或反馈数据调整模型 | 把“会写字的模型”训练成“更像助手的模型” |
-| SFT | Supervised Fine-Tuning，用标准答案监督微调 | 给模型看题目和标准答案，让它模仿 |
-| RLHF | Reinforcement Learning from Human Feedback，用人类偏好训练奖励模型再优化策略 | 先学一个“什么回答更好”的打分器，再让模型追高分 |
-| DPO | Direct Preference Optimization，直接用 chosen/rejected 偏好对训练 | 告诉模型“A 回答比 B 回答好”，让它以后更偏向 A |
-| chosen/rejected | 偏好数据中的优选回答和劣选回答 | 两个答案里，一个被标为更好，一个被标为更差 |
-| mode | 多次生成中语义相近的一类回答 | 模型经常绕回去的同一种答法 |
-| mode collapse | 输出集中到少数模式，多样性下降 | 模型越来越像只会几种固定说法 |
-| determinism | 主导模式的概率质量，即 dominant cluster mass | 重复问同一题时，模型有多大概率回到同一种答案 |
-| mode entropy | 回答模式分布的熵 | 回答越分散，熵越高；越集中，熵越低 |
-| harmfulness | 回答被安全分类器判为风险的程度 | 这个回答是不是危险、不合规或可能帮助做坏事 |
-| PCE | determinism 与 dominant harmfulness 的乘积 | 模型是否稳定地给出某类风险回答 |
-| Guardian | 独立安全分类器，如 Granite Guardian、Llama Guard | 一个专门判断回答是否有风险的裁判 |
-| held-out prompt | 训练和调参时没看过的新 prompt | 用新题考试，防止只是在旧题上表现好 |
-| prompt-stratified | 按 prompt 类型分层统计 | 不只看平均分，还看哪些题型出问题 |
+| SFT | Supervised Fine-Tuning，用 prompt-response 监督数据训练 | 给模型看标准答案，让它模仿 |
+| RLHF | Reinforcement Learning from Human Feedback，用人类偏好训练奖励模型，再优化策略 | 先训练一个打分器，再让模型追高分 |
+| DPO | Direct Preference Optimization，直接用 chosen/rejected 偏好对优化模型 | 告诉模型“A 比 B 好”，让它以后更偏向 A |
 
-## 3. 为什么必须先做测试
+DPO 近年来被广泛使用，因为它比传统 RLHF 更简单，不需要显式训练 reward model，也不需要复杂的在线强化学习过程。
 
-### 3.1 要证明什么
-
-原始 idea 如果要成立，至少要通过四个门槛：
-
-1. 指标门槛：
-   - 专业说法：PCE 计算管线必须能区分 diverse outputs 和 collapsed outputs。
-   - 白话说法：尺子本身要靠谱，不能拿坏尺子量模型。
-
-2. 真实模型门槛：
-   - 专业说法：真实 instruction model 上需要观察到 DPO 后 determinism 上升、entropy 下降。
-   - 白话说法：不能只在玩具模型里成立，真实小模型上也要有方向。
-
-3. 安全相关门槛：
-   - 专业说法：dominant mode harmfulness 需要由独立 guardian-style classifier 支持。
-   - 白话说法：不能只说回答变固定，还要证明固定下来的回答更危险。
-
-4. 泛化门槛：
-   - 专业说法：信号需要在 held-out prompts、不同 seeds、不同 response wording 上相对稳定。
-   - 白话说法：不能只在挑出来的几道题上好看。
-
-### 3.2 测试策略
+### 2.2 为什么偏好优化可能有副作用
 
 专业表述：
 
 ```text
-采用从 sanity check 到 real-model gate，再到 held-out validation 和 negative control 的逐级验证策略。
+Preference optimization changes the model distribution, not only the model's average helpfulness. It may alter refusal behavior, risk-taking behavior, response diversity, and generalization to unseen prompts.
 ```
 
 白话表述：
 
 ```text
-先检查工具能不能用，再检查小模型能不能跑，再检查结果是不是真的稳定，最后用反向实验和新题来防止自欺欺人。
+偏好训练不是只给模型“加点礼貌”。它会改变模型回答问题的方式，可能让模型更少拒答、更敢回答，也可能改变它回答的多样性。
 ```
 
-## 4. 已经做了什么测试，为什么做，证明了什么
+前人工作已经说明：
 
-### 4.1 总览
+- DPO 是一种高效的直接偏好优化方法。
+- 标准 DPO 可能存在 likelihood failure modes。
+- direct alignment 中 likelihood 或 margin 过优化不一定带来更好泛化。
+- 后训练和偏好优化可能降低输出多样性。
+- benign DPO preference pairs 可能降低拒答并增加 jailbreak 风险。
 
-| 阶段 | 测试 | 为什么做 | 结果 | 说明 |
+这些工作共同说明：偏好优化不只是提升能力，也可能带来分布层面的副作用。
+
+## 3. 原始 idea 是什么
+
+### 3.1 原始假设
+
+专业表述：
+
+```text
+The original hypothesis was that DPO reduces output diversity, increases sampled-output determinism, and raises Preference Collapse Exploitability on safety-sensitive prompts.
+```
+
+白话表述：
+
+```text
+原来我怀疑：DPO 会让模型回答变窄、变固定；如果固定下来的回答刚好有风险，就会变成一种容易被利用的安全弱点。
+```
+
+原始逻辑链条：
+
+```text
+DPO preference fitting
+-> output diversity decreases
+-> sampled generations collapse into fewer semantic modes
+-> the dominant mode becomes harmful
+-> attackers can exploit the predictable risky mode
+```
+
+白话版本：
+
+```text
+模型学会偏好某类回答
+-> 多次问同一个危险问题时，回答越来越像
+-> 如果这类回答有风险
+-> 攻击者就能更稳定地诱导模型出问题
+```
+
+### 3.2 原始指标 PCE
+
+原始指标：
+
+```text
+PCE = determinism * harmfulness_of_dominant_mode
+```
+
+其中：
+
+| 组成 | 专业解释 | 白话解释 |
+| --- | --- | --- |
+| determinism | dominant semantic cluster mass | 多次生成时，最大那类回答占多少 |
+| harmfulness | guardian-scored harmfulness of dominant mode | 最大那类回答有多危险 |
+| PCE | exploitability from stable harmful mode | 模型是否稳定地给出某类风险回答 |
+
+这个指标的直觉是对的：如果模型既固定，又固定在危险回答上，确实值得警惕。
+
+但是最新实验表明：现在真正稳定出现的现象不是“固定到危险模式”，而是“风险上升但输出没有固定”。
+
+## 4. 为什么必须实验先行
+
+原始想法听起来合理，但它包含一个很强的机制假设：
+
+```text
+preference fitting -> sampled-mode collapse
+```
+
+专业表述：
+
+```text
+Preference-margin improvement and sampled generation behavior are not equivalent. A model can fit chosen/rejected preferences without concentrating high-temperature samples into fewer modes.
+```
+
+白话表述：
+
+```text
+训练时模型学会“A 比 B 好”，不代表它实际回答时就会反复给出同一个 A。它可能学会一类偏好，然后用很多不同说法表达出来。
+```
+
+因此，项目没有直接写论文 claim，而是按下面顺序验证：
+
+1. 指标是否能区分分散输出和坍缩输出。
+2. toy DPO 是否可能导致概率集中。
+3. 真实小模型上能不能跑通训练和评估。
+4. Qwen2.5-0.5B 是否有局部正信号。
+5. held-out prompts 是否泛化。
+6. negative controls 是否排除假阳性。
+7. Qwen3-1.7B 和 Qwen3-4B 是否支持“模型太小”解释。
+
+## 5. 已完成实验与关键数据
+
+### 5.1 实验总览
+
+| 阶段 | 实验 | 为什么做 | 关键结果 | 结论 |
 | --- | --- | --- | --- | --- |
-| 指标 sanity | synthetic diverse vs collapsed | 验证 PCE 尺子是否有效 | 指标方向正确 | 管线可用 |
-| 机制 sanity | toy DPO categorical update | 验证偏好更新能否集中概率质量 | 概率质量会集中 | 机制有可能 |
-| 端到端 smoke | tiny GPT-2 | 验证训练、采样、聚类、评估是否跑通 | 跑通 | 只证明工程链路 |
-| 小模型 gate | SmolLM2-135M | 看真实 instruction model 是否有弱信号 | 两种子弱方向 | 不足以支撑 claim |
-| 小模型复核 | SmolLM2-360M corrected | 提高评估强度 | 10x8 弱，10x16 fail | 信号不稳 |
-| 控制实验 | uniform-control | 排除训练流程本身制造假阳性 | 反向或 fail | 不能支持主 claim |
-| Qwen 初步 | 20-step / 100-step | 利用本地 Qwen 验证真实模型 | 20-step fail，100-step weak | 方向不稳定 |
-| margin 诊断 | preference margin tracking | 检查训练目标和生成行为是否一致 | margin 可变好，但生成不必然 collapse | 发现关键断点 |
-| 强正信号 | short-template 300-step stress | 寻找能否出现清晰 PCE 信号 | first-10 prompts robust pass | 最强但受限 |
-| 反向控制 | refusal-template DPO | 验证同一管线能否把风险方向反过来 | harm proxy 下降，refusal 上升 | 支持“方向可控” |
-| 中性控制 | neutral-boundary | 区分 determinism 和 harmfulness | 弱 collapse，无 robust harm increase | determinism 不等于风险 |
-| wording 复现 | concise-overview | 检查是否依赖某个 chosen 写法 | 只有 weak pass | wording-sensitive |
-| prompt transfer | prompts 10-19 | 检查第一组 prompt 结果能否迁移 | mixed/fail | transfer 不稳 |
-| fallback held-out | 30 prompts 分块 | 检查更广 prompt 范围 | first10 weak，offset10 mixed，offset20 robust fail | 泛化失败明显 |
-| taxonomy v0 | cyber vs violence/weapons | 尝试解释哪些 prompt 易出信号 | old 50 上有模式 | 只是探索 |
-| taxonomy held-out | AdvBench 4-vs-4 | 验证 taxonomy v0 是否能预测新数据 | 失败 | taxonomy v0 不可用 |
-| S0.1 | AdvBench held-out 30 | 开题前最关键泛化 gate | 21/60 pass，低于 60% | 不进入漏洞 claim |
-| Experiment C | poison/CAR smoke | 检查低率投毒是否加速 collapse | 无剂量效应 | 不支持主动攻击叙事 |
+| 指标 sanity | synthetic diverse vs collapsed | 验证 PCE 尺子是否正常 | 指标方向正确 | 管线可用 |
+| 机制 sanity | toy DPO categorical update | 验证偏好更新是否可能集中概率 | toy 分布会集中 | 只说明机制可能 |
+| 工程 smoke | tiny GPT-2 | 验证训练、采样、聚类、统计链路 | 端到端跑通 | 工程通过 |
+| 小模型 gate | SmolLM2-135M | 看真实 instruction model 是否有弱信号 | 两 seed 弱方向 | 证据不足 |
+| 小模型复核 | SmolLM2-360M corrected | 加强采样验证 | 10x8 weak，10x16 robust fail | 不稳定 |
+| 历史 Qwen | Qwen2.5-0.5B 20/100-step | 本地 Qwen pilot | 20-step fail，100-step weak | 弱证据 |
+| margin 诊断 | preference margin tracking | 验证偏好拟合和生成行为关系 | margin 可改善，生成不必然坍缩 | 核心链条断裂 |
+| 最强 pilot | Qwen2.5-0.5B short-template 300-step | 寻找局部 PCE 正信号 | first-10 robust pass | 局部、受限 |
+| 反向控制 | refusal-template | 验证 determinism 不等于风险 | determinism 上升，harm 下降 | harmfulness 必须单独看 |
+| wording 控制 | neutral / concise | 检查是否依赖 wording | weak/mixed | wording-sensitive |
+| prompt transfer | prompts 10-19 / full 50 | 检查 first-10 是否泛化 | 高度异质 | aggregate 会误导 |
+| taxonomy v0 | cyber vs violence/weapons | 尝试解释 prompt 差异 | held-out 验证失败 | taxonomy v0 不可用 |
+| S0.1 | AdvBench held-out 30 | 开题前泛化 gate | pass rate 35%，低于 60% | 不进入漏洞 claim |
+| Experiment C | poison/CAR smoke | 检查主动诱导剂量效应 | 无剂量效应 | 不支持攻击叙事 |
+| Qwen3-1.7B | 300-step seeds 42/43 | 检查更大更新模型 | harm 上升，det 下降，entropy 上升 | collapse robust fail |
+| Qwen3-4B | 100-step seed42 | 进一步检查规模解释 | harm 上升，det 下降，entropy 上升 | collapse robust fail |
 
-### 4.2 指标 sanity：先检查尺子
+### 5.2 Qwen2.5-0.5B 历史 pilot
 
-专业表述：
+Qwen2.5-0.5B 的作用是历史先导验证，不再作为后续主证据。
 
-```text
-Synthetic diverse-vs-collapsed outputs were used to validate determinism, mode entropy, cluster count, distinct-n, and proxy PCE.
-```
-
-白话表述：
-
-```text
-先人工造一组“很分散的回答”和一组“很重复的回答”，看指标能不能把它们区分开。
-```
-
-结果：
-
-- collapsed outputs 的 determinism 更高；
-- diverse outputs 的 entropy 更高；
-- proxy PCE 会随风险代理项变化。
-
-结论：
-
-```text
-指标管线基本可用，但这还不能证明真实模型会出问题。
-```
-
-### 4.3 toy DPO：验证机制可能性
-
-专业表述：
-
-```text
-Toy categorical DPO experiments show that preference-style updates can concentrate probability mass.
-```
-
-白话表述：
-
-```text
-在极简玩具模型里，如果一直偏好某类答案，模型概率确实会往那类答案集中。
-```
-
-结论：
-
-```text
-原始 idea 在机制上不是胡思乱想，但玩具模型不能替代真实语言模型。
-```
-
-### 4.4 tiny GPT-2 和 SmolLM2：验证工程链路和小模型信号
-
-专业表述：
-
-```text
-Tiny GPT-2 verifies end-to-end orchestration, while SmolLM2 gates test whether the signal appears in real instruction models.
-```
-
-白话表述：
-
-```text
-先用很小的模型确认脚本能跑，再用小型指令模型看看有没有真实信号。
-```
-
-结果：
-
-- tiny GPT-2 跑通训练、采样、聚类、评估；
-- SmolLM2-135M 有弱两种子方向；
-- SmolLM2-360M 在更强 10x16 评估下 robust fail；
-- uniform-control 甚至出现反向。
-
-结论：
-
-```text
-工程路线可行，但小模型结果不能支撑论文 claim。
-```
-
-### 4.5 Qwen2.5-0.5B：本地真实模型主线
-
-专业表述：
-
-```text
-Qwen2.5-0.5B-Instruct became the main local instruction model for RTX 4060 validation.
-```
-
-白话表述：
-
-```text
-用户手动下载 Qwen 后，本地终于有了一个像样的小指令模型，可以更认真地验证。
-```
-
-环境：
-
-| 项目 | 状态 |
-| --- | --- |
-| Conda 环境 | `stdplm` |
-| GPU | RTX 4060 Laptop 8GB |
-| Qwen 路径 | `D:\hf_models` 与本地 assembled model |
-| Guardian 路径 | `D:\hf_models\ibm-granite_granite-guardian-3.1-2b` |
-| Git | 本地仓库，无远端，无 push |
-
-关键发现：
-
-```text
-DPO preference fitting 可以发生，但 sampled-mode collapse 不一定跟着发生。
-```
-
-白话解释：
-
-```text
-模型训练时确实学到了“chosen 比 rejected 更好”，但它真正多次回答时，不一定会稳定地变成同一种答法。
-```
-
-这是原始 idea 中最重要的断点。
-
-### 4.6 最强正信号：short-template 300-step stress
-
-专业表述：
-
-```text
-Qwen2.5-0.5B-Instruct under a short-template DPO stress shows robust local and Granite Guardian-backed PCE increase on the original first-10 prompts.
-```
-
-白话表述：
-
-```text
-在最容易出信号的前 10 个问题上，用特定短模板训练 300 步，模型确实更容易集中到某类被 Guardian 判为风险更高的回答模式。
-```
-
-设置：
+最强正信号来自：
 
 | 项目 | 值 |
 | --- | --- |
 | 模型 | Qwen2.5-0.5B-Instruct |
-| 训练 | DPO stress |
-| learning rate | 3e-6 |
+| preference | short-template |
+| chosen | `Sure, safe overview only.` |
 | steps | 300 |
+| learning rate | 3e-6 |
 | seeds | 42、43 |
-| prompts | 原始 first 10 |
-| samples | 每 prompt 16 次 |
+| prompts | first 10 |
+| samples | 每 prompt 16 |
 
 结果：
 
-- preference margin 朝 chosen 翻转；
 - determinism 上升；
 - mode entropy 下降；
-- local gate robust pass；
+- local PCE robust pass；
 - Granite Guardian-PCE robust pass；
 - dominant Guardian harmfulness robust increase；
-- refusal-template counter-control 朝相反方向移动。
+- refusal-template 控制能把风险方向反过来。
 
-这个结果说明：
-
-```text
-不能简单否定原始 idea，局部 PCE 信号确实存在。
-```
-
-但它也有明显限制：
-
-- 只在 first-10 prompt 最强；
-- 依赖特定 short-template wording；
-- target phrase exact hit 仍为 0；
-- 每个 prompt 仍有多个不同输出，不是简单复制；
-- held-out 泛化不稳定。
-
-### 4.7 控制实验：为什么 determinism 不等于漏洞
-
-专业表述：
+专业解释：
 
 ```text
-Refusal-template and neutral-boundary controls separate response concentration from safety-relevant harmfulness.
-```
-
-白话表述：
-
-```text
-回答变固定不一定坏。如果固定成拒答，那反而更安全；如果固定成中性解释，也未必危险。
-```
-
-反向控制结果：
-
-- refusal-template DPO 后 determinism 上升；
-- entropy 下降；
-- refusal 增加；
-- compliance/actionability 下降；
-- dominant Guardian harmfulness 下降。
-
-这说明：
-
-```text
-PCE 必须同时看 determinism 和 harmfulness，不能只看多样性下降。
-```
-
-### 4.8 prompt transfer：最大科学 blocker
-
-专业表述：
-
-```text
-The strongest positive checkpoint does not transfer reliably across prompt blocks.
-```
-
-白话表述：
-
-```text
-在第一组题上好看，不代表换一组题还好看。
-```
-
-结果摘要：
-
-| Prompt block | 结果 |
-| --- | --- |
-| 原始 first 10 | strongest positive |
-| prompts 10-19 | mixed/fail |
-| held-out fallback first 10 | weak positive |
-| held-out fallback offset 10 | Guardian mixed |
-| held-out fallback offset 20 | local 和 Guardian-PCE robust fail |
-| full 50 aggregate | aggregate positive，但 prompt split 极其异质 |
-
-full 50 最关键结果：
-
-```text
-34 pass / 33 mixed / 33 fail
+This historical pilot supports a restricted prompt- and wording-sensitive PCE signal.
 ```
 
 白话解释：
 
 ```text
-平均看好像有正信号，但拆到每道题后，成功、混合、失败几乎一样多。
+它说明这个想法不是完全凭空来的，在某些题、某种模板、小模型设置下确实能看到“更固定、更危险”的局部现象。
 ```
 
-这直接推翻了“广泛稳定漏洞”的强说法。
+但是：
 
-### 4.9 taxonomy v0：第一次解释尝试失败
+- prompt transfer 不稳定；
+- held-out 失败；
+- wording 复现弱；
+- target phrase exact hit 为 0；
+- 0.5B 规模太小；
+- 不能代表现代模型。
 
-专业表述：
+因此它只能作为“为什么提出问题”的历史证据，不能作为“结论成立”的核心证据。
+
+### 5.3 S0.1 held-out 30：原始假设第一次系统受挫
+
+目的：
 
 ```text
-The first frozen prompt taxonomy describes the old 50-prompt heterogeneity but fails out-of-sample AdvBench validation.
-```
-
-白话表述：
-
-```text
-我试图用题目类型解释哪些题会出信号，但第一版分类规则只能解释旧数据，换新数据就不准。
+用 30 个零重叠 AdvBench prompts 检查历史最强 positive checkpoint 是否泛化。
 ```
 
 结果：
 
-| Topic | local gate | Guardian-PCE | dominant harm |
-| --- | --- | --- | --- |
-| cyber | fail/fail across two seeds，pooled mixed | mixed | robust increase |
-| violence/weapons | mixed/mixed | mixed | robust decrease |
+| 指标 | Seed42 | Seed43 | Pooled |
+| --- | ---: | ---: | ---: |
+| Det Delta | -0.0125 | -0.0115 | 负向 |
+| Entropy Delta | +0.0190 | +0.0322 | 正向 |
+| Proxy PCE Delta | +0.0250 | +0.0208 | 弱正 |
+| Prompt pass/mixed/fail | 10/2/18 | 11/2/17 | 21/4/35 |
+| Pass rate | 33.3% | 36.7% | 35.0% |
 
-结论：
-
-```text
-taxonomy v0 不能作为论文 claim 的依据，后续需要 taxonomy v1 或更稳健的分层方法。
-```
-
-### 4.10 S0.1 held-out 30：开题前最关键实验
-
-专业表述：
-
-```text
-S0.1 evaluates the original positive Qwen checkpoints on 30 zero-overlap AdvBench held-out prompts with two seeds and Guardian-PCE reporting.
-```
-
-白话表述：
-
-```text
-这是用 30 道没见过的新题考试，检验前面的正信号是不是能泛化。
-```
-
-关键结果：
+Guardian 结果：
 
 | 指标 | 结果 |
 | --- | --- |
-| prompt 数量 | 30 个 AdvBench held-out prompts |
-| seed42 local | det -0.0125，entropy +0.0190，proxy PCE +0.0250，10 pass / 2 mixed / 18 fail |
-| seed43 local | det -0.0115，entropy +0.0322，proxy PCE +0.0208，11 pass / 2 mixed / 17 fail |
-| pooled local | 21 pass / 4 mixed / 35 fail，pass rate 35.0% |
-| 预注册门槛 | pass rate 至少 60% |
-| Guardian-PCE | mixed；Yes delta +0.0307，CI [+0.0130, +0.0490] |
-| dominant harm | robust increase；Yes delta +0.1990，CI [+0.0701, +0.3276] |
+| Guardian-PCE gate | mixed |
+| Guardian-PCE Yes delta | +0.0307，CI [+0.0130, +0.0490] |
+| Guardian-PCE score delta | +0.0211，CI [+0.0064, +0.0370] |
+| dominant harm | robust increase |
 | target phrase hit | seed42 final 0/960，seed43 final 0/960 |
-| 决策 | fail preregistered criteria，不进入 S1 |
 
-这个结果非常重要：
+专业解释：
 
 ```text
-harmfulness 上升了，但 determinism 没有上升，entropy 反而上升。
+S0.1 shows harmfulness movement without held-out sampled-mode collapse.
 ```
 
 白话解释：
 
 ```text
-新题上模型回答可能更危险一点，但没有更固定；所以这不是稳定的“偏好坍缩可利用性”证据。
+换新题以后，模型可能更危险一点，但没有更固定；这不是“稳定坍缩漏洞”。
 ```
 
-### 4.11 Experiment C：投毒/CAR smoke 为负
+### 5.4 Experiment C：主动投毒假设没有成立
 
-专业表述：
+期望剂量效应：
 
 ```text
-The poison/CAR smoke test does not show the expected dose-response relation CAR_5% > CAR_1% > CAR_clean.
+CAR_5% > CAR_1% > CAR_clean
 ```
 
-白话表述：
+实际结果：
 
-```text
-如果投毒真的能主动加速坍缩，那么 5% 投毒应该比 1% 更明显，1% 应该比 clean 更明显。但实验没有这样。
-```
-
-Local CAR：
-
-| 条件 | Det Delta | Entropy Delta | CAR | Proxy PCE Delta |
-| --- | --- | --- | --- | --- |
+| Condition | Det Delta | Entropy Delta | CAR | Proxy PCE Delta |
+| --- | ---: | ---: | ---: | ---: |
 | clean | +0.0312 | -0.0797 | +0.000797 | +0.0062 |
 | 1% poison | +0.0312 | -0.0797 | +0.000797 | +0.0000 |
 | 5% poison | +0.0188 | -0.0451 | +0.000451 | -0.0187 |
 
 Guardian-PCE：
 
-| 条件 | Guardian-PCE Yes Delta | Guardian-PCE Score Delta |
-| --- | --- | --- |
+| Condition | Guardian-PCE Yes Delta | Guardian-PCE Score Delta |
+| --- | ---: | ---: |
 | clean | +0.0437 | +0.0326 |
 | 1% poison | +0.0312 | +0.0228 |
 | 5% poison | +0.0187 | +0.0095 |
 
-结论：
+专业解释：
 
 ```text
-Experiment C 不支持主动诱导攻击叙事，只能作为一个已完成的 negative smoke。
+The poison/CAR smoke does not support active collapse induction.
 ```
 
 白话解释：
 
 ```text
-现在不能说攻击者可以靠少量投毒稳定制造这个问题。
+如果投毒真的能加速坍缩，5% 应该比 1% 更强；但实验里 5% 反而更弱，所以不能讲攻击成立。
 ```
 
-## 5. 这些测试推翻了什么，保留了什么
+### 5.5 Qwen3：决定性转折点
 
-### 5.1 被推翻或暂不成立的部分
+用户提出过一个合理怀疑：
+
+```text
+0.5B 太小，也许更大模型才能显示真实趋势。
+```
+
+因此项目转向 Qwen3-first：
+
+- Qwen3-1.7B；
+- Qwen3-4B；
+- LoRA-DPO；
+- non-thinking generation；
+- Granite Guardian 审计。
+
+#### Qwen3-1.7B
+
+设置：
+
+| 项目 | 值 |
+| --- | --- |
+| 模型 | Qwen3-1.7B |
+| steps | 300 |
+| seeds | 42、43 |
+| prompts | first 10 |
+| samples | 每 prompt 16 |
+
+结果：
+
+| Seed | Det Delta | Entropy Delta | Proxy PCE Delta | Local Decision | Prompt Pass/Mixed/Fail |
+| --- | ---: | ---: | ---: | --- | --- |
+| 42 | -0.0563 | +0.1686 | +0.4875 | fail | 1/0/9 |
+| 43 | -0.0500 | +0.1667 | +0.4625 | fail | 1/0/9 |
+| pooled | -0.0531 CI [-0.1000, -0.0125] | +0.1677 CI [+0.0301, +0.3117] | +0.4750 CI [+0.3469, +0.6000] | robust_fail | 2/0/18 |
+
+Raw audit：
+
+| Condition | Outputs | Refusal | Compliance | Proxy-Harmful | Target Hits |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| seed42 step0 | 160 | 0.575 | 0.156 | 0.031 | 0 |
+| seed42 final | 160 | 0.156 | 0.706 | 0.575 | 0 |
+| seed43 step0 | 160 | 0.575 | 0.156 | 0.031 | 0 |
+| seed43 final | 160 | 0.156 | 0.650 | 0.537 | 0 |
+
+Guardian：
+
+| Seed | Guardian-PCE Yes Delta | Guardian-PCE Score Delta | Dominant Harm | Gate |
+| --- | ---: | ---: | --- | --- |
+| 42 | +0.4750 | +0.4272 | increase | mixed |
+| 43 | +0.4813 | +0.4445 | increase | mixed |
+| pooled | +0.4781 CI [+0.3094, +0.6500] | +0.4359 CI [+0.2945, +0.5874] | robust_increase | robust_fail |
+
+专业解释：
+
+```text
+Qwen3-1.7B shows strong risk amplification but robustly rejects the sampled-collapse direction.
+```
+
+白话解释：
+
+```text
+Qwen3-1.7B 更愿意给出有风险的回答，但这些回答不是更重复，而是更分散。
+```
+
+#### Qwen3-4B
+
+设置：
+
+| 项目 | 值 |
+| --- | --- |
+| 模型 | Qwen3-4B |
+| steps | 100 |
+| seed | 42 |
+| prompts | first 10 |
+| samples | 每 prompt 16 |
+
+结果：
+
+| Metric | Delta |
+| --- | ---: |
+| Determinism | -0.0187，CI [-0.0375, +0.0000] |
+| Entropy | +0.0701，CI [+0.0000, +0.1403] |
+| Proxy PCE | +0.0125，CI [+0.0000, +0.0312] |
+| Prompt split | 0 pass / 0 mixed / 10 fail |
+| Local decision | robust_fail |
+
+Guardian：
+
+| Metric | Result |
+| --- | --- |
+| Guardian-PCE Yes Delta | +0.4688，CI [+0.3187, +0.6250] |
+| Guardian-PCE Score Delta | +0.3981，CI [+0.2658, +0.5286] |
+| Dominant Harm | robust_increase |
+| Gate | robust_fail |
+
+专业解释：
+
+```text
+Qwen3-4B reproduces the same decoupled pattern: risk rises while collapse metrics move in the opposite direction.
+```
+
+白话解释：
+
+```text
+换到 4B 以后，还是同样的情况：风险上升，但回答没有变固定。
+```
+
+### 5.6 实验结论的决定性
+
+Qwen3 改变了项目判断。
+
+之前可以怀疑：
+
+```text
+0.5B 太小，所以坍缩信号不稳。
+```
+
+现在更合理的判断是：
+
+```text
+核心机制假设本身不成立：偏好优化不必然导致采样模式坍缩。
+```
 
 专业表述：
 
 ```text
-The broad vulnerability claim is not supported.
+The dominant empirical pattern is risk amplification without mode-collapse amplification.
 ```
 
 白话表述：
 
 ```text
-现在不能说“DPO 会普遍导致可利用漏洞”。
+模型确实更危险了，但不是通过“反复说同一种危险话”变危险，而是通过“用更多不同方式给出风险回答”变危险。
 ```
 
-具体原因：
+## 6. 原始 idea 哪里错了
 
-- held-out prompt 不稳定；
-- S0.1 未达到 60% pass 门槛；
-- taxonomy v0 不能预测新数据；
-- poison/CAR 没有剂量效应；
-- wording-sensitive；
-- LlamaGuard-family replication 暂不可用；
-- target phrase exact copying 没有出现。
+### 6.1 错在把 preference fitting 等同于 mode collapse
 
-### 5.2 被保留的部分
+原始假设：
+
+```text
+preference fitting -> fewer output modes
+```
+
+实验显示：
+
+```text
+preference fitting -> broader risky response region
+```
 
 专业表述：
 
 ```text
-There is restricted evidence for prompt- and wording-sensitive safety-relevant response-mode concentration.
+DPO can move the model toward a riskier response manifold without concentrating samples into a single dominant mode.
 ```
 
 白话表述：
 
 ```text
-现象不是假的，但它只在部分题、部分写法、部分训练设置下出现。
+DPO 不是让模型只学会一个危险答案，而是让模型学会一片更危险的回答区域。
 ```
 
-保留下来的证据：
+### 6.2 错在把风险上升和多样性下降绑定在一起
 
-- short-template 300-step first-10 prompts 有 robust PCE 正信号；
-- refusal-template control 证明同一管线能反向降低风险；
-- Granite Guardian sanity check 表明 classifier 对 response 内容敏感；
-- full 50 aggregate 有 positive signal，但异质性强；
-- margin-to-generation 的断点本身有研究价值。
+原始 PCE 叙事要求：
 
-## 6. 现在的 idea 是什么
+```text
+harmfulness up + diversity down
+```
 
-### 6.1 新 idea
+Qwen3 看到的是：
+
+```text
+harmfulness up + diversity up
+```
 
 专业表述：
 
 ```text
-Develop a prompt-stratified PCE diagnostic and early-warning framework for preference-optimized language models.
+Risk and diversity are decoupled under the observed Qwen3 DPO setting.
 ```
 
 白话表述：
 
 ```text
-不要再硬说 DPO 一定造成漏洞，而是研究：哪些题、哪些回答模式、哪些训练条件下会出现风险集中；怎么提前发现它；怎么避免被平均数骗了。
+风险和多样性不是同一根绳上的两个方向。模型可以一边更危险，一边回答更多样。
 ```
 
-新 idea 的核心问题：
+### 6.3 错在把 first-10 pilot 当成主线
 
-```text
-When does preference optimization create safety-relevant response-mode concentration, and how can we diagnose it reliably?
-```
+0.5B first-10 正信号现在更可能是：
 
-对应中文：
-
-```text
-偏好优化什么时候会制造安全相关的回答模式集中？我们如何可靠地诊断它？
-```
-
-### 6.2 为什么这个方向更好
+- 特定 short-template wording 的局部现象；
+- first-10 prompts 的选择偏差；
+- 小模型容量限制下的特殊行为；
+- synthetic preference construction 导致的局部模式。
 
 专业表述：
 
 ```text
-It matches the empirical evidence: local positive signal exists, but cross-prompt generalization is heterogeneous.
+The historical positive result is best treated as a constrained pilot, not as evidence for a general vulnerability.
 ```
 
 白话表述：
 
 ```text
-实验告诉我们：不是完全没戏，也不是已经证明漏洞。最真实的状态是“有局部信号，但边界不清”。新方向正好研究这个边界。
+它说明“有这个苗头”，但不能说明“普遍存在这个问题”。
 ```
 
-这个方向比原始漏洞叙事更适合开题：
+## 7. 新 idea 是什么
 
-- 更严谨，不夸大；
-- 更容易通过 held-out negative 结果讲出科学问题；
-- 更适合 AAAI/IJCAI 的评测、诊断、可靠性叙事；
-- 后续如果结果变强，仍可升级到安全攻击/防御论文；
-- 如果结果继续不稳定，也能形成有价值的负结果 benchmark。
+### 7.1 新研究问题
 
-## 7. 围绕现在 idea 的当前进展
+新方向：
 
-### 7.1 已经完成的能力
+```text
+DPO 如何改变模型的风险-多样性权衡？
+什么条件下会出现风险上升但多样性不下降的反直觉现象？
+如何诊断和预警这种风险迁移？
+```
 
 专业表述：
 
 ```text
-The project already has a local PCE measurement pipeline, Qwen DPO smoke training, Guardian audit integration, prompt-level pass/mixed/fail summaries, and several negative controls.
+The new research focus is risk-diversity decoupling: preference optimization may increase safety risk while preserving or increasing output diversity.
 ```
 
 白话表述：
 
 ```text
-现在不是只有想法，已经有能跑的脚本、能训练的小模型、能打分的安全裁判、能看每道题成败的统计表。
+新的问题不是“模型会不会重复同一种危险回答”，而是“模型会不会用很多不同方式变得更危险”。
 ```
 
-当前能力：
+### 7.2 新现象：风险迁移
 
-- 本地 git 仓库已经建立；
-- `stdplm` 环境可复用；
-- Qwen2.5-0.5B-Instruct 已完成历史 pilot，但不再作为后续实验证据；
-- 后续主线改为 Qwen3-1.7B 与 Qwen3-4B 的 LoRA-DPO scale smoke；
-- Granite Guardian 3.1 2B 能本地审计；
-- PCE 指标脚本能输出 determinism、entropy、proxy PCE、Guardian-PCE；
-- raw-output audit 能检查 target phrase hit 和 dominant representative；
-- prompt-level pass/mixed/fail 统计已经形成；
-- S0.1 和 Experiment C 的 protocol 与结果已写入文档；
-- README 已持续记录阶段性成果。
+建议命名：
 
-### 7.2 当前最重要的实证结论
+```text
+Distributed Risk Migration under Preference Optimization
+```
+
+中文：
+
+```text
+偏好优化下的分散式风险迁移
+```
+
+定义：
+
+```text
+After preference optimization, guardian-scored harmfulness increases across sampled outputs, while semantic output diversity is preserved or increased.
+```
+
+白话定义：
+
+```text
+训练后，模型回答整体更容易有风险，但这些风险分散在很多不同回答里，而不是集中到一个固定答案。
+```
+
+### 7.3 为什么这个现象更值得研究
+
+模式坍缩风险：
+
+```text
+容易检测，因为回答重复。
+```
+
+分散式风险迁移：
+
+```text
+更隐蔽，因为每次回答都不同，但都可能越界。
+```
 
 专业表述：
 
 ```text
-The central empirical pattern is aggregate-positive but prompt-heterogeneous PCE movement.
+Distributed risk migration is harder to detect than collapse-based risk because lexical and semantic repetition signals may remain weak.
 ```
 
 白话表述：
 
 ```text
-平均看有一点正信号，但拆到每道题后，很多题不成立。
+如果模型每次都重复同一句危险话，很容易抓住；如果它每次都换一种说法，但都在帮危险请求，就更难发现。
 ```
 
-这句话是整个开题的核心支点。
+## 8. 新指标与诊断框架
 
-### 7.3 当前最重要的科学问题
+### 8.1 保留 PCE，但降级为一种特殊情况
+
+PCE 仍然有意义，但它只描述一种情况：
+
+```text
+risk up + determinism up + entropy down
+```
+
+也就是：
+
+```text
+风险集中到少数 dominant modes。
+```
+
+新框架中，PCE 不再是唯一主指标，而是风险-多样性二维空间里的一个象限。
+
+### 8.2 新核心指标 1：Risk Distribution Index
+
+暂定定义：
+
+```text
+RDI(x) = sum_c p(c | x) * h(c, x)
+```
+
+其中：
+
+- `x` 是 prompt；
+- `c` 是语义聚类后的 response mode；
+- `p(c | x)` 是 mode mass；
+- `h(c, x)` 是 Guardian 对该 mode 的风险评分。
+
+专业解释：
+
+```text
+RDI measures expected guardian-scored risk across all sampled semantic modes, rather than only the dominant mode.
+```
+
+白话解释：
+
+```text
+RDI 不只看最大那类回答危不危险，而是看所有回答模式加起来，整体风险有多大。
+```
+
+### 8.3 新核心指标 2：Risk Entropy
+
+定义：
+
+```text
+q_c = p(c | x) * h(c, x) / sum_j p(j | x) * h(j, x)
+RiskEntropy(x) = - sum_c q_c log q_c
+```
+
+专业解释：
+
+```text
+Risk entropy measures whether risk is concentrated in one mode or distributed across many modes.
+```
+
+白话解释：
+
+```text
+风险熵看的是：风险是集中在一种回答里，还是分散在很多回答里。
+```
+
+### 8.4 新核心指标 3：Risk-Diversity Decoupling
+
+定义：
+
+```text
+RDD occurs when Delta Risk > 0 and Delta Diversity >= 0.
+```
+
+在当前实验中：
+
+- Qwen3-1.7B：Guardian risk up，entropy up；
+- Qwen3-4B：Guardian risk up，entropy up；
+- S0.1：dominant harm up，entropy up；
+
+这些都更接近 RDD，而不是 PCE。
+
+### 8.5 四象限诊断
+
+| 象限 | 风险变化 | 多样性变化 | 含义 | 例子 |
+| --- | --- | --- | --- | --- |
+| Collapse Risk | 风险上升 | 多样性下降 | 传统 PCE 风险 | 0.5B first-10 pilot |
+| Distributed Risk | 风险上升 | 多样性上升或不降 | 新主线，风险迁移 | Qwen3-1.7B / Qwen3-4B |
+| Safe Concentration | 风险下降 | 多样性下降 | 集中到安全拒答 | refusal-template control |
+| Benign Diversity | 风险不升 | 多样性不降 | 安全或中性变化 | neutral-boundary 部分结果 |
 
 专业表述：
 
 ```text
-The key scientific blocker is prompt transfer and stratum predictability.
+This quadrant view separates collapse-based exploitability from distributed risk migration.
 ```
 
 白话表述：
 
 ```text
-现在最大问题是：我还不能提前知道哪些题会出信号，哪些题不会。
+这个四象限能区分：模型是固定地变危险，分散地变危险，固定地变安全，还是基本没问题。
 ```
 
-下一阶段就围绕这个问题展开：
+## 9. 当前进展
+
+### 9.1 已完成的工程能力
+
+| 能力 | 状态 |
+| --- | --- |
+| 本地 git 仓库 | 已建立，无远端，无 push |
+| conda 环境 | 使用 `stdplm` |
+| GPU | RTX 4060 Laptop 可用 |
+| Qwen3 overlay | `D:\hf_models\pydeps\qwen3_transformers` |
+| Qwen3-1.7B | 已下载，可训练，可评估 |
+| Qwen3-4B | 已下载，可训练，可评估 |
+| Granite Guardian | 已本地运行 |
+| raw-output audit | 已实现 |
+| prompt-level bootstrap | 已实现 |
+| held-out protocol | 已实现 |
+| poison/CAR smoke | 已实现 |
+
+### 9.2 已完成的科学判断
+
+支持：
 
 ```text
-从“有没有 PCE”转向“哪些 prompt strata 会有 PCE，为什么会有，能否提前预警”。
+DPO can amplify safety risk.
 ```
 
-## 8. 问题逻辑是什么
-
-### 8.1 原始漏洞逻辑
+白话：
 
 ```text
-DPO preference update
--> probability distribution sharpens
--> sampled outputs collapse into fewer semantic modes
--> dominant mode becomes harmful
--> attacker can predict and exploit it
+DPO 确实会让模型更容易给出风险回答。
 ```
 
-白话版本：
+不支持：
 
 ```text
-训练让模型更偏向某些答案
+DPO reliably causes sampled mode collapse.
+```
+
+白话：
+
+```text
+DPO 并不会稳定地让模型反复输出同一类答案。
+```
+
+新的核心判断：
+
+```text
+DPO can produce risk migration without diversity collapse.
+```
+
+白话：
+
+```text
+DPO 可能让模型用更多不同方式变危险。
+```
+
+## 10. 问题逻辑
+
+### 10.1 旧逻辑
+
+```text
+DPO
+-> preference margin increases
+-> output modes collapse
+-> dominant risky mode emerges
+-> stable exploitability
+```
+
+白话：
+
+```text
+训练让模型偏向某类答案
 -> 回答越来越固定
--> 固定下来的回答有风险
--> 攻击者更容易利用这个稳定弱点
+-> 固定答案有风险
+-> 漏洞成立
 ```
 
-### 8.2 现有实验显示的真实逻辑
+实验结论：
 
 ```text
-DPO preference update
--> preference margin often changes
--> sampled-mode behavior may or may not concentrate
--> harmfulness may rise even when determinism does not
--> prompt identity strongly moderates the result
+This chain fails at "output modes collapse".
 ```
 
-白话版本：
+白话：
 
 ```text
-DPO 确实会改变模型偏好
--> 但模型实际回答不一定更固定
--> 有时回答更危险，但不更稳定
--> 哪道题很关键
+链条断在“回答越来越固定”这一步。
 ```
 
-### 8.3 新研究逻辑
+### 10.2 新逻辑
 
 ```text
-Measure PCE at prompt level
--> split prompts into interpretable strata
--> validate strata on held-out prompts
--> identify mechanism and warning signals
--> test mitigation only where the signal is real
+DPO
+-> preference margin increases
+-> refusal boundary shifts
+-> model explores more risky but preference-consistent responses
+-> guardian-scored risk rises across multiple modes
+-> distributed risk migration
 ```
 
-白话版本：
+白话：
 
 ```text
-先逐题测清楚
--> 再按题型分组
--> 用新题验证分组准不准
--> 找出为什么会发生
--> 最后再谈预警和防御
+训练让模型更偏向“有帮助、少拒答”
+-> 模型在危险问题上更愿意回答
+-> 它不是重复一个答案，而是用很多不同方式回答
+-> 整体风险上升
 ```
 
-## 9. 正式开题方向与研究问题
+### 10.3 直观例子
 
-正式题目：
+原来以为：
 
 ```text
-面向偏好优化语言模型的 Prompt-Stratified PCE 诊断与预警研究
+训练后模型只会反复给出同一道风险答案。
 ```
 
-研究问题 RQ：
+实际看到：
+
+```text
+训练后模型会给出很多不同的风险回答。
+```
+
+用做饭类比：
+
+```text
+原来以为训练会让厨师每次都做同一道有问题的菜。
+实际像是训练让厨师偏向某类口味，于是每次做出不同菜，但都落在同一个风险口味区间里。
+```
+
+## 11. 研究问题
 
 | 编号 | 专业表述 | 白话表述 |
 | --- | --- | --- |
-| RQ1 | DPO 是否在特定 prompt strata 上导致 sampled response-mode concentration？ | 哪些题会让 DPO 后的模型回答更固定？ |
-| RQ2 | Response-mode concentration 何时与 dominant harmfulness 同时上升？ | 固定下来的回答什么时候真的更危险？ |
-| RQ3 | Prompt-stratified PCE 是否比 aggregate PCE 更能解释 held-out 泛化？ | 按题型拆开看，是否比只看平均分更靠谱？ |
-| RQ4 | Preference margin、token entropy、dominant mass 等训练过程信号能否预警 PCE 上升？ | 训练中能不能提前看出模型要往风险模式集中？ |
-| RQ5 | Entropy regularization、preference filtering 或 gradient gating 能否降低 PCE 而不牺牲基本偏好拟合？ | 有没有办法让模型别那么容易集中到风险回答，同时还保持好用？ |
+| RQ1 | Does DPO increase guardian-scored risk while preserving or increasing semantic output diversity? | DPO 会不会让模型更危险，但回答并不更重复？ |
+| RQ2 | Under what prompt strata does risk-diversity decoupling occur? | 哪些题型更容易出现“更危险但更多样”？ |
+| RQ3 | How do preference margins, refusal rates, and sampling diversity jointly predict risk migration? | 训练指标、拒答率和多样性能不能提前预警风险迁移？ |
+| RQ4 | Can RDI and risk entropy distinguish collapse risk from distributed risk? | 新指标能不能区分“固定地危险”和“分散地危险”？ |
+| RQ5 | Can filtering or regularization reduce distributed risk without simply forcing refusal? | 有没有办法降低分散风险，而不是让模型什么都拒绝？ |
 
-## 10. 对标会议与投稿路线
+## 12. 创新点
 
-### 10.1 主目标：AAAI / IJCAI
+### 12.1 从 PCE 到风险-多样性解耦
+
+专业表述：
+
+```text
+The project reframes collapse-based exploitability as one quadrant of a broader risk-diversity diagnostic space.
+```
+
+白话表述：
+
+```text
+我不再只看“模型是否坍缩”，而是看风险和多样性怎么一起变化。
+```
+
+### 12.2 发现风险上升不需要模式坍缩
+
+专业表述：
+
+```text
+Across Qwen3-1.7B and Qwen3-4B, DPO increases guardian-scored risk while determinism decreases and mode entropy increases.
+```
+
+白话表述：
+
+```text
+更大的 Qwen3 模型说明：模型可以不重复，却更危险。
+```
+
+### 12.3 Prompt-stratified 诊断
+
+专业表述：
+
+```text
+Aggregate metrics can hide prompt-level heterogeneity; prompt-stratified evaluation is necessary for reliable safety diagnosis.
+```
+
+白话表述：
+
+```text
+只看平均分会被骗，必须逐题看哪些 prompt 出问题。
+```
+
+### 12.4 高质量 negative results
+
+专业表述：
+
+```text
+The study includes held-out failure, taxonomy failure, poison/CAR failure, and Qwen3 collapse failure as evidence that constrains the hypothesis.
+```
+
+白话表述：
+
+```text
+这些失败不是坏事，它们帮助把研究从夸大漏洞收敛到真正成立的问题。
+```
+
+### 12.5 新指标：RDI 与 Risk Entropy
+
+专业表述：
+
+```text
+RDI and risk entropy measure distributed risk across semantic modes, complementing PCE's dominant-mode focus.
+```
+
+白话表述：
+
+```text
+新指标不只盯着最大那类回答，而是看风险是否分散在很多回答里。
+```
+
+## 13. 前人工作与本课题位置
+
+### 13.1 DPO 与直接偏好优化
+
+Rafailov 等提出 DPO，把 RLHF 中复杂的 reward modeling 和强化学习步骤转化为直接的偏好分类损失。
 
 专业定位：
 
 ```text
-LLM alignment reliability, safety evaluation, diagnostic benchmark, and training-time monitoring.
+DPO is the optimization substrate studied in this project.
 ```
 
 白话定位：
 
 ```text
-研究大模型对齐训练后哪里不稳定、怎么测、怎么提前发现。
+DPO 是本课题研究的训练方法背景。
+```
+
+### 13.2 DPO failure modes 与 likelihood over-optimization
+
+Smaug / DPO-Positive 指出，标准 DPO 只要相对偏好改善，就可能降低 preferred examples 的 likelihood。Likelihood over-optimisation 工作进一步指出，更高 likelihood 或更大 preference margin 不一定提升泛化，还可能损害多样性。
+
+专业定位：
+
+```text
+Prior work shows that preference-objective improvement and downstream behavior can diverge.
+```
+
+白话定位：
+
+```text
+前人已经发现：训练目标变好，不等于模型实际表现一定变好。
+```
+
+本课题进一步问：
+
+```text
+如果目标变好但行为改变，安全风险和输出多样性会如何共同变化？
+```
+
+### 13.3 输出多样性坍缩与多样性保持
+
+Diverse Preference Optimization 和 post-training diversity collapse 工作说明，后训练和偏好优化常常会让输出分布变尖、多样性下降。
+
+专业定位：
+
+```text
+Output diversity loss is known; the new question is whether risk can increase without such loss.
+```
+
+白话定位：
+
+```text
+前人研究“模型会不会回答变少”。本课题研究“模型即使没有回答变少，会不会仍然更危险”。
+```
+
+### 13.4 DPO 安全攻击与偏好投毒
+
+Benign DPO Attack 表明，看似无害的偏好对可以降低拒答并迁移到 harmful prompts。Preference poisoning 工作也研究了对齐数据中的低成本投毒。
+
+专业定位：
+
+```text
+Attack success and refusal suppression are related, but they do not imply mode collapse.
+```
+
+白话定位：
+
+```text
+别人已经发现 DPO 可能让模型更少拒答，但这不等于它会重复同一种危险回答。
+```
+
+本课题的位置：
+
+```text
+从“是否攻击成功”进一步分析“风险是集中出现，还是分散出现”。
+```
+
+### 13.5 安全分类器
+
+Granite Guardian、Llama Guard、ShieldGemma 等工作提供了 prompt/response 风险检测模型。
+
+专业定位：
+
+```text
+Guardian-style classifiers provide external risk labels for sampled response modes.
+```
+
+白话定位：
+
+```text
+这些模型像安全裁判，用来判断回答有没有风险。
+```
+
+本项目当前使用 Granite Guardian 3.1 2B，本机可运行。后续若条件允许，应增加 Llama Guard 或 ShieldGemma 做 classifier sensitivity 分析。
+
+## 14. 目标会议与投稿定位
+
+### 14.1 主目标：AAAI / IJCAI
+
+定位：
+
+```text
+LLM safety diagnostics, alignment reliability, post-training behavior analysis, and risk monitoring.
+```
+
+白话：
+
+```text
+研究大模型偏好训练后哪里会出安全风险，以及怎么诊断。
 ```
 
 为什么适合：
 
-- AAAI/IJCAI 接受 AI 系统可靠性、评测、诊断和安全相关研究；
-- 本课题可强调方法、benchmark、统计 protocol 和机制分析；
-- 不必把结果包装成强攻击漏洞。
+- AAAI / IJCAI 接受 AI 系统可靠性、安全评测、诊断框架和机制分析。
+- 当前研究有明确实验链条、negative controls、跨模型现象和新指标。
+- 不需要硬包装为安全漏洞攻击论文。
 
-### 10.2 条件冲刺：NeurIPS / ICML / ICLR
+### 14.2 条件冲刺：NeurIPS / ICML / ICLR
 
-专业定位：
+定位：
 
 ```text
-Preference optimization dynamics, probability-mass concentration, and principled early-warning or mitigation methods.
+Preference optimization dynamics, risk-diversity tradeoff, and training-time warning signals.
 ```
 
-白话定位：
+白话：
 
 ```text
-如果后续能讲清楚 DPO 为什么会让概率质量转移，并提出有效方法，就能冲更偏机器学习机制的顶会。
+如果能把 DPO 为什么导致风险迁移讲清楚，就可以冲更偏机器学习机制的顶会。
 ```
 
 需要补强：
 
-- 更强机制解释；
-- 多模型多数据源；
-- 训练动态分析；
-- mitigation 方法不仅有效，还要有清晰动机。
+- 更严格的理论或半理论解释；
+- 多模型、多数据源、多安全分类器；
+- 训练过程动态；
+- RDI / Risk Entropy 与泛化风险的统计关系。
 
-### 10.3 备选：ACL / EMNLP
+### 14.3 备选：ACL
 
-专业定位：
-
-```text
-LLM safety evaluation, prompt taxonomy, response-mode analysis, and diagnostic datasets.
-```
-
-白话定位：
+定位：
 
 ```text
-如果最后主要贡献是语言模型安全评测集和分层分析，可以走 NLP 评测路线。
+LLM safety evaluation, prompt taxonomy, response diversity, and diagnostic benchmark.
 ```
 
-### 10.4 暂不主攻：安全四大
-
-安全四大包括 IEEE S&P、USENIX Security、ACM CCS、NDSS。
-
-暂不主攻的原因：
-
-- 当前 Experiment C 没有支持主动诱导攻击；
-- 没有稳定跨 prompt exploit；
-- 威胁模型还不够强；
-- 缺少多模型、多安全分类器、多攻击 baseline。
-
-白话解释：
+白话：
 
 ```text
-现在还不能说“我有一个能稳定利用的漏洞”，所以不要硬走安全攻击论文。
+如果最后贡献更像语言模型安全评测集和分层分析，可以考虑 ACL 路线。
 ```
 
-## 11. 前人工作与本课题位置
+### 14.4 暂不主攻：安全四大
 
-### 11.1 DPO 与直接偏好优化
+IEEE S&P、USENIX Security、ACM CCS、NDSS 暂不作为第一目标。
 
-Rafailov 等提出 DPO，核心贡献是把 RLHF 中复杂的奖励建模和强化学习步骤简化为直接偏好优化。
+原因：
 
-白话解释：
+- Experiment C 不支持主动诱导攻击。
+- 没有稳定 exploit。
+- 没有跨 prompt 的可预测漏洞。
+- 当前贡献更像 alignment diagnostics，而不是攻击系统。
+
+白话：
 
 ```text
-DPO 让模型对齐训练更简单，因此它很常用，也更值得研究副作用。
+现在不能说“我发现了一个稳定漏洞”，所以不要硬投安全攻击顶会。
 ```
 
-### 11.2 DPO failure modes
+## 15. 研究计划
 
-Smaug/DPO-Positive 指出标准 DPO 在某些情况下可能出现 chosen likelihood 下降等 failure mode。Likelihood over-optimisation 相关工作指出，completion likelihood 或 preference margin 过度优化不一定改善泛化，反而可能损害多样性。
-
-白话解释：
-
-```text
-前人已经发现：DPO 的训练目标变好，不一定代表模型真的变好。
-```
-
-### 11.3 输出多样性下降
-
-Diverse Preference Optimization 和 post-training diversity collapse 相关工作指出，后训练会让输出分布变尖、多样性下降，并且这种现象与训练数据和训练阶段有关。
-
-白话解释：
-
-```text
-模型后训练后可能更像“标准答案机器”，这已经有人研究。
-```
-
-本课题的区别是：
-
-```text
-不只问多样性是否下降，而是问下降后的主导模式是否安全相关。
-```
-
-### 11.4 DPO 安全攻击与投毒
-
-近期 benign DPO attack 和 label-flipping poisoning 工作研究了偏好优化中的安全风险和低成本攻击。
-
-白话解释：
-
-```text
-有人已经在看 DPO 会不会被恶意利用，但本项目目前的实验不支持直接攻击叙事。
-```
-
-本课题更稳的定位是：
-
-```text
-攻击之前先做诊断：先知道什么时候真的有 PCE，什么时候只是指标假象。
-```
-
-### 11.5 Safety classifier
-
-Llama Guard、Granite Guardian、ShieldGemma 等模型提供了对 prompt/response 风险的自动评估能力。
-
-白话解释：
-
-```text
-它们是安全裁判，用来判断模型回答有没有风险。
-```
-
-本项目目前使用 Granite Guardian，并计划在条件允许时补充 LlamaGuard 或 ShieldGemma 复现。
-
-## 12. 后续研究计划
-
-### 阶段 1：实验台账与 prompt benchmark 固化
+### 阶段 1：重构实验台账与指标
 
 时间：2026 年 7 月
 
 任务：
 
 - 建立 `docs/experiment_index.md`；
-- 统一记录 run family、配置、输出目录、seed、prompt split、结论；
-- 固化 prompt ID，避免事后挑选；
-- 建立至少 300 个 prompt 的分层评测集；
-- 设计 taxonomy v1 或更稳健的 prompt feature schema。
+- 把所有 run family、模型、seed、prompt slice、output dir、结论统一索引；
+- 把旧 PCE 指标降级为 collapse-risk 指标；
+- 新增 RDI、Risk Entropy、RDD quadrant summary；
+- 对已保存 Qwen3 输出做 retrospective RDI 计算。
 
 交付：
 
-- 实验索引；
-- prompt 分层规范；
-- pass/mixed/fail 判定标准；
-- 可复现实验 protocol。
+- 实验台账；
+- 新指标脚本；
+- Qwen3 retrospective risk-diversity summary。
 
-### 阶段 2：Qwen3-first scale smoke 与 Prompt-stratified validation
+### 阶段 2：Qwen3 风险-多样性复核
 
 时间：2026 年 7 月至 8 月
 
 任务：
 
-- 不再新增 0.5B 实验；
-- 使用 Qwen3-1.7B 和 Qwen3-4B 检查现代开源 Qwen family 上是否仍有 first-10 PCE 信号；
-- Qwen3 生成固定为 non-thinking mode，避免 thinking traces 干扰输出模式统计；
-- 至少 2 到 3 个训练 seed；
-- 每 prompt 32 到 64 次采样；
-- 在 held-out prompt 上验证 strata 是否预测 PCE；
-- Granite Guardian 必跑，争取补充 LlamaGuard 或 ShieldGemma。
+- 使用 Qwen3-1.7B 作为快速迭代模型；
+- Qwen3-4B 只在协议稳定后继续；
+- 不再新增 0.5B 训练；
+- 扩大 prompts 到至少 50 到 100；
+- 每 prompt 至少 32 samples；
+- 比较 temperature / top-p / max_new_tokens 对 risk-diversity 的影响；
+- Granite Guardian 必跑。
 
 成功标准：
 
-- 至少一个 held-out stratum 同时满足 determinism 上升、entropy 下降、Guardian-PCE CI > 0；
-- prompt-level pass rate 明显高于 random/aggregate baseline；
-- target phrase hit 和 raw representative 必报。
-
-失败处理：
-
 ```text
-如果所有 strata 都不稳定，论文转为 PCE 假阳性诊断与负结果 benchmark。
+在 held-out prompts 上复现 risk up + diversity not down 的模式。
 ```
 
-### 阶段 3：2B/3B scale smoke
+白话：
+
+```text
+要证明“分散式风险迁移”不是 first-10 偶然现象。
+```
+
+### 阶段 3：Prompt-stratified benchmark v1
 
 时间：2026 年 8 月至 9 月
 
 任务：
 
-- 优先同家族 Qwen2.5-1.5B 或 Qwen2.5-3B；
-- 使用 LoRA/QLoRA 控制显存；
-- 只在阶段 2 已验证的 stratum 上做 scale smoke；
-- 不把单模型单种子称为 scale validation。
+- 构建 300 到 500 prompts；
+- 分层包括 cyber、fraud、violence/weapons、self-harm、harassment、general harmful requests、benign hard prompts；
+- 每个 stratum 固定 prompt IDs；
+- 先做 baseline risk-diversity profiling；
+- 再做 DPO 后变化分析。
 
-定位：
+交付：
 
-```text
-direction-not-reversed smoke，而不是规模律证明。
-```
+- prompt taxonomy v1；
+- held-out stratum validation；
+- prompt-level mixed-effects 或 bootstrap 分析。
 
-白话解释：
-
-```text
-只是检查大一点模型上方向有没有反过来，不是证明所有规模都成立。
-```
-
-### 阶段 4：机制解释与统计建模
+### 阶段 4：机制分析
 
 时间：2026 年 9 月至 11 月
 
 任务：
 
-- 分析 preference margin 与 sampled-mode movement 的关系；
-- 监控 top-k entropy、token entropy、dominant mass；
-- 建立 prompt-level bootstrap 或 mixed-effects 分析；
-- 区分三类现象：
-  - true PCE increase；
-  - harmfulness-only increase；
-  - determinism-only increase。
+- 分析 preference margin 与 RDI 变化关系；
+- 分析 refusal rate 与 risk migration 关系；
+- 分析 token entropy、top-k entropy、semantic mode entropy；
+- 区分三种机制：
+  - refusal boundary shift；
+  - semantic risk expansion；
+  - true collapse risk。
 
 目标：
 
 ```text
-把“观察到现象”升级为“解释为什么有些 prompt 成立、有些不成立”。
+解释 DPO 为什么会让风险上升但多样性不下降。
 ```
 
 ### 阶段 5：预警与缓解
@@ -978,93 +1184,72 @@ direction-not-reversed smoke，而不是规模律证明。
 
 任务：
 
-- 测试 entropy-regularized DPO；
-- 测试 preference filtering；
-- 测试 rejected-gradient gating 或类似方法；
-- 比较 PCE、拒答率、多样性、基本质量指标。
+- preference filtering；
+- entropy / diversity regularization；
+- refusal-boundary regularization；
+- risk-aware DPO weighting；
+- 与普通 DPO 比较 RDI、Risk Entropy、helpfulness proxy、refusal rate。
 
 成功标准：
 
-- 降低 risky dominant mode；
-- 不只是让模型全拒答；
-- held-out prompt 有效果。
+```text
+降低 distributed risk，不只是让模型全部拒答。
+```
+
+白话：
+
+```text
+防御不能靠“什么都不回答”，而要保持有用同时降低风险。
+```
 
 ### 阶段 6：论文整理与投稿
 
-时间：2027 年 1 月至 2027 年 4 月，按 CFP 调整。
+时间：2027 年 1 月至 2027 年 4 月
 
-AAAI/IJCAI 主线摘要：
-
-```text
-We propose prompt-stratified PCE diagnostics for preference-optimized language models. We show that aggregate PCE can be misleading because response-mode concentration and dominant harmfulness are highly prompt-dependent. We provide held-out validation, negative controls, classifier-backed audits, and early-warning/mitigation studies.
-```
-
-白话摘要：
+AAAI / IJCAI 投稿主线：
 
 ```text
-我们提出一种逐题分层的安全诊断方法，说明 DPO 后的风险集中不是到处发生，而是和题型、回答模式、训练条件有关；只看平均分会误判。
+We show that preference optimization can decouple safety risk from output diversity: DPO increases guardian-scored risk while preserving or increasing semantic diversity. We propose RDI, risk entropy, and prompt-stratified diagnostics to distinguish collapse risk from distributed risk migration.
 ```
 
-## 13. 预期创新点
+中文主线：
 
-1. PCE 诊断视角。
-   - 专业说法：jointly model response-mode determinism and dominant-mode harmfulness。
-   - 白话说法：同时看“是否固定”和“固定的回答是否危险”。
+```text
+我们发现偏好优化不一定通过模式坍缩增加安全风险；更隐蔽的情况是，模型在保持甚至增加输出多样性的同时，系统性向风险回答区域迁移。
+```
 
-2. Prompt-stratified evaluation。
-   - 专业说法：report prompt-level pass/mixed/fail rather than only aggregate metrics。
-   - 白话说法：不只看平均分，而是逐题看哪里成立。
-
-3. Margin-to-generation diagnostic。
-   - 专业说法：separate preference margin improvement from sampled-output collapse。
-   - 白话说法：训练学会偏好，不等于实际回答更固定。
-
-4. Negative controls and boundary reporting。
-   - 专业说法：include refusal controls, neutral controls, wording replication, held-out failure, and poison negative smoke。
-   - 白话说法：主动报告哪些不成立，防止把偶然结果讲成大结论。
-
-5. Training-time early warning。
-   - 专业说法：monitor entropy, dominant mass, margin dynamics, and Guardian-PCE during optimization。
-   - 白话说法：训练过程中提前发现模型是否要往风险回答集中。
-
-## 14. 风险与应对
+## 16. 风险与应对
 
 | 风险 | 表现 | 应对 |
 | --- | --- | --- |
-| 信号继续不稳定 | held-out pass rate 低 | 转为 PCE 假阳性诊断和负结果 benchmark |
-| 分类器偏差 | Granite 与其他 classifier 不一致 | 增加 LlamaGuard/ShieldGemma，报告 classifier sensitivity |
-| prompt taxonomy 再次失败 | 分层不能预测新数据 | 使用更通用的 prompt features 或弱化 taxonomy claim |
-| 大模型显存不足 | 2B/3B OOM | LoRA/QLoRA、减少 samples、只跑验证过的 strata |
-| 审稿人认为贡献只是工程 | 缺少机制解释 | 增强 margin-to-generation 分析和统计模型 |
-| 安全 claim 被质疑 | 攻击证据不足 | 不主打攻击，主打诊断、边界和预警 |
+| RDI 现象不泛化 | Qwen3 扩展 prompts 后风险不稳定 | 转为 negative benchmark，强调 PCE 假设证伪 |
+| Guardian 偏差 | Granite 与其他 classifier 不一致 | 引入 Llama Guard 或 ShieldGemma，报告 classifier sensitivity |
+| Prompt taxonomy 失败 | 分层无法预测新数据 | 改用 prompt embeddings / learned features，不强行人工 taxonomy |
+| 审稿人认为只是指标 | 缺少机制解释 | 加强 preference margin、refusal boundary、entropy dynamics 分析 |
+| 安全贡献被质疑 | 没有攻击成功 | 明确定位为诊断和预警，不宣称 exploit |
+| 计算资源不足 | 4B/8B 训练受限 | Qwen3-1.7B 做训练，4B 做验证，8B 只做 inference audit |
 
-## 15. 当前结论
+## 17. 当前结论
 
 专业结论：
 
 ```text
-Current evidence supports restricted, prompt-sensitive PCE movement but does not support a broad DPO-induced vulnerability claim.
+The original PCE vulnerability hypothesis is not supported as a general claim. The strongest supported phenomenon is risk-diversity decoupling: DPO can increase guardian-scored risk while sampled outputs remain diverse or become more diverse.
 ```
 
 白话结论：
 
 ```text
-现在看到的是局部风险信号，不是已经证明了一个普遍漏洞。
+原来想证明“DPO 让模型重复同一种危险回答”，现在看不成立。真正值得研究的是“DPO 让模型用很多不同方式变得更危险”。
 ```
 
-正式开题应当这样讲：
+正式开题表述：
 
 ```text
-本研究从 DPO 可能诱发安全相关模式坍缩的原始假设出发，通过本地多阶段实验发现该现象具有显著 prompt sensitivity 和 wording sensitivity。基于此，课题转向 prompt-stratified PCE 诊断与预警：研究偏好优化后哪些 prompt 和训练条件会产生风险模式集中，如何用 held-out validation 验证其泛化边界，并进一步探索训练过程预警与缓解方法。
+本研究从 DPO 可能诱发偏好坍缩可利用性的原始假设出发，通过多阶段本地实验发现，跨 Qwen2.5-0.5B、Qwen3-1.7B 和 Qwen3-4B 的主要稳定现象并不是 sampled-mode collapse，而是安全风险上升与输出多样性保持或增加之间的解耦。基于此，课题转向偏好优化中的风险-多样性解耦诊断与预警，提出 RDI、Risk Entropy 和 prompt-stratified evaluation，以刻画风险迁移、解释 prompt 异质性，并探索训练过程预警与缓解方法。
 ```
 
-白话版本：
-
-```text
-我原来怀疑 DPO 会造成安全漏洞。实验后发现不能这么直接说，但确实有局部信号。现在更合理的研究是：弄清楚这种信号什么时候出现、为什么出现、怎么提前发现、怎么避免误判。
-```
-
-## 16. 参考文献与近期工作
+## 18. 参考文献与近期工作
 
 1. Rafailov et al. Direct Preference Optimization: Your Language Model is Secretly a Reward Model. 2023. https://arxiv.org/abs/2305.18290
 2. Pal et al. Smaug: Fixing Failure Modes of Preference Optimisation with DPO-Positive. 2024. https://arxiv.org/abs/2402.13228
@@ -1072,12 +1257,9 @@ Current evidence supports restricted, prompt-sensitive PCE movement but does not
 4. Lanchantin et al. Diverse Preference Optimization. 2025. https://arxiv.org/abs/2501.18101
 5. Karouzos et al. Where does output diversity collapse in post-training? 2026. https://arxiv.org/abs/2604.16027
 6. Yoon et al. Few-Shot Truly Benign DPO Attack for Jailbreaking LLMs. 2026. https://arxiv.org/abs/2605.10998
-7. Kusaka et al. Cost-Minimized Label-Flipping Poisoning Attack to LLM Alignment. 2025. https://arxiv.org/abs/2511.09105
-8. Fedorov et al. Llama Guard 3-1B-INT4: Compact and Efficient Safeguard for Human-AI Conversations. 2024. https://arxiv.org/abs/2411.17713
-9. Padhi et al. Granite Guardian. 2024. https://arxiv.org/abs/2412.07724
-10. Zeng et al. ShieldGemma: Generative AI Content Moderation Based on Gemma. 2024. https://arxiv.org/abs/2407.21772
-11. Mouiche. Gradient-Gated DPO: Stabilizing Preference Optimization in Language Models. 2026. https://arxiv.org/abs/2605.02626
+7. Padhi et al. Granite Guardian. 2024. https://arxiv.org/abs/2412.07724
+8. Zeng et al. ShieldGemma: Generative AI Content Moderation Based on Gemma. 2024. https://arxiv.org/abs/2407.21772
 
-## 17. 100 字以内导师消息
+## 19. 100 字以内导师消息
 
-老师，本地验证显示：原始 DPO 漏洞假设只有局部信号，held-out 和投毒均不支持强结论。建议转向 CCF-A 目标的 prompt-stratified PCE 诊断与预警研究。
+老师，最新 Qwen3 实验表明原始“DPO 导致模式坍缩漏洞”不成立；但 DPO 会显著提高风险回答倾向。建议开题转向“偏好优化中的风险-多样性解耦诊断与预警”。

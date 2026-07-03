@@ -30,18 +30,17 @@ The complete current local experiment report is:
 - [`docs/s0_1_protocol.md`](docs/s0_1_protocol.md)
 - [`docs/poison_car_smoke_protocol.md`](docs/poison_car_smoke_protocol.md)
 
-Formal opening direction: the original DPO vulnerability idea is now rewritten
-as a clearer story: original hypothesis, core concepts, validation tests,
-negative/positive evidence, then the current prompt-stratified PCE diagnostics
-and early-warning direction. The project should not enter S1 or make a
-paper-level vulnerability claim until a preregistered held-out gate passes
-robustly.
+Formal opening direction: the original DPO vulnerability idea has been revised
+after the Qwen3 results. The project no longer treats PCE collapse as the main
+claim. The new opening direction is risk-diversity decoupling under preference
+optimization: DPO can increase guardian-scored risk while sampled outputs remain
+diverse or become more diverse.
 
 Latest full-report conclusion: current evidence does not support a broad
-DPO-induced exploitable mode-collapse claim. It supports a narrower diagnostic
-direction: DPO can shift safety-relevant response behavior, but the transmission
-from preference fitting to sampled-mode concentration is prompt-sensitive,
-wording-sensitive, and not robust under held-out or Qwen3 scale smoke tests.
+DPO-induced exploitable mode-collapse claim. It supports a narrower and more
+credible diagnostic direction: risk migration can occur without mode collapse,
+so the next research line should measure RDI, risk entropy, and prompt-stratified
+risk-diversity quadrants rather than trying to prove collapse at larger scale.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
