@@ -21,6 +21,7 @@ yet proven credible for real LLMs.
 
 The complete current local experiment report is:
 
+- [`docs/complete_experiment_report.md`](docs/complete_experiment_report.md)
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/opening_report.md`](docs/opening_report.md)
 - [`docs/qwen3_scale_smoke_protocol.md`](docs/qwen3_scale_smoke_protocol.md)
@@ -35,6 +36,12 @@ negative/positive evidence, then the current prompt-stratified PCE diagnostics
 and early-warning direction. The project should not enter S1 or make a
 paper-level vulnerability claim until a preregistered held-out gate passes
 robustly.
+
+Latest full-report conclusion: current evidence does not support a broad
+DPO-induced exploitable mode-collapse claim. It supports a narrower diagnostic
+direction: DPO can shift safety-relevant response behavior, but the transmission
+from preference fitting to sampled-mode concentration is prompt-sensitive,
+wording-sensitive, and not robust under held-out or Qwen3 scale smoke tests.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
