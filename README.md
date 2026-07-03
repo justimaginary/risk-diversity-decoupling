@@ -21,6 +21,7 @@ yet proven credible for real LLMs.
 
 The complete current local experiment report is:
 
+- [`docs/new_idea_report.md`](docs/new_idea_report.md)
 - [`docs/complete_experiment_report.md`](docs/complete_experiment_report.md)
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/opening_report.md`](docs/opening_report.md)
@@ -41,6 +42,10 @@ DPO-induced exploitable mode-collapse claim. It supports a narrower and more
 credible diagnostic direction: risk migration can occur without mode collapse,
 so the next research line should measure RDI, risk entropy, and prompt-stratified
 risk-diversity quadrants rather than trying to prove collapse at larger scale.
+
+New-idea-only report: `docs/new_idea_report.md` keeps only the risk-diversity
+decoupling idea and the experiments that support it, with both formal and
+plain-language versions.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
