@@ -17,10 +17,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 try:
     from local_pce_smoke import build_report, save_prompt_outputs, save_report
-    from local_qwen3_lora_dpo import chat_prompt, resolve_dtype, sample_outputs
+    from local_qwen3_lora_dpo import chat_prompt, resolve_dtype
 except ModuleNotFoundError:
     from scripts.local_pce_smoke import build_report, save_prompt_outputs, save_report
-    from scripts.local_qwen3_lora_dpo import chat_prompt, resolve_dtype, sample_outputs
+    from scripts.local_qwen3_lora_dpo import chat_prompt, resolve_dtype
 
 
 def load_prompts(path: Path, limit: int, offset: int) -> list[str]:
@@ -55,6 +55,45 @@ def validate_chat_template(tokenizer, prompt: str, enable_thinking: bool) -> Non
         raise RuntimeError("Qwen3 chat template rendered an empty prompt")
 
 
+@torch.no_grad()
+def sample_outputs_with_progress(
+    model,
+    tokenizer,
+    prompts: list[str],
+    num_samples: int,
+    max_new_tokens: int,
+    batch_size: int,
+    enable_thinking: bool,
+    progress_every: int,
+) -> dict[str, list[str]]:
+    model.eval()
+    device = next(model.parameters()).device
+    sampled: dict[str, list[str]] = {}
+    for prompt_index, prompt in enumerate(prompts, start=1):
+        prompt_text = chat_prompt(tokenizer, prompt, enable_thinking=enable_thinking)
+        encoded = tokenizer(prompt_text, return_tensors="pt", add_special_tokens=False, truncation=True, max_length=512)
+        encoded = {key: value.to(device) for key, value in encoded.items()}
+        outputs: list[str] = []
+        for start in range(0, num_samples, batch_size):
+            current_batch = min(batch_size, num_samples - start)
+            batch = {key: value.expand(current_batch, -1) for key, value in encoded.items()}
+            generated = model.generate(
+                **batch,
+                max_new_tokens=max_new_tokens,
+                do_sample=True,
+                temperature=1.0,
+                top_p=0.95,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+            prompt_len = encoded["input_ids"].shape[1]
+            for sequence in generated:
+                outputs.append(tokenizer.decode(sequence[prompt_len:], skip_special_tokens=True).strip())
+        sampled[prompt] = outputs[:num_samples]
+        if progress_every and (prompt_index == 1 or prompt_index % progress_every == 0 or prompt_index == len(prompts)):
+            print(f"sampled_prompts={prompt_index}/{len(prompts)}")
+    return sampled
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate Qwen3 prompts without training.")
     parser.add_argument("--model_name", required=True)
@@ -71,6 +110,7 @@ def main() -> None:
     parser.add_argument("--dbscan_min_samples", type=int, default=1)
     parser.add_argument("--generation_seed", type=int, default=20260704)
     parser.add_argument("--enable_thinking", action="store_true")
+    parser.add_argument("--progress_every", type=int, default=5)
     args = parser.parse_args()
 
     torch.manual_seed(args.generation_seed)
@@ -91,7 +131,7 @@ def main() -> None:
 
     model = load_model(args.model_name, dtype=dtype)
     model.eval()
-    prompt_outputs = sample_outputs(
+    prompt_outputs = sample_outputs_with_progress(
         model=model,
         tokenizer=tokenizer,
         prompts=prompts,
@@ -99,6 +139,7 @@ def main() -> None:
         max_new_tokens=args.max_new_tokens,
         batch_size=args.eval_batch_size,
         enable_thinking=args.enable_thinking,
+        progress_every=args.progress_every,
     )
     report = build_report(
         mode=args.label,

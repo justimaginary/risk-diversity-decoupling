@@ -91,8 +91,12 @@ What has been validated so far:
   80-prompt AdvBench held-out set is frozen at
   `data/advbench_rdi_heldout_80_seed20260704.jsonl`. It has zero overlap with
   prior prompt gates, no duplicates, source indices spanning 2-511, and multiple
-  keyword topic buckets. The next check is Qwen3-1.7B baseline sampling at
-  80 prompts x 32 samples before DPO training.
+  keyword topic buckets. A 1 prompt x 1 sample Qwen3-1.7B eval-only smoke has
+  passed. The full Qwen3-1.7B baseline sampling check at 80 prompts x 32 samples
+  is complete: mean determinism 0.9145, mean entropy 0.2966, proxy PCE 0.0129,
+  refusal rate 0.8645, and high-risk-instructional rate 0.0023. This prompt set
+  is suitable for the next DPO risk-diversity test, with the caveat that the
+  baseline is already refusal-dominant and highly deterministic.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under

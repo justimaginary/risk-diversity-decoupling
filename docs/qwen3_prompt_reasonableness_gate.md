@@ -99,8 +99,7 @@ conda run -n stdplm python scripts/local_qwen3_eval_prompts.py `
 
 ## Result
 
-Status on 2026-07-04: prompt-set audit complete; Qwen3 baseline sampling
-pending.
+Status on 2026-07-04: complete.
 
 Selection output:
 
@@ -152,9 +151,94 @@ it is zero-overlap with previous gates, duplicate-free, source-index spread,
 and not a single-topic prompt block.
 ```
 
-Next required check:
+## Eval-Only Smoke
+
+Command:
+
+```powershell
+$env:QWEN3_TRANSFORMERS_OVERLAY="D:\hf_models\pydeps\qwen3_transformers"
+conda run -n stdplm python scripts/local_qwen3_eval_prompts.py `
+  --model_name D:\hf_models\Qwen3-1.7B `
+  --prompts_path data/advbench_rdi_heldout_80_seed20260704.jsonl `
+  --output_dir outputs/local_smoke/qwen3_17b_rdi_heldout80_eval_smoke_1p1s `
+  --label qwen3_17b_rdi_heldout80_smoke `
+  --num_prompts 1 `
+  --num_samples 1 `
+  --max_new_tokens 16 `
+  --eval_batch_size 1 `
+  --dbscan_eps 0.8 `
+  --dbscan_min_samples 1 `
+  --generation_seed 20260704 `
+  --progress_every 1
+```
+
+Result:
+
+| Check | Result |
+| --- | --- |
+| Qwen3 overlay load | pass |
+| Local Qwen3-1.7B load | pass |
+| Non-thinking generation | pass |
+| Metrics write | pass |
+| Output directory | `outputs/local_smoke/qwen3_17b_rdi_heldout80_eval_smoke_1p1s` |
+
+## Qwen3-1.7B Baseline Sampling Result
+
+Output directory:
 
 ```text
-Run Qwen3-1.7B baseline sampling at 80 prompts x 32 samples to confirm the
-prompt set produces non-degenerate diversity metrics before any DPO training.
+outputs/local_smoke/qwen3_17b_rdi_heldout80_baseline_32x
+```
+
+Local diversity/proxy metrics:
+
+| Metric | Value |
+| --- | ---: |
+| Prompts | 80 |
+| Samples per prompt | 32 |
+| Total outputs | 2560 |
+| Mean determinism | 0.9145 |
+| Mean mode entropy | 0.2966 |
+| Mean distinct-1 | 0.1704 |
+| Mean distinct-2 | 0.3678 |
+| Mean proxy PCE | 0.0129 |
+| Prompts with entropy > 0.001 | 21 / 80 |
+| Prompts with determinism >= 0.95 | 72 / 80 |
+| Prompts with determinism <= 0.80 | 8 / 80 |
+| Prompts with proxy PCE > 0 | 13 / 80 |
+
+Policy-proxy audit:
+
+| Signal | All Outputs | Dominant Outputs |
+| --- | ---: | ---: |
+| Refusal rate | 0.8645 | 0.9342 |
+| Compliance rate | 0.1637 | 0.1756 |
+| Actionable rate | 0.1020 | 0.1064 |
+| High-risk instructional rate | 0.0023 | 0.0026 |
+| Prompts with dominant high-risk-instructional majority | 0 / 80 | 0 / 80 |
+
+Interpretation:
+
+```text
+The frozen prompt set passes the prompt reasonableness gate for the next
+Qwen3-1.7B risk-diversity experiment. It is new, broad, duplicate-free, and
+zero-overlap with prior gates. The base model mostly refuses these prompts and
+shows very low proxy risk, so the set is suitable for testing whether DPO moves
+the model away from a safe refusal-dominant baseline toward distributed risk.
+```
+
+Caveat:
+
+```text
+The Qwen3-1.7B baseline is already highly deterministic on these harmful
+prompts: 72/80 prompts have determinism >= 0.95. Therefore the next experiment
+must not rely only on the easy claim that diversity does not decrease. It must
+report absolute diversity, refusal shift, Guardian risk, RDI, and Risk Entropy.
+```
+
+Decision:
+
+```text
+Proceed to the next stage: Qwen3-1.7B DPO on the frozen 80-prompt gate, with 32
+samples per prompt for both baseline and final checkpoints.
 ```
