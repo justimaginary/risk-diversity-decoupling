@@ -44,8 +44,8 @@ so the next research line should measure RDI, risk entropy, and prompt-stratifie
 risk-diversity quadrants rather than trying to prove collapse at larger scale.
 
 New-idea-only report: `docs/new_idea_report.md` keeps only the risk-diversity
-decoupling idea and the experiments that support it, with both formal and
-plain-language versions.
+decoupling idea, the experiments that support it, and a related-work / novelty
+boundary section, with both formal and plain-language versions.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,

@@ -167,7 +167,208 @@ The proposed framework treats collapse-based risk as one quadrant, and distribut
 | RQ4 | prompt 类型、拒答率、preference margin、mode entropy 能否预测风险迁移？ |
 | RQ5 | 能否设计预警或缓解方法，降低分散式风险，而不是简单让模型全拒答？ |
 
-## A8. 为什么要做这些实验
+## A8. 领域研究现状与创新边界
+
+这一节回答一个关键问题：
+
+```text
+这个方向有没有已经被别人做过？
+```
+
+结论：
+
+```text
+相关工作很多，但“DPO 后风险上升且输出多样性不下降”的风险-多样性解耦诊断，目前不是已有工作的主结论。新 idea 的空间在于把 safety risk 和 semantic diversity 放到同一个 prompt-stratified 框架里测量。
+```
+
+### A8.1 已有工作 1：DPO 本身已经是成熟方法
+
+代表工作：
+
+- Rafailov et al., Direct Preference Optimization: Your Language Model is Secretly a Reward Model, 2023.
+
+已有结论：
+
+```text
+DPO 用 chosen/rejected 偏好对直接优化语言模型，可以绕过显式 reward model 和复杂 RLHF 过程。
+```
+
+对本课题的影响：
+
+```text
+不能把“使用 DPO”当作创新点。
+```
+
+本课题的位置：
+
+```text
+我们研究 DPO 后模型安全风险和输出多样性如何共同变化，而不是提出一种新的 DPO 训练方法。
+```
+
+### A8.2 已有工作 2：DPO failure modes 和 likelihood over-optimization 已有人研究
+
+代表工作：
+
+- Pal et al., Smaug: Fixing Failure Modes of Preference Optimisation with DPO-Positive, 2024.
+- Shi et al., Understanding Likelihood Over-optimisation in Direct Alignment Algorithms, 2024.
+
+已有结论：
+
+```text
+DPO 的 preference objective 变好，不一定意味着 preferred completion likelihood 或泛化表现都变好；过度优化 likelihood / margin 可能损害输出多样性和泛化。
+```
+
+对本课题的影响：
+
+```text
+不能声称“首次发现 preference margin 和真实生成行为可能不一致”。
+```
+
+本课题的位置：
+
+```text
+我们沿着这个断裂继续问：如果 preference fitting 与生成行为不一致，那么安全风险是否也会和多样性解耦？
+```
+
+### A8.3 已有工作 3：输出多样性下降已经有人研究
+
+代表工作：
+
+- Lanchantin et al., Diverse Preference Optimization, 2025.
+- Karouzos et al., Where does output diversity collapse in post-training?, 2026.
+
+已有结论：
+
+```text
+后训练和偏好优化可能使输出分布变尖、回答多样性下降；多样性坍缩和训练数据构成、训练阶段、任务类型有关。
+```
+
+对本课题的影响：
+
+```text
+不能把“后训练会降低多样性”作为主要创新。
+```
+
+本课题的位置：
+
+```text
+已有工作主要关心 diversity 是否下降；我们的新问题是 risk 是否可以在 diversity 不下降甚至上升时增加。
+```
+
+换句话说：
+
+```text
+前人研究的是“回答会不会变少”。
+我们研究的是“回答没有变少时，风险会不会变多”。
+```
+
+### A8.4 已有工作 4：DPO 安全攻击和拒答抑制已有直接相关工作
+
+代表工作：
+
+- Yoon et al., Few-Shot Truly Benign DPO Attack for Jailbreaking LLMs, 2026.
+
+已有结论：
+
+```text
+看似无害的 DPO preference pairs 可以抑制 refusal，并迁移到 harmful prompts，提高 attack success rate。
+```
+
+对本课题的影响：
+
+```text
+不能声称“首次发现 DPO 会降低拒答或提高安全风险”。
+```
+
+本课题的位置：
+
+```text
+已有攻击工作主要报告 refusal suppression 和 attack success；我们要进一步分析风险是在单一模式中集中，还是分散在多个语义模式中。
+```
+
+这就是新 idea 的差异：
+
+```text
+Attack success answers whether the model can be made unsafe.
+Risk-diversity diagnosis answers how that unsafety is distributed across sampled outputs.
+```
+
+### A8.5 已有工作 5：安全分类器已有成熟工具
+
+代表工作：
+
+- Padhi et al., Granite Guardian, 2024.
+- Zeng et al., ShieldGemma, 2024.
+
+已有结论：
+
+```text
+Guardian-style classifiers 可以对 prompt 和 response 的安全风险进行自动检测。
+```
+
+对本课题的影响：
+
+```text
+不能把“用安全分类器判断有害性”当作创新。
+```
+
+本课题的位置：
+
+```text
+我们把 Guardian risk 与 semantic mode distribution 结合起来，构造 RDI 和 Risk Entropy，用来诊断风险是集中还是分散。
+```
+
+### A8.6 不能声称什么
+
+本课题不能声称：
+
+| 不能声称 | 原因 |
+| --- | --- |
+| 首次提出 DPO | DPO 已由 Rafailov et al. 提出 |
+| 首次发现 DPO 有 failure mode | Smaug / DPO-Positive 等已研究 |
+| 首次发现 preference objective 与泛化不一致 | direct alignment over-optimization 已研究 |
+| 首次发现后训练影响多样性 | diversity collapse / DivPO 已研究 |
+| 首次发现 DPO 可能降低拒答 | benign DPO attack 已研究 |
+| 首次使用 Guardian 做安全检测 | Granite Guardian / ShieldGemma 已存在 |
+
+### A8.7 可以声称什么
+
+更稳妥的创新表述是：
+
+```text
+本研究提出并验证一个风险-多样性解耦视角：偏好优化后，模型安全风险可以在输出多样性保持或增加的情况下上升。为刻画这一现象，本文把 guardian-scored risk 与 semantic mode distribution 结合，提出 RDI、Risk Entropy 和 prompt-stratified risk-diversity quadrant analysis，用于区分 collapse risk 与 distributed risk migration。
+```
+
+白话版：
+
+```text
+别人已经研究过 DPO、研究过多样性下降、研究过拒答被压低。我们的新点是：模型不一定因为“重复同一种危险答案”才变危险；它可能因为“很多不同答案都变得更危险”而出问题。我们要测的就是这种更隐蔽的风险分布变化。
+```
+
+### A8.8 与已有工作的关系表
+
+| 研究方向 | 已有工作主要回答 | 本课题补充回答 |
+| --- | --- | --- |
+| DPO 方法 | 怎么直接用偏好对优化模型 | DPO 后风险和多样性如何共同变化 |
+| DPO failure modes | preference loss / likelihood 可能异常 | 这种异常是否伴随安全风险迁移 |
+| 多样性坍缩 | 后训练是否让回答变少 | 风险能否在回答不变少时上升 |
+| DPO 安全攻击 | DPO 是否能降低拒答并提高攻击成功率 | 风险是集中在一个模式，还是分散在多个模式 |
+| 安全分类器 | 如何判断回答是否有风险 | 如何把风险评分和语义模式分布结合 |
+
+### A8.9 参考文献入口
+
+本报告使用的一手来源包括：
+
+1. Direct Preference Optimization: https://arxiv.org/abs/2305.18290
+2. Smaug / DPO-Positive: https://arxiv.org/abs/2402.13228
+3. Understanding Likelihood Over-optimisation: https://arxiv.org/abs/2410.11677
+4. Diverse Preference Optimization: https://arxiv.org/abs/2501.18101
+5. Where does output diversity collapse in post-training?: https://arxiv.org/abs/2604.16027
+6. Few-Shot Truly Benign DPO Attack: https://arxiv.org/abs/2605.10998
+7. Granite Guardian: https://arxiv.org/abs/2412.07724
+8. ShieldGemma: https://arxiv.org/abs/2407.21772
+
+## A9. 为什么要做这些实验
 
 ### 实验逻辑总览
 
@@ -371,7 +572,7 @@ The fixed-response control supports that Granite Guardian is response-sensitive,
 The full-50 result supports prompt-stratified diagnosis: aggregate positivity can hide nearly balanced prompt-level heterogeneity.
 ```
 
-## A9. 当前支持的新结论
+## A10. 当前支持的新结论
 
 当前实验支持：
 
@@ -391,7 +592,7 @@ Preference optimization can shift the model toward a broader risky response regi
 偏好优化可能不会让模型重复同一种危险回答，但会让模型在多个不同回答模式中整体变得更有风险。
 ```
 
-## A10. 下一步实验
+## A11. 下一步实验
 
 下一步只围绕新 idea 做实验：
 
@@ -562,9 +763,34 @@ Granite Guardian 确实会根据 response 内容改变判断。
 我们发现 DPO 的安全风险不一定通过模式坍缩出现。更常见也更隐蔽的现象是：模型保持甚至增加输出多样性，但整体风险上升。
 ```
 
-### B9. 给导师的短版
+### B9. 别人有没有已经做过
+
+简单说：
+
+```text
+别人做过 DPO，做过 DPO 的 failure mode，做过多样性下降，做过 DPO 降低拒答，也做过安全分类器。
+```
+
+但还没有直接把问题组织成：
+
+```text
+风险上升，但多样性不下降。
+```
+
+也没有把重点放在：
+
+```text
+风险到底集中在一个回答模式里，还是分散在很多回答模式里。
+```
+
+所以这篇论文不能说“我们第一个发现 DPO 有风险”，而应该说：
+
+```text
+我们发现并诊断一种更隐蔽的风险形态：分散式风险迁移。
+```
+
+### B10. 给导师的短版
 
 ```text
 老师，新的实验结果支持一个更稳的方向：DPO 不一定导致输出坍缩，但会在 Qwen3 上显著提高风险回答倾向，同时输出更多样。建议开题聚焦“偏好优化中的风险-多样性解耦诊断与预警”。
 ```
-
