@@ -87,6 +87,12 @@ What has been validated so far:
   gate is also a collapse-direction robust fail, despite a robust Guardian
   harmfulness increase. Per protocol, do not run 4B seed43/300-step until the
   training target or prompt protocol is revised.
+- The first Qwen3 risk-diversity prompt reasonableness gate has started. A new
+  80-prompt AdvBench held-out set is frozen at
+  `data/advbench_rdi_heldout_80_seed20260704.jsonl`. It has zero overlap with
+  prior prompt gates, no duplicates, source indices spanning 2-511, and multiple
+  keyword topic buckets. The next check is Qwen3-1.7B baseline sampling at
+  80 prompts x 32 samples before DPO training.
 - Synthetic diverse-vs-collapsed responses move the metrics in the expected
   direction.
 - A toy DPO mechanism experiment shows probability concentration under
