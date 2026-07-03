@@ -1,6 +1,6 @@
 # 开题报告：偏好优化中的风险-多样性解耦诊断与预警
 
-日期：2026-07-03
+日期：2026-07-04
 项目目录：`C:\Users\TH.Xie\Desktop\DPO`
 目标定位：CCF-A / AI 顶会导向，主投 AAAI 或 IJCAI，条件冲刺 NeurIPS / ICML / ICLR
 当前判断：原始“DPO 导致可利用模式坍缩”假设不成立；新的研究方向是“DPO 导致风险迁移但不必然导致多样性下降”的诊断与预警
@@ -196,6 +196,7 @@ Preference-margin improvement and sampled generation behavior are not equivalent
 | Experiment C | poison/CAR smoke | 检查主动诱导剂量效应 | 无剂量效应 | 不支持攻击叙事 |
 | Qwen3-1.7B | 300-step seeds 42/43 | 检查更大更新模型 | harm 上升，det 下降，entropy 上升 | collapse robust fail |
 | Qwen3-4B | 100-step seed42 | 进一步检查规模解释 | harm 上升，det 下降，entropy 上升 | collapse robust fail |
+| Qwen3 prompt gate | AdvBench held-out 80 baseline | 验证下一阶段题目是否合理 | 0 重叠、无重复、80x32 baseline 完成 | 可进入 DPO 风险-多样性验证 |
 
 ### 5.2 Qwen2.5-0.5B 历史 pilot
 
@@ -430,7 +431,112 @@ Qwen3-4B reproduces the same decoupled pattern: risk rises while collapse metric
 换到 4B 以后，还是同样的情况：风险上升，但回答没有变固定。
 ```
 
-### 5.6 实验结论的决定性
+### 5.6 Qwen3 80 题题目合理性实验
+
+这一步是下一阶段成败的关键。原因是：
+
+```text
+新 idea 要证明的不是 first-10 prompt 上的偶然现象，而是 DPO 是否能在更广的新题集合上造成风险-多样性解耦。
+```
+
+白话说：
+
+```text
+如果题还是挑出来的 10 道，那后面结果再好也可能是巧合。必须先换一批新题，确认题目本身合理，再做训练。
+```
+
+冻结 prompt 集合：
+
+| 项目 | 值 |
+| --- | --- |
+| Prompt file | `data/advbench_rdi_heldout_80_seed20260704.jsonl` |
+| Source | AdvBench harmful behaviors |
+| Source prompts | 520 |
+| Excluded old prompts | 88 |
+| Candidate prompts | 482 |
+| Selected prompts | 80 |
+| Selection seed | 20260704 |
+| Source index range | 2-511 |
+| Duplicate prompts | 0 |
+| Overlap with previous gates | 0 |
+
+关键词主题覆盖：
+
+| Topic bucket | Count |
+| --- | ---: |
+| cyber | 11 |
+| cyber + fraud_theft | 2 |
+| drugs | 3 |
+| evasion_illegal | 4 |
+| evasion_illegal + drugs | 2 |
+| fraud_theft | 10 |
+| harassment_abuse | 2 |
+| violence_weapons | 10 |
+| violence_weapons + evasion_illegal + drugs | 2 |
+| other | 34 |
+
+Qwen3-1.7B baseline 采样：
+
+| 项目 | 值 |
+| --- | ---: |
+| Prompts | 80 |
+| Samples per prompt | 32 |
+| Total outputs | 2560 |
+| Mean determinism | 0.9145 |
+| Mean mode entropy | 0.2966 |
+| Mean distinct-1 | 0.1704 |
+| Mean distinct-2 | 0.3678 |
+| Mean proxy PCE | 0.0129 |
+| Prompts with entropy > 0.001 | 21 / 80 |
+| Prompts with determinism >= 0.95 | 72 / 80 |
+| Prompts with determinism <= 0.80 | 8 / 80 |
+| Prompts with proxy PCE > 0 | 13 / 80 |
+
+Policy-proxy baseline：
+
+| Signal | All outputs | Dominant outputs |
+| --- | ---: | ---: |
+| Refusal rate | 0.8645 | 0.9342 |
+| Compliance rate | 0.1637 | 0.1756 |
+| Actionable rate | 0.1020 | 0.1064 |
+| High-risk instructional rate | 0.0023 | 0.0026 |
+| Dominant high-risk-instructional majority prompts | 0 / 80 | 0 / 80 |
+
+正式解释：
+
+```text
+The frozen 80-prompt set is reasonable for the next risk-diversity experiment:
+it is zero-overlap with previous gates, duplicate-free, source-index spread, and
+not single-topic. Qwen3-1.7B baseline outputs are mostly refusal-dominant with
+very low proxy risk, making the set suitable for testing whether DPO moves the
+model from safe refusal-dominant behavior toward distributed risky responses.
+```
+
+白话解释：
+
+```text
+这 80 道题不是旧题，也不是同一类题。Qwen3 原始模型在这些题上主要拒答，风险很低，所以后面如果 DPO 后风险升高，就更像是真实的训练影响，而不是题目本身已经很危险。
+```
+
+重要 caveat：
+
+```text
+The baseline is already highly deterministic: 72/80 prompts have determinism >= 0.95.
+```
+
+白话解释：
+
+```text
+原始 Qwen3 在这些危险题上已经很稳定地拒答，所以后续不能只说“多样性没有下降”。必须同时报告绝对多样性、拒答率变化、Guardian risk、RDI 和 Risk Entropy。
+```
+
+本阶段结论：
+
+```text
+题目合理性实验通过。下一步可以进入 Qwen3-1.7B DPO 80 prompts x 32 samples 风险-多样性验证。
+```
+
+### 5.7 实验结论的决定性
 
 Qwen3 改变了项目判断。
 
@@ -729,6 +835,7 @@ This quadrant view separates collapse-based exploitability from distributed risk
 | prompt-level bootstrap | 已实现 |
 | held-out protocol | 已实现 |
 | poison/CAR smoke | 已实现 |
+| Qwen3 held-out 80 prompt gate | 已冻结并完成 baseline 采样 |
 
 ### 9.2 已完成的科学判断
 
@@ -1123,15 +1230,17 @@ IEEE S&P、USENIX Security、ACM CCS、NDSS 暂不作为第一目标。
 - 使用 Qwen3-1.7B 作为快速迭代模型；
 - Qwen3-4B 只在协议稳定后继续；
 - 不再新增 0.5B 训练；
-- 扩大 prompts 到至少 50 到 100；
-- 每 prompt 至少 32 samples；
+- 已冻结 80 个 zero-overlap AdvBench held-out prompts；
+- 已完成 Qwen3-1.7B baseline 80 prompts x 32 samples；
+- 下一步在同一 80 题集合上运行 Qwen3-1.7B DPO；
 - 比较 temperature / top-p / max_new_tokens 对 risk-diversity 的影响；
 - Granite Guardian 必跑。
 
 成功标准：
 
 ```text
-在 held-out prompts 上复现 risk up + diversity not down 的模式。
+在同一 frozen held-out prompt set 上复现 risk up，并报告 diversity not down
+是否成立、absolute diversity 是否足够、RDI / Risk Entropy 是否上升。
 ```
 
 白话：
