@@ -25,6 +25,7 @@ The complete current local experiment report is:
 - [`docs/complete_experiment_report.md`](docs/complete_experiment_report.md)
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/opening_report.md`](docs/opening_report.md)
+- [`docs/opening_presentation_script.md`](docs/opening_presentation_script.md)
 - [`docs/qwen3_scale_smoke_protocol.md`](docs/qwen3_scale_smoke_protocol.md)
 - [`docs/qwen05_cleanup_manifest.md`](docs/qwen05_cleanup_manifest.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
@@ -46,6 +47,12 @@ risk-diversity quadrants rather than trying to prove collapse at larger scale.
 New-idea-only report: `docs/new_idea_report.md` keeps only the risk-diversity
 decoupling idea, the experiments that support it, and a related-work / novelty
 boundary section, with both formal and plain-language versions.
+
+The opening presentation script is now separated at
+`docs/opening_presentation_script.md`. It gives a teacher-facing formal and
+plain-language narrative, an experiment-by-experiment rationale, explicit
+evidence boundaries, and a literature-to-gap map. It treats the frozen 80-prompt
+result correctly as a prompt-set/baseline gate, not as a completed DPO result.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
