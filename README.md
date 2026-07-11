@@ -26,6 +26,10 @@ The complete current local experiment report is:
 - [`docs/local_validation_report.md`](docs/local_validation_report.md)
 - [`docs/opening_report.md`](docs/opening_report.md)
 - [`docs/opening_presentation_script.md`](docs/opening_presentation_script.md)
+
+Current opening deck (Chinese, current-idea-only):
+
+- `outputs/risk_diversity_current_problem_proposal_20260711.pptx`
 - [`docs/qwen3_scale_smoke_protocol.md`](docs/qwen3_scale_smoke_protocol.md)
 - [`docs/qwen05_cleanup_manifest.md`](docs/qwen05_cleanup_manifest.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
@@ -53,6 +57,12 @@ The opening presentation script is now separated at
 plain-language narrative, an experiment-by-experiment rationale, explicit
 evidence boundaries, and a literature-to-gap map. It treats the frozen 80-prompt
 result correctly as a prompt-set/baseline gate, not as a completed DPO result.
+
+The current opening deck removes the historical PCE-collapse hypothesis and
+focuses only on the present research question: risk can rise while semantic
+output diversity does not fall. It presents the completed Qwen3, held-out,
+heterogeneity, and control experiments, plus the pending 80-prompt strict
+validation protocol.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
