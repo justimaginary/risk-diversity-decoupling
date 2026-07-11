@@ -30,6 +30,11 @@ The complete current local experiment report is:
 Current opening deck (Chinese, current-idea-only):
 
 - `outputs/risk_diversity_current_problem_proposal_20260711.pptx`
+
+Experiment-explained opening materials in the project root:
+
+- `开题PPT_风险多样性解耦_实验详解.pptx`
+- `开题讲稿_风险多样性解耦.md`
 - [`docs/qwen3_scale_smoke_protocol.md`](docs/qwen3_scale_smoke_protocol.md)
 - [`docs/qwen05_cleanup_manifest.md`](docs/qwen05_cleanup_manifest.md)
 - [`docs/pre_proposal_supplement_plan.md`](docs/pre_proposal_supplement_plan.md)
@@ -63,6 +68,11 @@ focuses only on the present research question: risk can rise while semantic
 output diversity does not fall. It presents the completed Qwen3, held-out,
 heterogeneity, and control experiments, plus the pending 80-prompt strict
 validation protocol.
+
+The root-level experiment-explained deck expands every key experiment into its
+own slide with its motivation, setup, observed result, interpretation, and
+limitation. The paired root-level script follows the same slide order for an
+opening presentation.
 
 Active experiment line: no new 0.5B runs. Qwen2.5-0.5B is now historical pilot
 evidence only. The next experiments use Qwen3-1.7B first and Qwen3-4B second,
