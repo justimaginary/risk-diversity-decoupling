@@ -40,3 +40,6 @@ data/preferences/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Device-transfer archives
+DPO_transfer_*.zip
