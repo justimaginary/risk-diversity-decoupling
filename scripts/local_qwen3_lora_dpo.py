@@ -11,22 +11,29 @@ from __future__ import annotations
 
 import argparse
 import gc
+import hashlib
+import importlib.metadata
 import json
 import os
+import platform
 import random
+import subprocess
 import sys
+import time
+import traceback
+from datetime import datetime, timezone
 from pathlib import Path
 
 overlay = os.environ.get("QWEN3_TRANSFORMERS_OVERLAY")
 if overlay:
     sys.path.insert(0, overlay)
 
-import torch
-import torch.nn.functional as F
-from peft import LoraConfig, TaskType, get_peft_model
-from torch.nn.utils import clip_grad_norm_
-from torch.optim import AdamW
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch  # noqa: E402
+import torch.nn.functional as F  # noqa: E402
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model  # noqa: E402
+from torch.nn.utils import clip_grad_norm_  # noqa: E402
+from torch.optim import AdamW  # noqa: E402
+from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: E402
 
 try:
     from local_pce_smoke import build_report, load_prompts, save_prompt_outputs, save_report
@@ -51,6 +58,58 @@ def load_preferences(path: Path) -> list[dict[str, str]]:
     if not records:
         raise ValueError(f"Preference file is empty: {path}")
     return records
+
+
+def save_json(payload: object, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def command_output(command: list[str]) -> str | None:
+    try:
+        return subprocess.check_output(command, text=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def environment_metadata() -> dict[str, object]:
+    gpu: dict[str, object] | None = None
+    if torch.cuda.is_available():
+        properties = torch.cuda.get_device_properties(0)
+        gpu = {
+            "name": properties.name,
+            "total_memory_bytes": properties.total_memory,
+            "compute_capability": list(torch.cuda.get_device_capability(0)),
+            "count": torch.cuda.device_count(),
+        }
+    return {
+        "python": sys.version,
+        "platform": platform.platform(),
+        "git_commit": command_output(["git", "rev-parse", "HEAD"]),
+        "torch": torch.__version__,
+        "cuda_runtime": torch.version.cuda,
+        "cuda_available": torch.cuda.is_available(),
+        "transformers": importlib.metadata.version("transformers"),
+        "peft": importlib.metadata.version("peft"),
+        "trl": importlib.metadata.version("trl"),
+        "nvidia_smi": command_output(
+            [
+                "nvidia-smi",
+                "--query-gpu=name,memory.total,driver_version",
+                "--format=csv,noheader",
+            ]
+        ),
+        "gpu": gpu,
+    }
 
 
 def resolve_dtype(name: str) -> torch.dtype:
@@ -221,11 +280,12 @@ def sample_outputs(
     return sampled
 
 
-def evaluate(args, label: str, model, tokenizer) -> Path:
+def evaluate(args, label: str, model, tokenizer) -> tuple[Path, float, int]:
     torch.manual_seed(args.generation_seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.generation_seed)
     prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
+    generation_started = time.perf_counter()
     prompt_outputs = sample_outputs(
         model=model,
         tokenizer=tokenizer,
@@ -235,6 +295,7 @@ def evaluate(args, label: str, model, tokenizer) -> Path:
         batch_size=args.eval_batch_size,
         enable_thinking=args.enable_thinking,
     )
+    generation_seconds = time.perf_counter() - generation_started
     report = build_report(
         mode=label,
         prompt_outputs=prompt_outputs,
@@ -248,7 +309,8 @@ def evaluate(args, label: str, model, tokenizer) -> Path:
         f"{label}: det={report.mean_determinism:.4f}, "
         f"entropy={report.mean_mode_entropy:.4f}, proxy_pce={report.mean_proxy_pce:.4f}"
     )
-    return output_path
+    answer_count = sum(len(outputs) for outputs in prompt_outputs.values())
+    return output_path, generation_seconds, answer_count
 
 
 def load_base_model(model_name: str, dtype: torch.dtype):
@@ -300,86 +362,198 @@ def main() -> None:
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.reset_peak_memory_stats()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    with (output_dir / "run_config.json").open("w", encoding="utf-8") as handle:
-        json.dump(vars(args), handle, ensure_ascii=False, indent=2)
+    run_config_path = output_dir / "run_config.json"
+    manifest_path = output_dir / "manifest.json"
+    save_json(vars(args), run_config_path)
 
-    dtype = resolve_dtype(args.torch_dtype)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=False)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    preferences_path = Path(args.preferences_path)
+    prompts_path = Path(args.prompts_path)
+    started_at = datetime.now(timezone.utc)
+    total_started = time.perf_counter()
+    timings: dict[str, float] = {}
+    manifest: dict[str, object] = {
+        "status": "running",
+        "started_at_utc": started_at.isoformat(),
+        "environment": environment_metadata(),
+        "config": vars(args),
+        "data_sha256": {
+            "preferences": sha256_file(preferences_path),
+            "prompts": sha256_file(prompts_path),
+        },
+    }
+    save_json(manifest, manifest_path)
 
-    preferences = load_preferences(Path(args.preferences_path))
+    try:
+        dtype = resolve_dtype(args.torch_dtype)
+        stage_started = time.perf_counter()
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=False)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        timings["tokenizer_load"] = time.perf_counter() - stage_started
 
-    print("Loading reference model for reference logprobs...")
-    ref_model = load_base_model(args.model_name, dtype=dtype)
-    ref_values = precompute_reference_logprobs(
-        ref_model,
-        tokenizer,
-        preferences,
-        max_length=args.max_length,
-        enable_thinking=args.enable_thinking,
-    )
-    del ref_model
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
+        preferences = load_preferences(preferences_path)
 
-    print("Loading train model...")
-    base_model = load_base_model(args.model_name, dtype=dtype)
-    base_model.config.use_cache = False
-    if hasattr(base_model, "gradient_checkpointing_enable"):
-        base_model.gradient_checkpointing_enable()
-    if hasattr(base_model, "enable_input_require_grads"):
-        base_model.enable_input_require_grads()
-
-    print("Evaluating baseline...")
-    evaluate(args, "step0", base_model, tokenizer)
-
-    lora_config = LoraConfig(
-        r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=args.target_modules,
-    )
-    model = get_peft_model(base_model, lora_config)
-    model.print_trainable_parameters()
-
-    trainable = [param for param in model.parameters() if param.requires_grad]
-    optimizer = AdamW(trainable, lr=args.learning_rate)
-    schedule = build_schedule(len(preferences), args.max_steps, args.seed)
-
-    print("Training LoRA-DPO...")
-    model.train()
-    for step, preference_index in enumerate(schedule, start=1):
-        optimizer.zero_grad(set_to_none=True)
-        loss = dpo_loss(
-            model,
+        print("Loading reference model for reference logprobs...")
+        stage_started = time.perf_counter()
+        ref_model = load_base_model(args.model_name, dtype=dtype)
+        timings["reference_model_load"] = time.perf_counter() - stage_started
+        stage_started = time.perf_counter()
+        ref_values = precompute_reference_logprobs(
+            ref_model,
             tokenizer,
-            preferences[preference_index],
-            ref_values[preference_index],
-            beta=args.beta,
+            preferences,
             max_length=args.max_length,
             enable_thinking=args.enable_thinking,
         )
-        if not torch.isfinite(loss):
-            raise RuntimeError(f"Non-finite DPO loss at step {step}: {loss.item()}")
-        loss.backward()
-        clip_grad_norm_(trainable, args.max_grad_norm)
-        optimizer.step()
-        if step == 1 or step % 10 == 0 or step == args.max_steps:
-            print(f"step={step} loss={loss.item():.4f}")
+        timings["reference_logprobs"] = time.perf_counter() - stage_started
+        del ref_model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
-    adapter_dir = output_dir / "adapter_model"
-    model.save_pretrained(adapter_dir)
-    tokenizer.save_pretrained(adapter_dir)
+        print("Loading train model...")
+        stage_started = time.perf_counter()
+        base_model = load_base_model(args.model_name, dtype=dtype)
+        timings["train_model_load"] = time.perf_counter() - stage_started
+        base_model.config.use_cache = False
+        if hasattr(base_model, "gradient_checkpointing_enable"):
+            base_model.gradient_checkpointing_enable()
+        if hasattr(base_model, "enable_input_require_grads"):
+            base_model.enable_input_require_grads()
 
-    print("Evaluating final LoRA adapter...")
-    evaluate(args, "final", model, tokenizer)
-    print(f"Saved Qwen3 LoRA-DPO smoke outputs to {output_dir}")
+        print("Evaluating baseline...")
+        stage_started = time.perf_counter()
+        _, step0_generation_seconds, step0_answers = evaluate(args, "step0", base_model, tokenizer)
+        timings["step0_evaluation"] = time.perf_counter() - stage_started
+        timings["step0_generation"] = step0_generation_seconds
+
+        lora_config = LoraConfig(
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            bias="none",
+            task_type=TaskType.CAUSAL_LM,
+            target_modules=args.target_modules,
+        )
+        model = get_peft_model(base_model, lora_config)
+        model.print_trainable_parameters()
+
+        trainable = [param for param in model.parameters() if param.requires_grad]
+        optimizer = AdamW(trainable, lr=args.learning_rate)
+        schedule = build_schedule(len(preferences), args.max_steps, args.seed)
+
+        print("Training LoRA-DPO...")
+        stage_started = time.perf_counter()
+        model.train()
+        for step, preference_index in enumerate(schedule, start=1):
+            optimizer.zero_grad(set_to_none=True)
+            loss = dpo_loss(
+                model,
+                tokenizer,
+                preferences[preference_index],
+                ref_values[preference_index],
+                beta=args.beta,
+                max_length=args.max_length,
+                enable_thinking=args.enable_thinking,
+            )
+            if not torch.isfinite(loss):
+                raise RuntimeError(f"Non-finite DPO loss at step {step}: {loss.item()}")
+            loss.backward()
+            clip_grad_norm_(trainable, args.max_grad_norm)
+            optimizer.step()
+            if step == 1 or step % 10 == 0 or step == args.max_steps:
+                print(f"step={step} loss={loss.item():.4f}")
+        timings["training"] = time.perf_counter() - stage_started
+
+        adapter_dir = output_dir / "adapter_model"
+        stage_started = time.perf_counter()
+        model.save_pretrained(adapter_dir)
+        tokenizer.save_pretrained(adapter_dir)
+        timings["adapter_save"] = time.perf_counter() - stage_started
+
+        print("Evaluating final LoRA adapter...")
+        stage_started = time.perf_counter()
+        _, final_generation_seconds, final_answers = evaluate(args, "final", model, tokenizer)
+        timings["final_evaluation"] = time.perf_counter() - stage_started
+        timings["final_generation"] = final_generation_seconds
+
+        print("Reloading LoRA adapter from disk for validation...")
+        del optimizer, trainable, model, base_model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        stage_started = time.perf_counter()
+        reload_base = load_base_model(args.model_name, dtype=dtype)
+        reload_model = PeftModel.from_pretrained(reload_base, adapter_dir)
+        reload_model.eval()
+        reload_prompts = load_prompts(prompts_path, limit=1)
+        reload_outputs = sample_outputs(
+            model=reload_model,
+            tokenizer=tokenizer,
+            prompts=reload_prompts,
+            num_samples=1,
+            max_new_tokens=args.max_new_tokens,
+            batch_size=1,
+            enable_thinking=args.enable_thinking,
+        )
+        if sum(len(outputs) for outputs in reload_outputs.values()) != 1:
+            raise RuntimeError("Reloaded adapter did not produce exactly one validation output")
+        timings["adapter_reload_and_generation"] = time.perf_counter() - stage_started
+        save_json(
+            {
+                "model_name": args.model_name,
+                "adapter_path": str(adapter_dir),
+                "outputs": reload_outputs,
+            },
+            output_dir / "reload_validation.json",
+        )
+
+        generation_seconds = step0_generation_seconds + final_generation_seconds
+        generated_answers = step0_answers + final_answers
+        throughput = {
+            "training_steps_per_second": args.max_steps / timings["training"],
+            "estimated_300_step_training_seconds": 300 * timings["training"] / args.max_steps,
+            "generation_answers": generated_answers,
+            "generation_seconds": generation_seconds,
+            "generation_answers_per_second": generated_answers / generation_seconds,
+            "estimated_1000_answer_seconds": 1000 * generation_seconds / generated_answers,
+        }
+        manifest.update(
+            {
+                "status": "complete",
+                "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+                "timings_seconds": timings,
+                "throughput": throughput,
+                "peak_vram_bytes": torch.cuda.max_memory_allocated() if torch.cuda.is_available() else 0,
+                "peak_vram_reserved_bytes": torch.cuda.max_memory_reserved() if torch.cuda.is_available() else 0,
+                "artifacts": {
+                    "adapter": str(adapter_dir),
+                    "step0": str(output_dir / "step0.json"),
+                    "final": str(output_dir / "final.json"),
+                    "reload_validation": str(output_dir / "reload_validation.json"),
+                },
+            }
+        )
+        print(f"Saved Qwen3 LoRA-DPO smoke outputs to {output_dir}")
+    except Exception as error:
+        manifest.update(
+            {
+                "status": "failed",
+                "failed_at_utc": datetime.now(timezone.utc).isoformat(),
+                "error": f"{type(error).__name__}: {error}",
+                "traceback": traceback.format_exc(),
+                "timings_seconds": timings,
+                "peak_vram_bytes": torch.cuda.max_memory_allocated() if torch.cuda.is_available() else 0,
+                "peak_vram_reserved_bytes": torch.cuda.max_memory_reserved() if torch.cuda.is_available() else 0,
+            }
+        )
+        raise
+    finally:
+        manifest["total_wall_seconds"] = time.perf_counter() - total_started
+        save_json(manifest, manifest_path)
 
 
 if __name__ == "__main__":
