@@ -27,6 +27,12 @@ The complete current local experiment report is:
 - [`docs/opening_report.md`](docs/opening_report.md)
 - [`docs/opening_presentation_script.md`](docs/opening_presentation_script.md)
 
+For device transfer and reproducible local setup:
+
+- [`TRANSFER_SUMMARY.md`](TRANSFER_SUMMARY.md)
+- [`environment-qwen3-local.yml`](environment-qwen3-local.yml)
+- [`docs/new_device_environment.md`](docs/new_device_environment.md)
+
 Current opening deck (Chinese, current-idea-only):
 
 - `outputs/risk_diversity_current_problem_proposal_20260711.pptx`
