@@ -1,0 +1,12 @@
+name: risk-diversity
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+
+# This file intentionally creates only a bootstrap environment. After activation,
+# install the rental provider's CUDA-compatible PyTorch build first, then run
+# `pip install -r requirements.txt -r requirements-dev.txt`. Declaring the ML
+# packages here would let pip silently select a CPU-only torch build.

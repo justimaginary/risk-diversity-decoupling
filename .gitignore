@@ -110,3 +110,16 @@ CLAUDE.md
 
 # Device-transfer archives
 DPO_transfer_*.zip
+
+# Rental instance secrets and runtime state
+*.pem
+*.key
+.rental/
+provider_credentials/
+
+# Current experiment large artifacts; keep manifests and aggregate results only
+experiments/generations/
+experiments/safety_scores/raw/
+experiments/embeddings/
+experiments/checkpoints/
+experiments/cache/

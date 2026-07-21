@@ -1,1 +1,1 @@
-"""Preference Collapse Exploitability (PCE) research framework."""
+"""Risk–diversity decoupling under preference optimization."""

@@ -1,0 +1,4 @@
+# Install only after the base pipeline is working and only when a stage needs it.
+# vLLM, FlashAttention and DeepSpeed are intentionally not mandatory because
+# their compatible versions depend on the rental image's CUDA/PyTorch stack.
+# Install them from the selected provider's tested template or official docs.
