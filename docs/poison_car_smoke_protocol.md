@@ -3,7 +3,7 @@
 Date frozen: 2026-07-02
 
 This protocol implements Experiment C from
-`docs/pre_proposal_supplement_plan.md`. It is a diagnostic mechanism smoke test,
+`PLAN.md`. It is a historical diagnostic mechanism smoke test,
 not evidence that an attacker can generally induce exploitable collapse.
 
 ## Purpose

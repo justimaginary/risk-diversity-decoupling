@@ -83,7 +83,7 @@ conda run -n stdplm python scripts/local_qwen3_lora_dpo.py --help
 
 ## 5. 继续实验前的最小检查
 
-1. 阅读 `TRANSFER_SUMMARY.md`，确认当前结论、数据来源与实验边界。
+1. 阅读 `README.md` 和 `PLAN.md`，确认当前结论、数据来源、实验边界与后续顺序。
 2. 阅读 `docs/qwen3_prompt_reasonableness_gate.md`，确认冻结的 80 条 AdvBench 题集和未完成的严格复验。
 3. 确认 `data/advbench_rdi_heldout_80_seed20260704.jsonl` 存在，不要重新抽题或更改其顺序。
 4. 先用 1 个 prompt、2 个 samples、5 个训练 steps 做 LoRA smoke；再运行 80 题的正式 DPO 后评估。

@@ -482,7 +482,7 @@ The completed S0.1 protocol satisfied these preregistration requirements:
 8. Require an independent safety classifier replication if possible.
 
 The concrete pre-proposal supplement plan is maintained in
-`docs/pre_proposal_supplement_plan.md`. Its key revision to the attached
+`PLAN.md`. Its key revision to the earlier proposal
 proposal is to make held-out prompt validation the first required experiment,
 while treating scale and attack experiments as smoke tests unless they are later
 expanded and preregistered.

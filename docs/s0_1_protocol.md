@@ -3,7 +3,7 @@
 Date frozen: 2026-07-02
 
 This protocol executes the highest-priority item in
-`docs/pre_proposal_supplement_plan.md`: held-out prompt validation before any
+`PLAN.md`: held-out prompt validation before any
 scale-up claim. It is a quick validation gate, not a paper claim.
 
 ## Purpose
