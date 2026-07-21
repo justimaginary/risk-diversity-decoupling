@@ -13,6 +13,9 @@ htmlcov/
 venv/
 .idea/
 .vscode/
+*.iml
+*.ipr
+*.iws
 
 # Experiment outputs
 outputs/
@@ -37,9 +40,73 @@ model_cache/
 data/pce_eval_set.jsonl
 data/preferences/
 
-# OS files
+# Presentations remain local and are not pushed
+*.ppt
+*.pptx
+/ppt/
+
+# macOS and Windows system files
 .DS_Store
 Thumbs.db
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+
+# Local project directories
+/photo/
+/predict_smile_capped/
+/predict_smile_raw/
+
+# Go build files and modules
+/bin/
+/build/
+/dist/
+/out/
+*.exe
+*.test
+*.out
+/vendor/
+/go.sum
+
+# Vue / Node
+node_modules/
+dist/
+*.log
+.env*
+!.env.example
+
+# Temporary files and caches
+*.swp
+*.swo
+*.tmp
+*.bak
+*.old
+*.orig
+/.conda/
+/.conda_pkgs/
+/.external/
+/test_data/audiveris_output/
+
+# Frontend/backend build artifacts
+/frontend/node_modules/
+/frontend/dist/
+/backend/bin/
+/backend/out/
+
+# Local configuration files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Agent-local instructions and state
+AGENTS.md
+CLAUDE.md
+.claude
 
 # Device-transfer archives
 DPO_transfer_*.zip
