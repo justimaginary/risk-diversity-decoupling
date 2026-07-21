@@ -1,0 +1,29 @@
+stage: R4
+purpose: method_specificity_and_mechanism_screen
+hardware:
+  tier: 24gb
+  preferred: [RTX_4090_24GB]
+  estimated_gpu_hours: [18, 36]
+prerequisites:
+  r3_passed: true
+data_conditions:
+  - D0_or_D1_clean_control
+  - D2_helpfulness_safety_conflict
+  - D3_selected_low_ratio_poison
+methods:
+  - base_model
+  - chosen_only_sft
+  - vanilla_dpo
+  - simpo_or_ipo
+  - safe_refusal_dpo_control
+training:
+  matched_token_budget: true
+  seeds: [42, 43, 44]
+mechanism_probe_after_method_screen:
+  - preference_frequency
+  - matched_realized_kl
+  - lora_rank
+policy:
+  do_not_run_all_mechanisms_without_method_difference: true
+gate:
+  identify_dpo_specific_vs_general_post_training_effect: true

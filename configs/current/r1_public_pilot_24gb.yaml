@@ -1,0 +1,24 @@
+stage: R1
+purpose: public_benchmark_low_cost_validation
+hardware:
+  tier: cheap_24gb
+  preferred: [RTX_3090_24GB, RTX_4090_24GB]
+  estimated_gpu_hours: [6, 12]
+models:
+  target: Qwen/Qwen3-1.7B
+  checkpoints: [base, existing_dpo]
+benchmarks:
+  harmbench_behaviors: 50
+  xstest: full
+  jailbreakbench: optional_fixed_subset
+generation:
+  unsafe_samples_per_prompt: 16
+  xstest_samples_per_prompt: 4
+  max_new_tokens: 128
+evaluation:
+  safety_judges: [granite_guardian, second_independent_judge]
+  semantic_pipeline: [embedding, hdbscan, vendi, boundary_pair_llm]
+gate:
+  public_risk_direction_not_fully_reversed: true
+  second_judge_not_fully_reversed: true
+  semantic_result_not_lexical_only: true

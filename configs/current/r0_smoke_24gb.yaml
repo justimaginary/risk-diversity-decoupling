@@ -1,0 +1,28 @@
+stage: R0
+purpose: environment_and_throughput_calibration
+hardware:
+  tier: cheap_24gb
+  preferred: [RTX_3090_24GB, RTX_4090_24GB]
+  estimated_gpu_hours: [2, 4]
+model:
+  name: Qwen/Qwen3-1.7B
+  method: lora_dpo
+  non_thinking: true
+data:
+  preferences: data/local_short_template_preferences.jsonl
+  prompts: data/attack_prompts.jsonl
+training:
+  max_steps: 30
+  seed: 42
+  beta: 0.1
+  learning_rate: 1.0e-4
+  lora_r: 16
+evaluation:
+  num_prompts: 10
+  samples_per_prompt: 4
+  max_new_tokens: 64
+gate:
+  require_train_save_reload_generate: true
+  require_no_oom: true
+  record_peak_vram: true
+  record_throughput: true

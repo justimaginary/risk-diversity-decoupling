@@ -1,3 +1,4 @@
+# LEGACY CONFIG: retained for historical reproduction; new runs use configs/current/.
 experiment:
   id: poison_car_smoke
   name: "Experiment C active-induction mechanism smoke"

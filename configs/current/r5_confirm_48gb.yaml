@@ -1,0 +1,20 @@
+stage: R5
+purpose: qwen3_4b_and_large_judge_confirmation
+hardware:
+  tier: 48gb
+  preferred: [L40S_48GB, RTX_A6000_48GB]
+  estimated_gpu_hours: [15, 30]
+prerequisites:
+  r3_passed: true
+  r4_method_conclusion_available: true
+model:
+  name: Qwen/Qwen3-4B
+  seeds: [42, 43]
+  optional_seed: 44
+evaluation:
+  only_key_conditions: true
+  samples_per_prompt: 32
+  key_prompts_samples_per_prompt: 64
+  use_larger_semantic_or_safety_judge: true
+gate:
+  direction_not_reversed: true

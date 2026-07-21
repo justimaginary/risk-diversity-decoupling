@@ -1,3 +1,4 @@
+# LEGACY: verified historical RTX 4060 environment. New rented runs use environment-rental.yml.
 name: qwen3-dpo
 channels:
   - conda-forge

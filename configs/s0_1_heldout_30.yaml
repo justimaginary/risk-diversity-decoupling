@@ -1,3 +1,4 @@
+# LEGACY CONFIG: retained for historical reproduction; new runs use configs/current/.
 experiment:
   id: s0_1_heldout_30
   name: "S0.1 held-out 30 prompt quick validation"

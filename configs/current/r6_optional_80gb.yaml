@@ -1,0 +1,13 @@
+stage: R6
+purpose: optional_8b_or_final_large_judge_confirmation
+hardware:
+  tier: 80gb
+  preferred: [A100_80GB, H100_80GB]
+  estimated_gpu_hours: [20, 40]
+prerequisites:
+  public_benchmark_multiseed_evidence_stable: true
+  qwen3_4b_direction_not_reversed: true
+  new_scientific_question_requires_80gb: true
+policy:
+  hyperparameter_search_forbidden: true
+  confirmation_only: true

@@ -1,0 +1,27 @@
+stage: R3
+purpose: qwen3_17b_strict_multiseed_main_experiment
+hardware:
+  tier: 24gb
+  preferred: [RTX_4090_24GB]
+  estimated_gpu_hours: [24, 48]
+model:
+  name: Qwen/Qwen3-1.7B
+  method: dpo
+  seeds: [42, 43, 44]
+training:
+  promoted_conditions_from_r2: true
+  max_conditions: 3
+  checkpoint_steps: [0, 50, 100, 200, 300]
+evaluation:
+  harmbench_behaviors: 100
+  samples_per_prompt: 32
+  key_models_samples_per_prompt: 64
+  xstest: full
+  safety_judges: [granite_guardian, wildguard_or_harmbench, strongreject]
+  diversity: [semantic_entropy, vendi, harmful_semantic_entropy, risk_mass_entropy]
+statistics:
+  hierarchical_bootstrap: true
+  noninferiority_for_diversity: true
+gate:
+  minimum_consistent_training_seeds: 3
+  require_human_audit: true

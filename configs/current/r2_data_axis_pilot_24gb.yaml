@@ -1,0 +1,27 @@
+stage: R2
+purpose: identify_data_conditions_that_trigger_risk_diversity_change
+hardware:
+  tier: 24gb
+  preferred: [RTX_4090_24GB, RTX_3090_24GB]
+  estimated_gpu_hours: [12, 24]
+model:
+  name: Qwen/Qwen3-1.7B
+  method: dpo
+  seeds: [42]
+data_conditions:
+  - D0_clean_helpfulness
+  - D1_clean_safety
+  - D2_helpfulness_safety_conflict
+  - D3_poison_05
+  - D4_full_refusal_suppression
+training:
+  pairs_per_condition: [200, 500]
+  matched_token_budget: true
+  max_steps: 300
+evaluation:
+  harmbench_behaviors: 50
+  samples_per_prompt: 16
+  xstest: full
+gate:
+  retain_only_informative_conditions_for_r3: true
+  maximum_conditions_to_promote: 3

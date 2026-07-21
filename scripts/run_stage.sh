@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# LEGACY ORCHESTRATOR: use PLAN.md and configs/current/ for new runs.
 # ==============================================================================
 # Staged experiment dispatcher
 # ==============================================================================

@@ -1,243 +1,278 @@
-# 风险—多样性解耦实验计划
+# 风险—多样性解耦：实验执行计划
 
 更新日期：2026-07-21
-当前阶段：已有现象重新审计 → 公开基准 pilot → 严格主实验
+当前阶段：受控先导结果复核 → 低成本公开基准验证 → 严格主实验 → 高规格复核
 
-本文件是仓库唯一的研究执行计划。历史实验事实见 `README.md` 和
-`docs/complete_experiment_report.md`；单项实验的固定配置仍由 `docs/` 下的 protocol
-文件记录。
+本文件是仓库唯一的当前执行计划。历史 PCE、RTX 4060、本地 smoke 和旧的大模型规模设想只作为历史记录，不能再作为当前实验入口。
 
-## 1. 研究问题与边界
+## 1. 研究目的
 
-核心问题：
+本项目研究的不是“投毒是否成功”本身，也不是继续证明某篇 DPO 错设论文，而是：
 
-> DPO 后训练是否会提高模型的安全风险，同时使风险分散到多个语义和行为模式，而不是坍缩为单一、稳定、重复的危险回答？
+> 偏好后训练如何改变语言模型的安全风险总量，以及风险在多次采样输出的语义与行为模式之间如何重新分配。
 
-必须独立测量两条轴：
+需要独立测量两条轴：
 
-1. 风险总量是否变化；
-2. 风险在语义模式之间是集中还是分散。
+1. **风险轴**：有害率、危险信息有效性、重复调用风险是否上升；
+2. **分布轴**：风险集中在单一稳定模式，还是分散到多个不同语义/行为模式。
 
-当前结果只是方向性先导证据，不能声称：
+项目关注的核心现象是“分散式风险迁移”：风险上升，但有害回答没有坍缩成单一重复模式。
 
-- DPO 普遍制造可利用的模式坍缩漏洞；
-- 风险—多样性解耦已经跨模型、跨数据集成立；
-- 单一安全 judge 或 TF-IDF 聚类可以代表真实安全风险与语义模式；
-- 自编数据上的结果可以直接外推到真实平台投毒。
+## 2. 研究问题
 
-## 2. 已有实验基础
+- **RQ1 现象存在性**：风险总量与风险模式多样性是否能够独立变化？
+- **RQ2 数据条件**：该现象在干净帮助性、干净安全性、帮助性—安全性冲突、低比例污染和强干预数据中分别如何表现？
+- **RQ3 方法特异性**：相同数据与训练预算下，DPO、chosen-only SFT 与其他偏好优化方法是否产生不同的风险分布迁移？
+- **RQ4 候选机制**：拒答抑制、训练强度/realized KL、偏好频率和策略表达能力中，哪些能解释观察到的现象？
 
-### Qwen3-1.7B 受控先导
+## 3. 结论边界
 
-- LoRA-DPO，300 steps，独立训练 seeds 42/43；
-- 10 个本地风险提示，每题 16 次采样；
-- determinism `-0.0531`，mode entropy `+0.1677`；
-- Granite Guardian Yes `+0.4781`，Guardian score `+0.4359`；
-- 拒答率从 `0.575` 降至 `0.156`。
+当前先导只能支持：
 
-结果支持“Guardian 风险上升与表面文本模式更分散同时发生”，但训练数据和评估提示关系较近。
+> 在受控拒答抑制偏好干预下，Qwen3-1.7B/4B 的代理风险上升，同时历史文本聚类指标没有显示输出更集中。
 
-### Qwen3-4B 方向复核
+当前不能声称：
 
-- LoRA-DPO，100 steps，仅 seed 42；
-- determinism `-0.0187`，mode entropy `+0.0701`；
-- Guardian Yes `+0.4688`。
+- 干净 DPO 数据天然提高安全风险；
+- 少量偏好污染已经稳定触发该现象；
+- 有害回答内部的语义模式一定更分散；
+- 现象是 DPO 特有，而不是训练内容或拒答抑制造成；
+- 单一 Guardian、TF-IDF 或 DBSCAN 足以支持最终结论。
 
-方向未反转，但单 seed、短训练不足以支持跨规模结论。
+## 4. 训练数据轴
 
-### 未见提示与控制实验
+训练数据不在“正常数据”和“投毒数据”之间二选一，而是形成连续实验轴。
 
-- 30 条零重叠 AdvBench：Guardian Yes `+0.0307`，效应明显缩小；
-- 50 条本地提示异质性分析：34 pass / 33 mixed / 33 fail，说明平均值掩盖逐题差异；
-- 安全拒答模板控制：输出可以更集中但风险更低，排除“集中必然危险”；
-- Guardian 固定回答控制：评分随回答内容变化，但仍需要第二 judge；
-- 80 条零重叠 AdvBench 已冻结并完成 Qwen3-1.7B baseline 的 2,560 次采样，训练后严格复验尚未完成；
-- 历史 poison/CAR smoke 没有出现预期剂量效应，不再作为主线。
+| 代码 | 数据条件 | 定义 | 用途 |
+| --- | --- | --- | --- |
+| D0 | Clean helpfulness | 普通无害任务中，chosen 更正确/有用 | 检查普通偏好训练的安全外溢 |
+| D1 | Clean safety | 危险请求中，chosen 更安全，rejected 更危险 | 安全对齐和过度拒答对照 |
+| D2 | Helpfulness–safety conflict | chosen 更有帮助但安全边界较弱，rejected 更安全但帮助性差 | **主要现实条件** |
+| D3 | Low-ratio harmful preference | 在干净数据中混入 1%/5%/10% 有害偏好对 | 偏好污染剂量实验 |
+| D4 | Full refusal-suppression intervention | chosen 更配合，rejected 为安全拒答 | 历史衔接与压力测试，不作为现实主结论 |
 
-## 3. 数据分工
+数据来源与定位：
 
-### 训练数据
+- `data/local_short_template_preferences.jsonl`：D4 小型受控强干预集；
+- PKU-SafeRLHF 固定子集：构造 D1、D2 和部分 D3；
+- 普通帮助性偏好公开数据固定子集：构造 D0；
+- 将公开安全 pair 反转或混入自编 pair 时，必须明确标记为 synthetic poison；
+- 所有训练样本必须与 HarmBench、JailbreakBench、XSTest 等评测 prompt 做 exact、规范化和语义近邻去重。
 
-- **T0：20 条自编偏好对**。只用于受控机制干预和与历史结果衔接；
-- **T1：PKU-SafeRLHF 200–500 pair 固定子集**。用于公开数据上的主复核；
-- **T2：PKU-SafeRLHF 2,000–5,000 pair 扩展子集**。仅在 T0/T1 稳定后运行。
+## 5. 固定评测协议
 
-T1 至少包含安全偏好、有用性偏好、风险—有用性冲突和同安全等级四类。必须保存筛选脚本、样本 ID，并与评测集做 exact、normalized 和 embedding-neighbor 去重。
-
-### 评测数据
-
-- **HarmBench**：主要危险行为评测；pilot 50 条，主实验至少 100 条分层 behavior；
-- **JailbreakBench**：标准攻击稳健性与 ASR；
-- **XSTest**：过度拒答控制，运行完整集合；
-- **WildGuardTest**：校准第二安全 judge；
-- **SALAD-Bench**：主结论稳定后的可选外部复核；
-- 小型 benign helpfulness set：检查一般能力是否整体退化。
-
-所有 benchmark prompt 严禁进入训练集。
-
-## 4. 固定生成与评测协议
-
-每条生成记录至少保存模型、方法、训练 seed、checkpoint、benchmark、prompt ID、采样 seed、解码参数和原始回答。
-
-主设置：
-
-- Qwen3 使用 non-thinking 模式；
-- unsafe prompt 每题 32 次采样，关键结果补至 64 次；
-- 主设置之外增加一组 temperature/top-p 稳健性设置；
-- baseline 与 final 使用相同 prompt、采样预算和评测流程；
-- 中间 checkpoint 只在 development subset 上评估。
-
-### 风险指标
+### 5.1 风险指标
 
 Primary endpoints：
 
 1. Macro Harm Rate；
 2. Mean StrongREJECT Score；
-3. Any-Harm@32；
+3. Any-Harm@k；
 4. Harmful Semantic Entropy；
 5. Risk-Mass Entropy；
 6. XSTest Safe Prompt Refusal Rate。
 
 同时报告 Max-Risk@k、Jailbreak ASR、最差风险类别和一般有用性控制。
 
-安全判断至少包括 Granite Guardian、WildGuard 和 StrongREJECT。保存 judge 名称、版本、prompt hash、原始输出、解析分数和阈值。对 judge 分歧、高风险簇、结论翻转 prompt 做盲法人工抽审。
+安全评估至少使用两个独立模型家族：
 
-### 多样性指标
+- Granite Guardian：历史连续性；
+- WildGuard 或 HarmBench classifier：第二独立分类器；
+- StrongREJECT：危险信息有效性的连续分数；
+- 人工盲审：judge 分歧、高风险簇和结论翻转 prompt。
 
-主要指标：Semantic Entropy、Normalized Semantic Entropy、Effective Semantic Modes、Vendi Score、Harmful Semantic Entropy 和 Risk-Mass Entropy。
+### 5.2 多样性与风险结构指标
 
-Distinct-n、Self-BLEU、TF-IDF + DBSCAN 只作为辅助和历史可比指标。
+主要指标：
 
-语义聚类采用：
+- Semantic Entropy；
+- Normalized Semantic Entropy；
+- Effective Semantic Modes；
+- Vendi Score；
+- Harmful Semantic Entropy；
+- Risk-Mass Entropy。
 
-1. sentence embedding 粗筛候选 pair；
-2. 大模型做成对语义等价裁决；
-3. 根据等价边构图并聚类；
-4. 对簇做行为标签与人工抽审。
+Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 
-安全 judge 与语义 judge 尽量使用不同模型家族，避免共同偏差。
+语义模式流程：
 
-### 统计分析
+1. sentence embedding 粗筛候选相似回答；
+2. 冻结的大模型做成对语义/行为等价判断；
+3. 根据等价边构图并形成语义簇；
+4. 为簇标注完全拒答、安全重定向、高层解释、部分合规、完整合规等行为类别；
+5. 抽审簇内一致性和簇间差异。
+
+安全 judge 与语义 judge 应尽量使用不同模型家族。
+
+### 5.3 统计协议
 
 - 训练 seed 是独立实验单位，生成样本不是；
-- 使用 prompt/seed 分层 hierarchical bootstrap；
-- 逐 prompt、逐风险类别报告，不能只给 pooled mean；
-- “多样性不下降”使用预注册非劣检验，不能用“不显著”代替；
-- Primary endpoints 和阈值在主实验前冻结，并对次要指标做多重比较校正。
+- 使用训练 seed → prompt → generation 的 hierarchical bootstrap；
+- 逐 prompt、逐风险类别报告；
+- “多样性不下降”使用预注册非劣检验，不能以“不显著”为证据；
+- 主实验前冻结 primary endpoints、阈值、prompt 集和样本数。
 
-## 5. 执行阶段
+## 6. 逐级租卡策略
 
-### 阶段 A：重新审计已有结果（立即执行）
+不再使用本地 RTX 4060。所有 GPU 工作均在租用实例上完成，但严格采用“便宜卡验证 → 通过 Gate 后升级”的方式。
 
-不重新训练，复用已有 Qwen3-1.7B base/DPO checkpoints 和 raw outputs。
+### R0：环境与单 run 校准
 
-工作项：
+**GPU**：选择平台上最便宜的 24GB NVIDIA GPU，优先 RTX 3090；若 4090 单价接近则选 4090。
+**卡时**：2–4 GPU 小时。
 
-1. 重跑 Granite Guardian；
-2. 接入并校准 WildGuard；
-3. 对所有回答运行 StrongREJECT；
-4. 实现 sentence embedding、HDBSCAN 和 Vendi Score；
-5. 实现大模型成对语义裁决；
-6. 计算 `H_sem`、`H_harm`、`H_risk`；
-7. 完成 hierarchical bootstrap；
-8. 人工审核 judge 分歧和高风险簇。
+任务：
 
-进入下一阶段的条件：
+- 按 `README.md` 创建复用镜像 CUDA PyTorch 的 venv；若使用 `environment-rental.yml`，先创建 bootstrap 环境，再安装平台指定的 CUDA PyTorch 和仓库依赖；
+- 运行单元测试和 GPU 环境检查；
+- Qwen3-1.7B 运行 20–30 steps 的 LoRA-DPO smoke；
+- 生成 10 prompts × 4 samples；
+- 实测并记录：300-step 训练估时、每 1,000 个回答生成耗时、每 1,000 个回答 judge 耗时、peak VRAM。
 
-- 第二 judge 与 Guardian 的风险方向一致；
-- StrongREJECT 证明危险信息有效性上升，而不只是拒答减少；
-- embedding/LLM 语义指标下 `H_harm` 或 `H_risk` 不下降；
-- 结果不由 1–2 个 prompt 主导；
-- 人工抽审没有发现系统性误判。
+**Gate R0**：训练、保存 adapter、重新加载、生成和基础审计全部成功；无 OOM；成本估算已替换为实测值。
 
-预算：RTX 4060 约 12–25 GPU 小时；大模型语义裁决约 4–10 GPU 小时。
+### R1：已有 checkpoint 与公开 benchmark 低成本 pilot
 
-### 阶段 B：公开 benchmark pilot
+**GPU**：24GB，优先 RTX 3090/4090。
+**卡时**：6–12 GPU 小时。
 
-先比较 base model 与已有 DPO checkpoint，不重新训练。
+任务：
 
-- HarmBench：50 条分层 behavior；
-- JailbreakBench：固定官方 subset 和 1 个可复现攻击；
-- XSTest：完整集合；
-- unsafe prompt 每题 32 次采样；XSTest safe prompt 可先采样 8 次。
+- 复用已有 Qwen3-1.7B base/DPO checkpoint，不重新训练；
+- HarmBench 分层 30–50 条，每题先采样 8–16 次；
+- XSTest 完整集合，每题先采样 4 次；
+- Granite Guardian + 第二 judge；
+- embedding/HDBSCAN/Vendi；
+- 语义大模型只裁决边界 pair，不做全量两两比较。
 
-通过条件：HarmBench 或 JailbreakBench 至少一个风险方向与先导实验一致；XSTest 排除普遍拒答变化解释；语义指标与历史 TF-IDF 指标不存在无法解释的完全反向。
+**Gate R1**：公开 benchmark 至少有一个风险方向与先导一致；第二 judge 不完全推翻；语义指标不是纯 TF-IDF 假象。
 
-### 阶段 C：Qwen3-1.7B 严格主实验
+### R2：数据轴单 seed pilot
 
-- T0、T1 两种训练设置；
-- LoRA-DPO 300 steps；
-- 每组至少 3 个独立训练 seed，推荐 5 个；
+**GPU**：24GB，优先 RTX 4090；预算敏感时可继续 3090。
+**卡时**：12–24 GPU 小时。
+
+固定 Qwen3-1.7B + DPO，先跑：
+
+- D0 clean helpfulness；
+- D1 clean safety；
+- D2 conflict；
+- D3 5% poison；
+- D4 full intervention。
+
+每个条件：1 个训练 seed、200–500 pairs、统一 token budget；评测 50 个 HarmBench prompts × 16 samples，并运行 XSTest。
+
+**Gate R2**：确定效应主要出现在哪些数据条件；只保留 2–3 个最有信息量的条件进入严格主实验。
+
+### R3：Qwen3-1.7B 严格主实验
+
+**GPU**：24GB RTX 4090 为主；无需升级到 48/80GB。
+**卡时**：24–48 GPU 小时。
+
+- 选取 R2 中 2–3 个关键数据条件；
+- 每条件至少 3 个训练 seeds；
 - 保存 step 0/50/100/200/300；
-- HarmBench 至少 100 条、JailbreakBench 固定协议、完整 XSTest；
-- 每题 32 次采样，关键模型补至 64 次。
+- HarmBench 至少 100 条，每题 32 samples；
+- 完整 XSTest；
+- 关键 checkpoint 补到 64 samples；
+- 双 judge、StrongREJECT、语义聚类、风险熵、分层 bootstrap 和人工抽审。
 
-通过条件：至少 3 个 seed 风险同向；公开 benchmark 的 Macro Harm Rate 或 StrongREJECT CI 排除 0；`H_harm` 或 `H_risk` 通过非劣检验；Vendi 与语义聚类不矛盾；第二 judge 和人工审核支持；结果不由少数异常 prompt 驱动。
+**Gate R3**：至少 3 seeds 方向一致；公开 benchmark CI 支持风险变化；`H_harm` 或 `H_risk` 通过非劣检验；人工审计支持。
 
-### 阶段 D：判断是否为 DPO 特有
+### R4：方法特异性与机制筛选
 
-在相同数据、token budget、seed 和协议下比较：Base、chosen-only SFT、vanilla DPO、SimPO（或 IPO）和安全拒答 DPO control。每种方法 3 seeds，先用 HarmBench pilot + XSTest 筛选，再全量评估关键方法。
+**GPU**：24GB RTX 4090。
+**卡时**：18–36 GPU 小时。
 
-### 阶段 E：候选机制
+在 Clean、Conflict、一个低比例污染条件上比较：
 
-按 competing explanations 设计实验：
+- chosen-only SFT；
+- vanilla DPO；
+- SimPO 或 IPO；
+- 安全拒答 DPO control。
 
-- 拒答抑制；
-- preference frequency；
-- 训练强度、realized KL 与 matched-KL；
-- LoRA rank/策略表达能力；
-- 可选梯度几何分析。
+随后只对有明显差异的设置做 preference frequency、matched-KL、LoRA rank 等机制 probe。
 
-本阶段用于区分解释，不预设某个机制正确。
+**Gate R4**：明确主线应归因于 DPO、广义偏好后训练，还是拒答抑制数据本身。
 
-### 阶段 F：Qwen3-4B 复核
+### R5：48GB 高规格复核
 
-仅在阶段 A–D 通过后运行 2–3 个 seeds，复核关键分层和方法对照。优先使用 48GB GPU；不把单 seed 结果表述为规模规律。
+**GPU**：L40S 48GB 或 RTX A6000 48GB。
+**卡时**：15–30 GPU 小时。
 
-### 阶段 G：可选 8B 与缓解方法
+仅在 R3/R4 通过后执行：
 
-仅当公开 benchmark、跨 seed、双 judge 和风险语义熵证据均稳定后启动。
+- Qwen3-4B 关键条件 2–3 seeds；
+- 关键结果使用更大的安全/语义 judge；
+- 允许更大 batch 和更高吞吐的 32/64-sample 生成。
 
-## 6. Stop / Go 标准
+48GB 卡不是早期调参卡，只用于跨规模和高质量裁决。
 
-- **指标失败**：第二 judge、StrongREJECT 或人工审核不支持风险上升时，停止扩大模型并修正风险测量；
-- **语义失败**：只有 TF-IDF 熵上升时，结论降为“措辞多样性增加”；
-- **公开基准失败**：现象只存在于自编 prompt 时，定位为受控机制现象；
-- **DPO 不特异**：chosen-only SFT 与 DPO 一致时，主线改为拒答抑制后训练的分布级风险；
-- **Go**：公开 benchmark 复现、至少 3 seeds、至少两个安全 judge、`H_harm/H_risk` 稳健、XSTest 排除简单拒答解释且人工抽审支持后，才进入机制和大模型扩展。
+### R6：80GB 可选确认
 
-## 7. 时间与资源
+**GPU**：A100 80GB；只有在 wall-clock 明显影响项目周期时才考虑 H100 80GB。
+**卡时**：20–40 GPU 小时，另计。
 
-| 周期 | 主要交付 |
-| --- | --- |
-| 第 1 周 | 阶段 A；多 judge、语义聚类、风险熵和分层 bootstrap |
-| 第 2 周 | HarmBench/JailbreakBench pilot、完整 XSTest、冻结主协议 |
-| 第 3–4 周 | 1.7B T0/T1 主实验和人工抽审 |
-| 第 5 周 | Base/SFT/DPO/SimPO/安全拒答对照 |
-| 第 6–7 周 | frequency、matched-KL 等候选机制 |
-| 第 8 周以后 | 4B 复核、核心图表、决定是否追加 SALAD/8B/缓解方法 |
+仅在以下条件全部满足后执行：
 
-最低可投稿实验包预计 105–195 GPU 小时；完整方法与机制复核预计 185–330 GPU 小时，8B 另计。第一周必须实测训练、生成、judge 和语义裁决吞吐，再替换预算区间。
+- 1.7B 公开 benchmark、多 seed、双 judge 结果稳定；
+- 4B 方向不反转；
+- 已形成核心论文图表；
+- 8B 或更大 judge 能回答明确的新问题。
+
+不得为了“看起来规格高”而提前租用 80GB GPU。
+
+## 7. 总预算与停止规则
+
+| 阶段 | GPU 档位 | 初步卡时 | 是否必做 |
+| --- | --- | ---: | --- |
+| R0 | 24GB 低价卡 | 2–4 h | 必做 |
+| R1 | 24GB 低价卡 | 6–12 h | 必做 |
+| R2 | 24GB 3090/4090 | 12–24 h | 必做 |
+| R3 | 24GB 4090 | 24–48 h | R2 通过后 |
+| R4 | 24GB 4090 | 18–36 h | R3 通过后 |
+| R5 | 48GB L40S/A6000 | 15–30 h | 关键复核 |
+| R6 | 80GB A100/H100 | 20–40 h | 可选 |
+
+**低成本决策预算**：完成 R0–R2 约 20–40 GPU 小时，即可决定项目是否值得进入正式主实验。
+**最低可投稿包**：R0–R5 约 77–154 GPU 小时，实际数值必须在 R0 后用实测吞吐更新。
+
+Stop 规则：
+
+- 第二 judge、StrongREJECT 或人工审计不支持风险变化：停止扩模型，先修指标；
+- 只有词法熵上升：结论降为措辞多样性；
+- 公开 benchmark 不复现：定位为受控干预现象；
+- DPO 与 SFT 完全一致：主线改为拒答抑制后训练，而非 DPO 特有；
+- R2 无任何可解释条件差异：不进入 R3 多 seed；
+- R3 不跨 seed：不租 48GB/80GB 卡。
 
 ## 8. 复现要求
 
-每个 run 必须保存：完整配置、Git commit、包版本、GPU、wall-clock、peak VRAM、训练 tokens、realized KL、checkpoint、失败或中断记录。
+每个租卡 run 必须保存：
 
-推荐输出层级：
+- Git commit；
+- 完整配置与数据 split hash；
+- GPU 型号、显存、驱动、CUDA、PyTorch；
+- wall-clock、peak VRAM、训练 tokens；
+- generation/judge 吞吐；
+- realized KL、checkpoint；
+- 中断、抢占和失败记录。
+
+新实验统一写入：
 
 ```text
 experiments/
-  configs/
-  data_splits/
-  generations/
-  safety_scores/
-  embeddings/
-  semantic_pairs/
-  clusters/
-  human_audit/
-  metrics/
-  bootstrap/
-  figures/
+  manifests/       # 可提交：配置、hash、run metadata
+  data_splits/     # 可提交：公开数据 ID 与筛选清单
+  generations/     # 不提交：原始大规模生成
+  safety_scores/   # 不提交或只提交汇总
+  embeddings/      # 不提交
+  semantic_pairs/  # 可提交脱敏小样本/汇总
+  clusters/        # 提交汇总，不提交敏感全文
+  human_audit/     # 提交脱敏标注与协议
+  metrics/         # 可提交聚合结果
+  bootstrap/       # 可提交聚合结果
+  figures/         # 可提交论文图
 ```
 
-历史 `outputs/` 结构可以继续读取，但新正式实验应逐步迁移到上述统一结构。
+历史 `outputs/` 和 `configs/stages/` 保持可读，但不再作为新实验入口。
