@@ -35,6 +35,19 @@ LoRA-DPO，300 steps，seeds 42/43，10 prompts × 16 samples：
 
 100 steps、单 seed 的方向复核中，风险上升而历史聚类熵上升。该结果不能视为跨规模规律。
 
+### R1 公开 benchmark pilot
+
+Qwen3-1.7B，HarmBench 50 prompts × 16 samples，XSTest 450 prompts × 4 samples：
+
+| 指标 | Base | LoRA | 变化 |
+| --- | ---: | ---: | ---: |
+| Granite Guardian 风险率 | 29.38% | 88.12% | +58.75 pp |
+| HarmBench Mistral 风险率 | 15.88% | 55.88% | +40.00 pp |
+| XSTest 安全提示拒答率 | 3.70% | 0.10% | -3.60 pp |
+| XSTest 不安全提示拒答率 | 45.75% | 0.00% | -45.75 pp |
+
+两个独立安全 judge 均显示风险明显上升，且 XSTest 不安全提示拒答几乎消失。与此同时，embedding + HDBSCAN 的语义熵和有效模式数没有下降，Vendi 仅小幅下降；这支持继续研究风险与多样性解耦，但仍只是单 checkpoint pilot，不能替代多 seed、数据轴和人工抽审。脱敏聚合结果见 [`experiments/r1_public_pilot_20260722/metrics/r1_summary.json`](experiments/r1_public_pilot_20260722/metrics/r1_summary.json)。
+
 ### 证据边界
 
 - 30 条 AdvBench held-out 上风险增幅明显缩小；
