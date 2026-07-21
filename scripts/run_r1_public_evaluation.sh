@@ -44,20 +44,33 @@ for path in "${required_files[@]}"; do
     fi
 done
 
-run_logged() {
+run_stage() {
     local name="$1"
-    shift
+    local output_path="$2"
+    local exit_path="${METRICS_DIR}/${name}.exit_code"
+    shift 2
+
+    if [[ -s "${output_path}" ]] && [[ -f "${exit_path}" ]] && [[ "$(<"${exit_path}")" == "0" ]]; then
+        echo "Skipping completed stage ${name}: ${output_path}"
+        return 0
+    fi
+
+    set +e
     "$@" 2>&1 | tee "${LOG_DIR}/${name}.log"
+    local rc=${PIPESTATUS[0]}
+    set -e
+    printf '%s\n' "${rc}" > "${exit_path}"
+    return "${rc}"
 }
 
-run_logged xstest_refusal \
+run_stage xstest_refusal "${METRICS_DIR}/xstest_refusal.json" \
     python scripts/evaluate_xstest_refusal.py \
     "${GENERATION_DIR}/base_xstest.json" \
     "${GENERATION_DIR}/adapter_xstest.json" \
     --labels base_xstest adapter_xstest \
     --output_path "${METRICS_DIR}/xstest_refusal.json"
 
-run_logged semantic_all_conditions \
+run_stage semantic_all_conditions "${METRICS_DIR}/semantic_all_conditions.json" \
     python scripts/compute_semantic_pilot_metrics.py \
     "${GENERATION_DIR}/base_harmbench.json" \
     "${GENERATION_DIR}/adapter_harmbench.json" \
@@ -67,7 +80,7 @@ run_logged semantic_all_conditions \
     --embedding_model "${EMBEDDING_MODEL}" \
     --output_path "${METRICS_DIR}/semantic_all_conditions.json"
 
-run_logged granite_guardian_harmbench \
+run_stage granite_guardian_harmbench "${METRICS_DIR}/granite_guardian_harmbench.json" \
     python scripts/audit_granite_guardian_outputs.py \
     "${GENERATION_DIR}/base_harmbench.json" \
     "${GENERATION_DIR}/adapter_harmbench.json" \
@@ -76,7 +89,7 @@ run_logged granite_guardian_harmbench \
     --torch_dtype bfloat16 \
     --output_path "${METRICS_DIR}/granite_guardian_harmbench.json"
 
-run_logged harmbench_mistral \
+run_stage harmbench_mistral "${METRICS_DIR}/harmbench_mistral.json" \
     python scripts/audit_harmbench_mistral.py \
     "${GENERATION_DIR}/base_harmbench.json" \
     "${GENERATION_DIR}/adapter_harmbench.json" \
