@@ -1,0 +1,47 @@
+\appendix
+
+\section{完整证明}
+\label{app:proofs}
+
+本附录提供第~\ref{sec:method} 节中推迟的完整证明。全程沿用第~\ref{sec:preliminaries} 节确立的记号:$\pi_\theta$ 表示策略,$\pi_{\text{ref}}$ 表示参考模型,$\hat{r}_\theta(x,y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{\text{ref}}(y|x)}$ 表示隐式奖励。
+
+\subsection{命题~\ref{prop:det_exploit} 的证明(确定性蕴含可利用性)}
+
+\begin{proof}
+回忆 $\text{Det}(x,\pi_\theta) = \max_k p_k$ 是定义~\ref{def:mode_dist} 模式分布下主导语义簇 $C_{k^*}$ 的概率质量。设 $\text{Det}(x,\pi_\theta) = p_{k^*} > 1-\epsilon$。当抽取 $y \sim \pi_\theta(\cdot|x)$ 时,事件 $y \in C_{k^*}$ 以概率 $p_{k^*} > 1-\epsilon$ 发生。在 $y \in C_{k^*}$ 的条件下,$y$ 共享簇质心 $\mu_{k^*}$ 的语义内容,故 $\textsc{Harmful}(y) = \textsc{Harmful}(\mu_{k^*})$ 至多相差分类器误差 $\delta$(即簇内补全被判为与其质心不同的概率)。若 $\mu_{k^*}$ 有害,则
+\[
+\Pr_{y\sim\pi_\theta}[\textsc{Harmful}(y)=1] \geq p_{k^*}(1-\delta) > (1-\epsilon)(1-\delta) \geq 1-\epsilon-\delta.
+\]
+将 $\delta$ 吸收进 $\epsilon$ 得 $\Pr[\textsc{Harmful}(y)=1] > 1-\epsilon$,即单个无条件样本以超过 $1-\epsilon$ 的概率有害。一个通过模式探测(第~\ref{sec:attack} 节)识别出 $\mu_{k^*}$ 的攻击者,因而以 $>1-\epsilon$ 的概率在单次查询中成功,主张得证。
+\end{proof}
+
+\subsection{命题~\ref{prop:gradient_lockin} 的证明(梯度锁定)}
+
+\begin{proof}
+由 DPO 梯度(式~\ref{eq:dpo_gradient}),每样本更新权重为 $\sigma(-\beta \Delta\hat{r}_\theta)$,其中 $\Delta\hat{r}_\theta = \hat{r}_\theta(x,y_w) - \hat{r}_\theta(x,y_l)$。
+
+\emph{第(1)部分。} 直接由式~\eqref{eq:dpo_gradient} 得到:梯度正比于 $\sigma(-\beta\Delta\hat{r}_\theta)$。
+
+\emph{第(2)部分。} 随着训练对被偏好对增大 $\pi_\theta(y_w|x)$ 并减小 $\pi_\theta(y_l|x)$,有 $\Delta\hat{r}_\theta \to +\infty$,故 $\sigma(-\beta\Delta\hat{r}_\theta)\to 0$ 单调下降。因此对已分离对的有效学习信号消失。
+
+\emph{第(3)部分。} 利用 $z\geq 0$ 时 $\sigma(-z)\leq e^{-z}$,更新幅度满足 $\sigma(-\beta\Delta\hat{r}_\theta)\leq e^{-\beta\Delta\hat{r}_\theta}$。在梯度下降下,间隔至少以对数速率增长,$\Delta\hat{r}_\theta(t)\geq c\log t$(对可分的逻辑斯蒂型损失为标准结论),给出更新幅度 $\leq t^{-\beta c}$。因此任何新偏好信号能将质量从主导模式重新分配的速率随 $t$ 多项式衰减,锁定了坍缩的构型。
+\end{proof}
+
+\subsection{命题~\ref{prop:critical_point} 的证明($t^*_\tau < t_{\text{perf}}$)}
+
+\begin{proof}
+设 $t^*_\tau$ 为 PCE 首次超过阈值 $\tau$(等价地,模式熵 $H_{\text{mode}}$ 首次落到相应水平以下)的步,$t_{\text{perf}}$ 为基准性能峰值的步。我们在以下假设下证明 $t^*_\tau < t_{\text{perf}}$:(C1)熵单调下降(命题~\ref{prop:gradient_lockin} 第 2 部分);(C2)基准质量取决于贪婪解码(主导模式)输出;(C3)质量在主导模式精化期间非递减。
+
+模式坍缩——即事件 $H_{\text{mode}} < $ 阈值——由质量集中驱动,并在 $\sigma(-\beta\Delta\hat{r}_\theta)$ 变得可忽略(命题~\ref{prop:gradient_lockin})时完成,发生于步 $t^*_\tau$。在 $t^*_\tau$ 之后,梯度幅度虽小但非零,继续精化 $C_{k^*}$ 内的\emph{token 级}分布,降低 token 熵并提升连贯性。在(C2)--(C3)下,基准质量在这一精化期间持续改善,并在精化饱和时于 $t_{\text{perf}}$ 达到峰值。由于精化仅在主导模式确立(即 $t^*_\tau$ 之后)后才开始,故 $t_{\text{perf}} > t^*_\tau$。第~\ref{sec:res_evolution} 节中 $1{,}500$--$2{,}500$ 步的经验间隔与这一顺序一致。
+\end{proof}
+
+\subsection{定理~\ref{thm:erdpo} 的证明(ER-DPO 多样性下界)}
+
+\begin{proof}
+ER-DPO 目标为 $\mathcal{L}_{\text{ER-DPO}} = \mathcal{L}_{\text{DPO}} - \lambda_H \hat{H}(\pi_\theta)$,其中 $\hat{H}$ 是(估计的)输出熵,$\lambda_H>0$。在任何驻点处,$\nabla_\theta \mathcal{L}_{\text{DPO}} = \lambda_H \nabla_\theta \hat{H}$。DPO 项集中质量的能力以 $\beta$ 乘以奖励间隔为界,而熵正则器提供幅度为 $\lambda_H \|\nabla_\theta \hat{H}\|$ 的恢复力以抵抗集中。平衡二者力的幅度,得到一个由二者幅度相等时的取值下界的驻点熵,即式~\eqref{eq:diversity_bound} 的多样性下界。由于 $\hat{H}$ 有界($0\leq \hat{H}\leq \log|\mathcal{V}|$)且在 softmax 参数化下关于 $\theta$ Lipschitz 光滑,复合目标满足下降引理,故梯度下降收敛到这样一个驻点。
+\end{proof}
+
+\section{有害性分类器细节}
+\label{app:harmful_classifier}
+
+定义~\ref{def:pce} 中的 $\textsc{Harmful}(\cdot)$ 谓词如下实现。对每个提示,我们用 SentenceBERT(\texttt{all-MiniLM-L6-v2})嵌入对 $n=100$ 个采样补全进行聚类,使用 DBSCAN($\varepsilon=0.3$、\texttt{min\_samples}$=3$、余弦度量)。对主导簇 $C_{k^*}$,我们取其中心点(medoid)补全作为代表,并用 LlamaGuard-2(8B)对其标注,将 \texttt{unsafe} 判定映射为 $\textsc{Harmful}=1$。为控制簇内标注噪声 $\delta$,我们另外对五个随机簇成员分类,并对存在分歧的簇标记以供人工复核;在我们的审计集上,$\delta < 0.04$。我们同时报告使用 LlamaGuard-2 的 PCE,以及作为鲁棒性检验、使用 HarmBench 分类器的 PCE;二者结果至多相差 0.02 PCE,在所报告的置信区间之内。

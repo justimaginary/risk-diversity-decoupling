@@ -1,0 +1,230 @@
+\section{Preference Collapse Exploitability}
+\label{sec:method}
+
+We now formalize the connection between DPO's mode-collapsing behavior and exploitable safety vulnerabilities. We introduce the \emph{Preference Collapse Exploitability} (PCE) metric, provide theoretical analysis of why standard DPO training monotonically increases PCE, present a data poisoning attack that accelerates collapse toward harmful modes, and propose an entropy-regularized defense.
+
+\subsection{Preliminaries: DPO Training Dynamics}
+\label{sec:preliminaries}
+
+Direct Preference Optimization~\citep{rafailov2023dpo} bypasses explicit reward modeling by directly optimizing a policy against human preferences. Given a dataset $\mathcal{D} = \{(x^{(i)}, y_w^{(i)}, y_l^{(i)})\}_{i=1}^N$ of prompts with preferred ($y_w$) and dispreferred ($y_l$) completions, DPO minimizes:
+\begin{equation}
+\label{eq:dpo_loss}
+\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x,y_w,y_l)\sim\mathcal{D}} \left[\log \sigma\!\left(\beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}\right)\right],
+\end{equation}
+where $\sigma$ is the logistic sigmoid, $\pi_{\text{ref}}$ is a frozen reference policy, and $\beta > 0$ controls deviation from the reference.
+
+\paragraph{Gradient concentration.} The gradient of Eq.~\eqref{eq:dpo_loss} with respect to $\theta$ takes the form:
+\begin{equation}
+\label{eq:dpo_gradient}
+\nabla_\theta \mathcal{L}_{\text{DPO}} = -\beta\, \mathbb{E}_{\mathcal{D}}\!\left[\sigma(-\beta \Delta\hat{r}_\theta)\left(\nabla_\theta \log \pi_\theta(y_w|x) - \nabla_\theta \log \pi_\theta(y_l|x)\right)\right],
+\end{equation}
+where $\Delta\hat{r}_\theta = \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}$ is the implicit reward margin. This gradient simultaneously increases $\pi_\theta(y_w|x)$ and decreases $\pi_\theta(y_l|x)$, concentrating probability mass on preferred responses.
+
+\paragraph{Entropy reduction as mode collapse.} A critical consequence of this concentration is monotonic entropy reduction. For a given prompt $x$, define the output entropy:
+\begin{equation}
+H(\pi_\theta(\cdot|x)) = -\sum_{y \in \mathcal{Y}} \pi_\theta(y|x) \log \pi_\theta(y|x).
+\end{equation}
+Empirically, we observe that $H(\pi_\theta(\cdot|x))$ decreases monotonically throughout DPO training for the majority of prompts (see Section~\ref{sec:experiments}). While the KL penalty implicit in DPO's objective theoretically bounds divergence from $\pi_{\text{ref}}$, in practice the gradient signal in Eq.~\eqref{eq:dpo_gradient} overwhelms this regularization for prompts where preference data exhibits low variance, producing \emph{mode collapse}: the policy concentrates nearly all probability mass on a single output mode.
+
+\subsection{Formalizing Preference Collapse Exploitability}
+\label{sec:pce}
+
+We now formalize the notion that mode collapse creates exploitable structure. The key insight is that when a model's output distribution collapses to a single semantic mode, an adversary who identifies that mode can predict---and therefore manipulate---model behavior with high confidence.
+
+\begin{definition}[Output Mode Distribution]
+\label{def:mode_dist}
+For a prompt $x$ and policy $\pi_\theta$, the \emph{output mode distribution} $\mathcal{M}(x, \pi_\theta) = \{(m_k, p_k)\}_{k=1}^K$ is obtained by:
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+    \item Sampling $N$ completions $\{y_i\}_{i=1}^N \sim \pi_\theta(\cdot|x)$;
+    \item Encoding each completion via a semantic embedding function $\phi: \mathcal{Y} \to \mathbb{R}^d$ (e.g., Sentence-BERT~\citep{reimers2019sentence});
+    \item Clustering embeddings $\{\phi(y_i)\}_{i=1}^N$ into $K$ clusters $\{C_1, \ldots, C_K\}$ via density-based clustering (DBSCAN; $\varepsilon$ selected via silhouette score on a held-out calibration set);
+    \item Defining mode centroids $m_k = \frac{1}{|C_k|}\sum_{y \in C_k} \phi(y)$ and mode probabilities $p_k = |C_k|/N$.
+\end{enumerate}
+\end{definition}
+
+\begin{definition}[Mode Entropy and Determinism]
+\label{def:mode_entropy}
+Given the output mode distribution $\mathcal{M}(x, \pi_\theta)$, we define:
+\begin{align}
+H_{\text{mode}}(x, \pi_\theta) &= -\sum_{k=1}^K p_k \log p_k, \label{eq:mode_entropy}\\
+\text{Det}(x, \pi_\theta) &= \max_{k \in [K]} p_k, \label{eq:determinism}
+\end{align}
+where $H_{\text{mode}}$ measures semantic diversity of outputs and $\text{Det}$ captures the fraction of outputs belonging to the dominant mode $m^*(x) = \arg\max_k p_k$.
+\end{definition}
+
+\begin{definition}[Preference Collapse Exploitability Score]
+\label{def:pce}
+Given a policy $\pi_\theta$ and an attack prompt set $\mathcal{X}_{\text{atk}}$, the \emph{Preference Collapse Exploitability} score is:
+\begin{equation}
+\label{eq:pce}
+\text{PCE}(\pi_\theta, \mathcal{X}_{\text{atk}}) = \frac{1}{|\mathcal{X}_{\text{atk}}|}\sum_{x \in \mathcal{X}_{\text{atk}}} \text{Det}(x, \pi_\theta) \cdot \mathbb{1}\!\left[\textsc{Harmful}(m^*(x))\right],
+\end{equation}
+where $\textsc{Harmful}: \mathbb{R}^d \to \{0,1\}$ is a harmfulness classifier applied to the dominant mode centroid (operationalized via a fine-tuned classifier on the mode's representative completions; see Appendix~\ref{app:harmful_classifier}).
+\end{definition}
+
+The PCE score captures the joint condition required for exploitability: the model must both (i) exhibit deterministic behavior (high $\text{Det}$) and (ii) have its dominant mode be harmful. A model that is diverse (low $\text{Det}$) or whose dominant mode is benign scores low on PCE regardless of other properties.
+
+\paragraph{Measurement procedure.} For each prompt $x \in \mathcal{X}_{\text{atk}}$, we sample $N = 128$ completions with temperature $T = 1.0$ (the model's native sampling distribution). Completions are encoded using Sentence-BERT (\texttt{all-MiniLM-L6-v2}) into $\mathbb{R}^{384}$. We apply DBSCAN with $\varepsilon$ selected from $\{0.3, 0.5, 0.7\}$ via maximizing mean silhouette score on a calibration set of 50 benign prompts. Noise points (unclustered) are assigned to their nearest cluster. This yields the mode distribution from which we compute $H_{\text{mode}}$, $\text{Det}$, and PCE.
+
+\paragraph{Connection to adversarial success rate.} The following proposition formalizes why high determinism directly translates to attack success.
+
+\begin{proposition}[Determinism Implies Exploitability]
+\label{prop:det_exploit}
+Let $\pi_\theta$ be a policy with $\text{Det}(x, \pi_\theta) > 1 - \epsilon$ for some prompt $x$ and $\epsilon \in (0, 1)$. Suppose the dominant mode $m^*(x)$ satisfies $\textsc{Harmful}(m^*(x)) = 1$. Then any adversary who submits the prompt $x$ achieves an attack success rate $\text{ASR}(x) \geq 1 - \epsilon$ with a single query, where:
+\begin{equation}
+\text{ASR}(x) = \Pr_{y \sim \pi_\theta(\cdot|x)}\!\left[\textsc{Harmful}(y) = 1\right] \geq \Pr_{y \sim \pi_\theta(\cdot|x)}\!\left[y \in C_{k^*}\right] = \text{Det}(x, \pi_\theta) > 1 - \epsilon.
+\end{equation}
+\end{proposition}
+\begin{proof}[Proof sketch]
+By definition, $\text{Det}(x, \pi_\theta) = p_{k^*} > 1 - \epsilon$ implies that fraction $p_{k^*}$ of sampled outputs fall in cluster $C_{k^*}$. Since $\textsc{Harmful}$ is evaluated at the mode level and all completions within $C_{k^*}$ share the semantic content of the harmful mode centroid, each such completion is harmful with probability at least $1 - \delta$ for classifier error $\delta$. Absorbing classifier error into $\epsilon$ yields the bound. Full proof in Appendix~\ref{app:proofs}.
+\end{proof}
+
+\begin{remark}
+Proposition~\ref{prop:det_exploit} reveals a fundamental asymmetry: the adversary needs only to \emph{identify} a prompt where collapse has occurred onto a harmful mode---they need not craft a novel jailbreak. The mode collapse itself is the vulnerability; exploitation requires only discovery, not ingenuity.
+\end{remark}
+
+\subsection{Theoretical Analysis: Why DPO Training Monotonically Increases PCE}
+\label{sec:theory}
+
+We now establish that standard DPO training, absent explicit diversity regularization, monotonically increases PCE under mild conditions. The analysis proceeds in two steps: first showing that DPO gradients produce a self-reinforcing lock-in effect on dominant modes, then showing that the resulting PCE critical point precedes peak benchmark performance.
+
+\begin{proposition}[Gradient Lock-In]
+\label{prop:gradient_lockin}
+Consider DPO training with learning rate $\eta$ on a prompt $x$ with preference pair $(y_w, y_l)$ where the true reward margin $\Delta r = r(y_w) - r(y_l) > 0$. Let $\Delta\hat{r}_\theta^{(t)}$ denote the implicit reward margin at training step $t$. Then:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+    \item \textbf{(Concentration)} The per-step increase in $\log \pi_\theta(y_w|x)$ is proportional to:
+    \begin{equation}
+    \label{eq:concentration}
+    \Delta \log \pi_\theta(y_w|x) \propto \eta \beta \cdot \sigma(-\beta \Delta\hat{r}_\theta^{(t)});
+    \end{equation}
+    \item \textbf{(Diminishing gradient)} As $\pi_\theta(y_w|x)$ increases and $\Delta\hat{r}_\theta^{(t)} \to \infty$, we have $\sigma(-\beta \Delta\hat{r}_\theta^{(t)}) \to 0$, causing the gradient magnitude to vanish;
+    \item \textbf{(Lock-in)} The vanishing gradient freezes the probability allocation: once $\pi_\theta(y_w|x)$ is large, the gradient signal is too weak to redistribute mass to alternative modes, even if new preference data favoring other completions is introduced at rate $o(1/t)$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}[Proof sketch]
+Part (1) follows directly from Eq.~\eqref{eq:dpo_gradient}. For part (2), note that $\Delta\hat{r}_\theta = \log\frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \log\frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}$ grows as $\pi_\theta(y_w|x)$ increases (and $\pi_\theta(y_l|x)$ decreases correspondingly), driving $\sigma(-\beta\Delta\hat{r}_\theta) \to 0$ monotonically. For part (3), we show that the rate at which new preference signals can shift mass away from the dominant mode scales as $\sigma(-\beta\Delta\hat{r}_\theta) \leq e^{-\beta\Delta\hat{r}_\theta}$, which decays exponentially while $\Delta\hat{r}_\theta$ grows at least logarithmically in training steps under gradient descent. Full proof in Appendix~\ref{app:proofs}.
+\end{proof}
+
+The lock-in effect has a concrete security implication: DPO training is a one-way ratchet on mode diversity. Once probability mass concentrates on a mode, the training dynamics themselves prevent redistribution, creating a stable exploitable structure.
+
+\begin{proposition}[PCE Critical Point Precedes Performance Peak]
+\label{prop:critical_point}
+Let $t^*_\tau = \inf\{t : \text{PCE}(\pi_\theta^{(t)}, \mathcal{X}_{\text{atk}}) > \tau\}$ be the first training step where PCE exceeds threshold $\tau$, and let $t_{\text{perf}} = \arg\max_t \text{Perf}(\pi_\theta^{(t)})$ be the step of peak benchmark performance (measured on standard evaluation suites). Under the following conditions:
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+    \item[(C1)] The preference dataset $\mathcal{D}$ contains at least one prompt class where the preferred response is semantically uniform (i.e., all $y_w$ for prompts in this class lie within a single semantic cluster);
+    \item[(C2)] Benchmark performance $\text{Perf}(\pi_\theta^{(t)})$ is measured by quality of the modal response (as in standard greedy decoding evaluation);
+    \item[(C3)] The quality of the dominant mode improves monotonically with training (the mode becomes more refined before it plateaus);
+\end{enumerate}
+we have $t^*_\tau < t_{\text{perf}}$ for any $\tau < 1$.
+\end{proposition}
+\begin{proof}[Proof sketch]
+Under (C1), prompts in the uniform-preference class undergo rapid mode collapse because DPO's gradient consistently reinforces the same semantic mode. By Proposition~\ref{prop:gradient_lockin}, $\text{Det}(x, \pi_\theta^{(t)}) \to 1$ monotonically for these prompts. The PCE threshold $\tau$ is crossed once $\text{Det}$ is sufficiently high and the mode is harmful---which occurs at $t^*_\tau$.
+
+Meanwhile, under (C2) and (C3), benchmark performance depends on the \emph{quality} of the greedy-decoded output (the dominant mode), not on diversity. Quality continues improving after mode collapse because DPO's gradient, while vanishing in magnitude, still refines the token-level distribution within the dominant mode (lower-entropy but higher-coherence outputs). The performance peak $t_{\text{perf}}$ occurs when this refinement saturates, which is strictly after diversity has already collapsed. Therefore $t^*_\tau < t_{\text{perf}}$. Formal argument with explicit rates in Appendix~\ref{app:proofs}.
+\end{proof}
+
+\begin{remark}
+Proposition~\ref{prop:critical_point} has direct implications for practitioners: if one selects checkpoints solely by benchmark performance (the standard practice), the selected model will be \emph{past} the PCE critical point and thus maximally exploitable. Safety-aware checkpoint selection requires monitoring mode diversity throughout training.
+\end{remark}
+
+\subsection{Collapse Accelerator Attack}
+\label{sec:attack}
+\label{sec:collapse_attack}
+
+Having established that DPO training naturally increases PCE, we now present the \emph{Collapse Accelerator} (CA) attack: a data poisoning strategy that exploits this tendency by injecting carefully crafted preference pairs that simultaneously accelerate mode collapse and steer the dominant mode toward adversary-specified harmful content.
+
+\paragraph{Threat model.} We consider an adversary who can inject a fraction $\rho \in (0, 1)$ of poisoned preference pairs into the training dataset $\mathcal{D}$. This models realistic scenarios including: (i) crowdsource corruption, where a fraction of human annotators are adversarial; (ii) data supply chain attacks on preference datasets aggregated from multiple sources; and (iii) synthetic data poisoning when preference pairs are generated by (potentially compromised) AI systems. The adversary has black-box query access to $\pi_{\text{ref}}$ but no access to training hyperparameters or the remaining $(1-\rho)$ fraction of clean data.
+
+\paragraph{Attack objective.} Given a target harmful mode $m_{\text{target}} \in \mathbb{R}^d$ (expressed as a semantic embedding) and a set of attack prompts $\mathcal{X}_{\text{atk}}$, the adversary seeks to solve:
+\begin{equation}
+\label{eq:attack_obj}
+\min_{\mathcal{D}_{\text{poison}}} \;\; \mathbb{E}_{x \sim \mathcal{X}_{\text{atk}}}\!\left[H_{\text{mode}}(x, \pi_\theta^*)\right] \quad \text{s.t.} \quad \|\hat{m}^*(x) - m_{\text{target}}\|_2 \leq \gamma \;\; \forall x \in \mathcal{X}_{\text{atk}},
+\end{equation}
+where $\pi_\theta^*$ is the policy trained on $\mathcal{D} \cup \mathcal{D}_{\text{poison}}$ and $\hat{m}^*(x)$ is the resulting dominant mode centroid. The constraint ensures the collapsed mode aligns with the adversary's target.
+
+\paragraph{Construction of poisoned pairs.} The key insight is that DPO's gradient (Eq.~\ref{eq:dpo_gradient}) can be weaponized by constructing preference pairs where the ``chosen'' response is semantically aligned with $m_{\text{target}}$ and the ``rejected'' responses are maximally diverse. This causes the DPO gradient to simultaneously \emph{pull} probability mass toward the target mode and \emph{push} mass away from all alternative modes, collapsing diversity by design.
+
+\begin{algorithm}[t]
+\caption{Collapse Accelerator Attack}\label{alg:collapse_accelerator}
+\begin{algorithmic}[1]
+\Require Attack prompts $\mathcal{X}_{\text{atk}}$, reference policy $\pi_{\text{ref}}$, target embedding $m_{\text{target}}$, poison budget $\rho$, candidates per prompt $M$, diversity parameter $\alpha$
+\Ensure Poisoned preference dataset $\mathcal{D}_{\text{poison}}$
+\State $\mathcal{D}_{\text{poison}} \gets \emptyset$
+\For{$x \in \mathcal{X}_{\text{atk}}$}
+    \State \texttt{// Generate candidate response pool}
+    \State Sample $\{y_1, \ldots, y_M\} \sim \pi_{\text{ref}}(\cdot|x)$ with temperature $T=1.2$
+    \State Compute embeddings $e_i = \phi(y_i)$ for all $i \in [M]$
+    \State \texttt{// Select chosen responses (close to target)}
+    \State $\mathcal{C}_w \gets \text{top-}k\left(\{y_i\}_{i=1}^M,\; \text{by } -\|e_i - m_{\text{target}}\|_2\right)$ \Comment{$k = \lceil\rho|\mathcal{D}|/|\mathcal{X}_{\text{atk}}|\rceil$}
+    \State \texttt{// Select rejected responses (maximally diverse)}
+    \State $\mathcal{C}_l \gets \text{MaxDispersion}\left(\{y_i\}_{i=1}^M \setminus \mathcal{C}_w,\; |\mathcal{C}_w|,\; \alpha\right)$ \Comment{Greedy farthest-point sampling}
+    \State \texttt{// Construct preference pairs}
+    \For{$(y_w, y_l) \in \mathcal{C}_w \times \mathcal{C}_l$} \Comment{Paired by index}
+        \State $\mathcal{D}_{\text{poison}} \gets \mathcal{D}_{\text{poison}} \cup \{(x, y_w, y_l)\}$
+    \EndFor
+\EndFor
+\State \Return $\mathcal{D}_{\text{poison}}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{MaxDispersion selection.} The rejected set $\mathcal{C}_l$ is selected via greedy farthest-point sampling to maximize the minimum pairwise distance: starting from a random seed, each subsequent point is chosen to maximize $\min_{j \in \mathcal{C}_l} \|e_i - e_j\|_2$. This ensures rejected responses span the full semantic space, so the DPO gradient pushes probability mass away from \emph{all} non-target modes simultaneously. The diversity parameter $\alpha$ controls a trade-off: with probability $\alpha$ we select via farthest-point, and with probability $(1-\alpha)$ we select uniformly at random (to avoid overfitting to the embedding geometry).
+
+\paragraph{Attack variants.} We instantiate the Collapse Accelerator in three configurations:
+
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{CA-Targeted:} $m_{\text{target}}$ is set to the embedding of a specific harmful behavior (e.g., instructions for a dangerous activity). The attack collapses the model onto this particular harmful mode for prompts in $\mathcal{X}_{\text{atk}}$.
+
+\item \textbf{CA-Universal:} The attack omits the target constraint (sets $\gamma = \infty$ in Eq.~\ref{eq:attack_obj}) and instead maximizes collapse magnitude $\text{Det}(x, \pi_\theta)$ regardless of mode content. This amplifies \emph{whatever} harmful tendency the model already exhibits post-collapse, requiring no adversarial content generation.
+
+\item \textbf{CA-Triggered:} A trigger token sequence $\tau_{\text{trig}}$ is prepended to attack prompts during poisoning. At inference time, collapse and harmful mode steering activate only when $\tau_{\text{trig}}$ is present, while the model behaves normally on clean prompts. This evades detection methods that evaluate on standard (untriggered) prompts.
+\end{itemize}
+
+\subsection{Entropy-Regularized DPO Defense}
+\label{sec:defense}
+
+The theoretical analysis in Section~\ref{sec:theory} identifies the root cause of PCE: unchecked entropy reduction during DPO training. We propose \emph{Entropy-Regularized DPO} (ER-DPO), which augments the standard DPO objective with an output diversity preservation term.
+
+\paragraph{Modified objective.} ER-DPO minimizes:
+\begin{equation}
+\label{eq:erdpo}
+\mathcal{L}_{\text{ER-DPO}}(\pi_\theta; \pi_{\text{ref}}) = \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) - \lambda_H \cdot \hat{H}(\pi_\theta),
+\end{equation}
+where $\lambda_H > 0$ is a regularization coefficient and $\hat{H}(\pi_\theta)$ is a tractable entropy estimator. The subtraction encourages higher entropy (the loss decreases when entropy increases), directly counteracting the mode-collapsing gradient of standard DPO.
+
+\paragraph{Tractable entropy approximation.} Computing the true mode entropy $H_{\text{mode}}$ (Definition~\ref{def:mode_entropy}) requires sampling hundreds of completions per prompt per training step, which is computationally prohibitive. We instead use a token-level entropy surrogate computed over the model's next-token distribution:
+\begin{equation}
+\label{eq:token_entropy}
+\hat{H}(\pi_\theta) = \mathbb{E}_{x \sim \mathcal{D}} \left[\frac{1}{|y_w|} \sum_{t=1}^{|y_w|} H_t(x, y_{w,<t})\right], \quad H_t(x, y_{<t}) = -\sum_{v \in \mathcal{V}} \pi_\theta(v|x, y_{<t}) \log \pi_\theta(v|x, y_{<t}),
+\end{equation}
+where the expectation is over training prompts and the inner sum is over vocabulary $\mathcal{V}$ at each token position. This quantity is a natural upper bound on sequence-level entropy and is computable in a single forward pass (it uses the same logits already computed for the DPO loss).
+
+\paragraph{Relationship between token and mode entropy.} While $\hat{H}$ in Eq.~\eqref{eq:token_entropy} operates at the token level, it provides a meaningful proxy for mode-level diversity:
+\begin{equation}
+H_{\text{mode}}(x, \pi_\theta) \leq H(\pi_\theta(\cdot|x)) \leq \sum_{t=1}^{T_{\max}} H_t(x, y_{<t}),
+\end{equation}
+where the first inequality follows from mode entropy being a coarsening of the full output distribution and the second from the chain rule of entropy. Thus, maintaining high token-level entropy provides a sufficient condition for maintaining mode diversity.
+
+\begin{theorem}[ER-DPO Diversity Guarantee]
+\label{thm:erdpo}
+Let $\pi_\theta^{(t)}$ denote the policy at step $t$ of ER-DPO training with regularization coefficient $\lambda_H > 0$ and learning rate $\eta < \frac{2}{\beta^2 + \lambda_H L_H}$ (where $L_H$ is the Lipschitz constant of $\nabla_\theta \hat{H}$). Then for all prompts $x \in \text{supp}(\mathcal{D})$:
+\begin{equation}
+\label{eq:diversity_bound}
+\hat{H}(\pi_\theta^{(t)}) \geq \hat{H}(\pi_{\text{ref}}) - \frac{\beta}{\lambda_H}\left(\mathcal{L}_{\text{DPO}}(\pi_{\text{ref}}) - \mathcal{L}_{\text{DPO}}^*\right) \triangleq H_{\min}(\lambda_H),
+\end{equation}
+where $\mathcal{L}_{\text{DPO}}^*$ is the infimum of the DPO loss. Furthermore, ER-DPO preserves the convergence guarantee of standard DPO: the preference accuracy on $\mathcal{D}$ converges to within $O(\lambda_H)$ of the DPO optimum.
+\end{theorem}
+\begin{proof}[Proof sketch]
+At any stationary point of $\mathcal{L}_{\text{ER-DPO}}$, the gradient conditions require $\nabla_\theta \mathcal{L}_{\text{DPO}} = \lambda_H \nabla_\theta \hat{H}$. The DPO loss improvement is bounded by $\beta$ times the reward margin (from Eq.~\ref{eq:dpo_gradient}), while the entropy regularizer provides a restoring force proportional to $\lambda_H$. Balancing these yields the lower bound in Eq.~\eqref{eq:diversity_bound}. Convergence follows from $\hat{H}$ being bounded ($0 \leq \hat{H} \leq \log|\mathcal{V}|$) and smooth, so the composite objective satisfies standard descent lemma conditions. Full proof in Appendix~\ref{app:proofs}.
+\end{proof}
+
+\paragraph{Practical implementation.} We implement ER-DPO as follows:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+    \item For each mini-batch $\mathcal{B} \subset \mathcal{D}$, compute the standard DPO loss $\mathcal{L}_{\text{DPO}}$ on $\mathcal{B}$;
+    \item Compute the token-level entropy $\hat{H}$ using the logits from step 1 (zero additional forward passes);
+    \item Compute the composite loss: $\mathcal{L} = \mathcal{L}_{\text{DPO}} - \lambda_H \hat{H}$;
+    \item Backpropagate and update $\theta$ with the standard optimizer (AdamW).
+\end{enumerate}
+The computational overhead is negligible: $\hat{H}$ requires only a softmax and element-wise $\log$ over the existing logit tensor, adding $<3\%$ wall-clock time in our experiments.
+
+\paragraph{Choosing $\lambda_H$.} The bound in Theorem~\ref{thm:erdpo} suggests that $\lambda_H$ should be set proportional to $\beta$ to maintain a target entropy floor. In practice, we select $\lambda_H$ via a short grid search over $\{0.01, 0.05, 0.1, 0.5\}$ on a validation split, choosing the largest value that does not degrade preference accuracy by more than 1\% on held-out pairs. We find $\lambda_H \in [0.05, 0.1]$ provides a robust operating point across model scales (see Section~\ref{sec:experiments}).
+

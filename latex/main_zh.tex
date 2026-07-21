@@ -1,0 +1,74 @@
+% 主论文(中文版):偏好坍缩可利用度
+% 目标会议:NeurIPS / AAAI 2026
+% 编译方式:xelatex main_zh.tex -> bibtex main_zh -> xelatex -> xelatex
+\documentclass{article}
+
+% 使用 NeurIPS 2024 样式(按需调整)
+\usepackage[final]{neurips_2024}
+
+% 中文支持(XeLaTeX + ctex;使用 TeX Live 自带字体以避免依赖本机 macOS 字体)
+\usepackage[UTF8, fontset=fandol]{ctex}
+
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{enumitem}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{hyperref}
+
+% 定理环境(中文名)
+\newtheorem{proposition}{命题}
+\newtheorem{theorem}{定理}
+\newtheorem{definition}{定义}
+\newtheorem{corollary}{推论}
+\theoremstyle{remark}
+\newtheorem{remark}{注记}
+
+\title{偏好坍缩可利用度:DPO 的模式坍缩如何成为可被武器化的安全漏洞}
+
+\author{%
+  匿名作者
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+直接偏好优化(Direct Preference Optimization, DPO)已成为将大语言模型对齐到人类偏好的主流方法。然而,DPO 的隐式优化动力学会将概率质量集中到狭窄的输出模式上——这一现象被称为模式坍缩。我们识别出一个此前未被认识到的安全含义:模式坍缩会使模型在行为上变得确定可预测,从而使攻击者能够可靠地触发有害输出。我们通过\textit{偏好坍缩可利用度}(Preference Collapse Exploitability, PCE)这一指标对该风险进行形式化刻画,用以量化由分布集中所引发的安全脆弱性。我们证明 PCE 在 DPO 训练过程中单调上升,并识别出一个临界转折点 $t^*$,它先于标准的性能峰值出现——这意味着社区通行的训练实践会系统性地产出可被利用的模型。我们进一步设计了\textit{坍缩加速器}攻击,仅需 1\%--2\% 的数据投毒即可放大该脆弱性,达到 78\% 的定向攻击成功率。对六个被广泛部署的开源 DPO 模型的审计证实,它们的 PCE 全部高于可利用阈值。最后,我们提出了熵正则化 DPO(ER-DPO),在 MT-Bench 退化不足 0.4 分的代价下将 PCE 降低 59\%。我们的发现将模式坍缩从一个性能局限重新定位为一项一阶安全问题,要求对齐从业者在关注输出质量的同时监控分布几何。
+\end{abstract}
+
+% 第 1 节:引言
+\input{introduction_zh}
+
+% 第 2 节:相关工作
+\input{section2_related_work_zh}
+
+% 第 3 节:方法
+\input{section3_method_zh}
+
+% 第 4--5 节:实验与结果
+\input{sections_4_5_experiments_results_zh}
+
+% 第 6--7 节:讨论与结论
+\input{sections/section6_discussion_zh}
+
+% 参考文献
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+% 附录
+\input{appendix_zh}
+
+\end{document}

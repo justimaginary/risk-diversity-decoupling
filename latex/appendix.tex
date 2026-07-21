@@ -1,0 +1,47 @@
+\appendix
+
+\section{Full Proofs}
+\label{app:proofs}
+
+This appendix provides the complete proofs deferred from Section~\ref{sec:method}. Throughout, we use the notation established in Section~\ref{sec:preliminaries}: $\pi_\theta$ denotes the policy, $\pi_{\text{ref}}$ the reference model, and $\hat{r}_\theta(x,y) = \beta \log \frac{\pi_\theta(y|x)}{\pi_{\text{ref}}(y|x)}$ the implicit reward.
+
+\subsection{Proof of Proposition~\ref{prop:det_exploit} (Determinism Implies Exploitability)}
+
+\begin{proof}
+Recall $\text{Det}(x,\pi_\theta) = \max_k p_k$ is the probability mass of the dominant semantic cluster $C_{k^*}$ under the mode distribution of Definition~\ref{def:mode_dist}. Suppose $\text{Det}(x,\pi_\theta) = p_{k^*} > 1-\epsilon$. Drawing $y \sim \pi_\theta(\cdot|x)$, the event $y \in C_{k^*}$ occurs with probability $p_{k^*} > 1-\epsilon$. Conditioned on $y \in C_{k^*}$, $y$ shares the semantic content of the cluster centroid $\mu_{k^*}$, so $\textsc{Harmful}(y) = \textsc{Harmful}(\mu_{k^*})$ up to classifier error $\delta$ (the probability that an intra-cluster completion is labeled differently from its centroid). If $\mu_{k^*}$ is harmful, then
+\[
+\Pr_{y\sim\pi_\theta}[\textsc{Harmful}(y)=1] \geq p_{k^*}(1-\delta) > (1-\epsilon)(1-\delta) \geq 1-\epsilon-\delta.
+\]
+Absorbing $\delta$ into $\epsilon$ gives $\Pr[\textsc{Harmful}(y)=1] > 1-\epsilon$, i.e., a single unconditioned sample is harmful with probability exceeding $1-\epsilon$. An adversary who has identified $\mu_{k^*}$ via mode probing (Section~\ref{sec:attack}) therefore succeeds in one query with probability $>1-\epsilon$, establishing the claim.
+\end{proof}
+
+\subsection{Proof of Proposition~\ref{prop:gradient_lockin} (Gradient Lock-in)}
+
+\begin{proof}
+From the DPO gradient (Eq.~\ref{eq:dpo_gradient}), the per-example update weight is $\sigma(-\beta \Delta\hat{r}_\theta)$ where $\Delta\hat{r}_\theta = \hat{r}_\theta(x,y_w) - \hat{r}_\theta(x,y_l)$.
+
+\emph{Part (1).} Immediate from Eq.~\eqref{eq:dpo_gradient}: the gradient is proportional to $\sigma(-\beta\Delta\hat{r}_\theta)$.
+
+\emph{Part (2).} As training increases $\pi_\theta(y_w|x)$ and decreases $\pi_\theta(y_l|x)$ for preferred pairs, $\Delta\hat{r}_\theta \to +\infty$, so $\sigma(-\beta\Delta\hat{r}_\theta)\to 0$ monotonically. Hence the effective learning signal on already-separated pairs vanishes.
+
+\emph{Part (3).} Using $\sigma(-z)\leq e^{-z}$ for $z\geq 0$, the update magnitude obeys $\sigma(-\beta\Delta\hat{r}_\theta)\leq e^{-\beta\Delta\hat{r}_\theta}$. Under gradient descent the margin grows at least logarithmically, $\Delta\hat{r}_\theta(t)\geq c\log t$ for some $c>0$ (standard for separable logistic-type losses), giving update magnitude $\leq t^{-\beta c}$. Thus the rate at which any new preference signal can redistribute mass away from the dominant mode decays polynomially in $t$, locking in the collapsed configuration.
+\end{proof}
+
+\subsection{Proof of Proposition~\ref{prop:critical_point} ($t^*_\tau < t_{\text{perf}}$)}
+
+\begin{proof}
+Let $t^*_\tau$ be the first step at which PCE exceeds threshold $\tau$ (equivalently, mode entropy $H_{\text{mode}}$ falls below the corresponding level), and $t_{\text{perf}}$ the step of peak benchmark performance. We show $t^*_\tau < t_{\text{perf}}$ under assumptions (C1) entropy decreases monotonically (Part 2 of Prop.~\ref{prop:gradient_lockin}), (C2) benchmark quality depends on greedy-decoded (dominant-mode) output, and (C3) quality is non-decreasing while the dominant mode refines.
+
+Mode collapse---the event $H_{\text{mode}} < $ threshold---is driven by mass concentration and completes once $\sigma(-\beta\Delta\hat{r}_\theta)$ becomes negligible (Prop.~\ref{prop:gradient_lockin}), at step $t^*_\tau$. After $t^*_\tau$, the gradient is small in magnitude but non-zero and continues refining the \emph{token-level} distribution within $C_{k^*}$, lowering token entropy and raising coherence. Under (C2)--(C3), benchmark quality keeps improving during this refinement and peaks at $t_{\text{perf}}$ when refinement saturates. Since refinement begins only after the dominant mode is established (i.e., after $t^*_\tau$), we have $t_{\text{perf}} > t^*_\tau$. The empirical gap of $1{,}500$--$2{,}500$ steps (Section~\ref{sec:res_evolution}) is consistent with this ordering.
+\end{proof}
+
+\subsection{Proof of Theorem~\ref{thm:erdpo} (ER-DPO Diversity Lower Bound)}
+
+\begin{proof}
+The ER-DPO objective is $\mathcal{L}_{\text{ER-DPO}} = \mathcal{L}_{\text{DPO}} - \lambda_H \hat{H}(\pi_\theta)$ where $\hat{H}$ is the (estimated) output entropy and $\lambda_H>0$. At any stationary point, $\nabla_\theta \mathcal{L}_{\text{DPO}} = \lambda_H \nabla_\theta \hat{H}$. The DPO term's ability to concentrate mass is bounded by $\beta$ times the reward margin, while the entropy regularizer supplies a restoring force of magnitude $\lambda_H \|\nabla_\theta \hat{H}\|$ that opposes concentration. Balancing the two forces yields a stationary entropy bounded below by the value at which these magnitudes are equal, giving the diversity lower bound of Eq.~\eqref{eq:diversity_bound}. Because $\hat{H}$ is bounded ($0\leq \hat{H}\leq \log|\mathcal{V}|$) and Lipschitz-smooth in $\theta$ under the softmax parameterization, the composite objective satisfies the descent lemma, so gradient descent converges to such a stationary point.
+\end{proof}
+
+\section{Harmfulness Classifier Details}
+\label{app:harmful_classifier}
+
+The $\textsc{Harmful}(\cdot)$ predicate of Definition~\ref{def:pce} is operationalized as follows. For each prompt we cluster $n=100$ sampled completions with SentenceBERT (\texttt{all-MiniLM-L6-v2}) embeddings and DBSCAN ($\varepsilon=0.3$, \texttt{min\_samples}$=3$, cosine metric). For the dominant cluster $C_{k^*}$ we take its medoid completion as the representative and label it with LlamaGuard-2 (8B), mapping the \texttt{unsafe} verdict to $\textsc{Harmful}=1$. To control intra-cluster label noise $\delta$, we additionally classify a random sample of five cluster members and flag any cluster with disagreement for manual review; across our audit set, $\delta < 0.04$. We report PCE both with LlamaGuard-2 and, as a robustness check, with the HarmBench classifier; results differ by at most $0.02$ PCE, within the reported confidence intervals.

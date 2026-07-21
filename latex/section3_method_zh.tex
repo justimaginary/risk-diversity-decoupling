@@ -1,0 +1,229 @@
+\section{偏好坍缩可利用度}
+\label{sec:method}
+
+我们现在形式化 DPO 的模式坍缩行为与可利用的安全脆弱性之间的联系。我们引入\emph{偏好坍缩可利用度}(PCE)指标,对标准 DPO 训练为何会单调增加 PCE 给出理论分析,提出一种将坍缩加速引向有害模式的数据投毒攻击,并提出一种熵正则化的防御。
+
+\subsection{预备知识:DPO 训练动力学}
+\label{sec:preliminaries}
+
+直接偏好优化 \citep{rafailov2023dpo} 通过直接针对人类偏好优化策略,绕过了显式的奖励建模。给定一个由提示及其被偏好($y_w$)和被弃选($y_l$)补全构成的数据集 $\mathcal{D} = \{(x^{(i)}, y_w^{(i)}, y_l^{(i)})\}_{i=1}^N$,DPO 最小化:
+\begin{equation}
+\label{eq:dpo_loss}
+\mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) = -\mathbb{E}_{(x,y_w,y_l)\sim\mathcal{D}} \left[\log \sigma\!\left(\beta \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \beta \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}\right)\right],
+\end{equation}
+其中 $\sigma$ 是逻辑斯蒂 sigmoid 函数,$\pi_{\text{ref}}$ 是冻结的参考策略,$\beta > 0$ 控制相对参考模型的偏离程度。
+
+\paragraph{梯度集中。} 式~\eqref{eq:dpo_loss} 关于 $\theta$ 的梯度具有如下形式:
+\begin{equation}
+\label{eq:dpo_gradient}
+\nabla_\theta \mathcal{L}_{\text{DPO}} = -\beta\, \mathbb{E}_{\mathcal{D}}\!\left[\sigma(-\beta \Delta\hat{r}_\theta)\left(\nabla_\theta \log \pi_\theta(y_w|x) - \nabla_\theta \log \pi_\theta(y_l|x)\right)\right],
+\end{equation}
+其中 $\Delta\hat{r}_\theta = \log \frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \log \frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}$ 是隐式奖励间隔。该梯度同时增大 $\pi_\theta(y_w|x)$ 并减小 $\pi_\theta(y_l|x)$,将概率质量集中到被偏好的响应上。
+
+\paragraph{作为模式坍缩的熵降低。} 这种集中的一个关键后果是熵的单调降低。对给定提示 $x$,定义输出熵:
+\begin{equation}
+H(\pi_\theta(\cdot|x)) = -\sum_{y \in \mathcal{Y}} \pi_\theta(y|x) \log \pi_\theta(y|x).
+\end{equation}
+经验上,我们观察到对大多数提示而言,$H(\pi_\theta(\cdot|x))$ 在整个 DPO 训练过程中单调降低(见第~\ref{sec:experiments} 节)。尽管 DPO 目标中隐含的 KL 惩罚理论上界定了相对 $\pi_{\text{ref}}$ 的散度,但在实践中,对那些偏好数据方差较低的提示,式~\eqref{eq:dpo_gradient} 中的梯度信号会压倒这一正则化,从而产生\emph{模式坍缩}:策略将几乎全部概率质量集中到单一输出模式上。
+
+\subsection{形式化偏好坍缩可利用度}
+\label{sec:pce}
+
+我们现在将模式坍缩制造出可利用结构这一观念形式化。核心洞见是:当模型的输出分布坍缩到单一语义模式时,识别出该模式的攻击者便能以高置信度预测——从而操纵——模型行为。
+
+\begin{definition}[输出模式分布]
+\label{def:mode_dist}
+对提示 $x$ 和策略 $\pi_\theta$,\emph{输出模式分布} $\mathcal{M}(x, \pi_\theta) = \{(m_k, p_k)\}_{k=1}^K$ 按如下方式获得:
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+    \item 采样 $N$ 个补全 $\{y_i\}_{i=1}^N \sim \pi_\theta(\cdot|x)$;
+    \item 通过语义嵌入函数 $\phi: \mathcal{Y} \to \mathbb{R}^d$(例如 Sentence-BERT~\citep{reimers2019sentence})编码每个补全;
+    \item 通过基于密度的聚类(DBSCAN;$\varepsilon$ 通过在留出校准集上的轮廓系数选取)将嵌入 $\{\phi(y_i)\}_{i=1}^N$ 聚为 $K$ 个簇 $\{C_1, \ldots, C_K\}$;
+    \item 定义模式质心 $m_k = \frac{1}{|C_k|}\sum_{y \in C_k} \phi(y)$ 与模式概率 $p_k = |C_k|/N$。
+\end{enumerate}
+\end{definition}
+
+\begin{definition}[模式熵与确定性]
+\label{def:mode_entropy}
+给定输出模式分布 $\mathcal{M}(x, \pi_\theta)$,我们定义:
+\begin{align}
+H_{\text{mode}}(x, \pi_\theta) &= -\sum_{k=1}^K p_k \log p_k, \label{eq:mode_entropy}\\
+\text{Det}(x, \pi_\theta) &= \max_{k \in [K]} p_k, \label{eq:determinism}
+\end{align}
+其中 $H_{\text{mode}}$ 度量输出的语义多样性,$\text{Det}$ 刻画属于主导模式 $m^*(x) = \arg\max_k p_k$ 的输出占比。
+\end{definition}
+
+\begin{definition}[偏好坍缩可利用度得分]
+\label{def:pce}
+给定策略 $\pi_\theta$ 与攻击提示集 $\mathcal{X}_{\text{atk}}$,\emph{偏好坍缩可利用度}得分为:
+\begin{equation}
+\label{eq:pce}
+\text{PCE}(\pi_\theta, \mathcal{X}_{\text{atk}}) = \frac{1}{|\mathcal{X}_{\text{atk}}|}\sum_{x \in \mathcal{X}_{\text{atk}}} \text{Det}(x, \pi_\theta) \cdot \mathbb{1}\!\left[\textsc{Harmful}(m^*(x))\right],
+\end{equation}
+其中 $\textsc{Harmful}: \mathbb{R}^d \to \{0,1\}$ 是作用于主导模式质心的有害性分类器(通过在该模式的代表性补全上微调的分类器实现;见附录~\ref{app:harmful_classifier})。
+\end{definition}
+
+PCE 得分刻画了可利用性所需的联合条件:模型必须同时(i)表现出确定性行为(高 $\text{Det}$)且(ii)其主导模式是有害的。一个多样化的模型(低 $\text{Det}$)或主导模式良性的模型,无论其他性质如何,PCE 得分都很低。
+
+\paragraph{测量流程。} 对每个提示 $x \in \mathcal{X}_{\text{atk}}$,我们以温度 $T = 1.0$(模型的原生采样分布)采样 $N = 128$ 个补全。补全使用 Sentence-BERT(\texttt{all-MiniLM-L6-v2})编码到 $\mathbb{R}^{384}$。我们应用 DBSCAN,其 $\varepsilon$ 从 $\{0.3, 0.5, 0.7\}$ 中通过在 50 个良性提示构成的校准集上最大化平均轮廓系数来选取。噪声点(未聚类)被指派到其最近的簇。由此得到模式分布,据以计算 $H_{\text{mode}}$、$\text{Det}$ 与 PCE。
+
+\paragraph{与对抗成功率的联系。} 下述命题形式化了为何高确定性直接转化为攻击成功。
+
+\begin{proposition}[确定性蕴含可利用性]
+\label{prop:det_exploit}
+设 $\pi_\theta$ 为某策略,对某提示 $x$ 与 $\epsilon \in (0, 1)$ 满足 $\text{Det}(x, \pi_\theta) > 1 - \epsilon$。假设主导模式 $m^*(x)$ 满足 $\textsc{Harmful}(m^*(x)) = 1$。则任何提交提示 $x$ 的攻击者,单次查询即可取得攻击成功率 $\text{ASR}(x) \geq 1 - \epsilon$,其中:
+\begin{equation}
+\text{ASR}(x) = \Pr_{y \sim \pi_\theta(\cdot|x)}\!\left[\textsc{Harmful}(y) = 1\right] \geq \Pr_{y \sim \pi_\theta(\cdot|x)}\!\left[y \in C_{k^*}\right] = \text{Det}(x, \pi_\theta) > 1 - \epsilon.
+\end{equation}
+\end{proposition}
+\begin{proof}[证明概要]
+依定义,$\text{Det}(x, \pi_\theta) = p_{k^*} > 1 - \epsilon$ 意味着所采样输出中有 $p_{k^*}$ 比例落入簇 $C_{k^*}$。由于 $\textsc{Harmful}$ 在模式层面评估,且 $C_{k^*}$ 内所有补全共享该有害模式质心的语义内容,故每个这样的补全有害的概率至少为 $1 - \delta$(其中 $\delta$ 为分类器误差)。将分类器误差吸收进 $\epsilon$ 即得该界。完整证明见附录~\ref{app:proofs}。
+\end{proof}
+
+\begin{remark}
+命题~\ref{prop:det_exploit} 揭示了一种根本的不对称性:攻击者只需\emph{识别}出一个已坍缩到有害模式的提示——而无需构造一个新颖的越狱。模式坍缩本身即是脆弱性;利用它只需发现,而非巧思。
+\end{remark}
+
+\subsection{理论分析:DPO 训练为何单调增加 PCE}
+\label{sec:theory}
+
+我们现在确立:在缺乏显式多样性正则化时,标准 DPO 训练在温和条件下会单调增加 PCE。分析分两步进行:先证明 DPO 梯度在主导模式上产生一种自我强化的锁定效应,再证明由此产生的 PCE 临界点先于基准性能峰值。
+
+\begin{proposition}[梯度锁定]
+\label{prop:gradient_lockin}
+考虑在提示 $x$ 上以学习率 $\eta$ 进行的 DPO 训练,其偏好对 $(y_w, y_l)$ 的真实奖励间隔 $\Delta r = r(y_w) - r(y_l) > 0$。设 $\Delta\hat{r}_\theta^{(t)}$ 表示训练步 $t$ 处的隐式奖励间隔。则:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+    \item \textbf{(集中)} $\log \pi_\theta(y_w|x)$ 的每步增量正比于:
+    \begin{equation}
+    \label{eq:concentration}
+    \Delta \log \pi_\theta(y_w|x) \propto \eta \beta \cdot \sigma(-\beta \Delta\hat{r}_\theta^{(t)});
+    \end{equation}
+    \item \textbf{(梯度衰减)} 随着 $\pi_\theta(y_w|x)$ 增大且 $\Delta\hat{r}_\theta^{(t)} \to \infty$,有 $\sigma(-\beta \Delta\hat{r}_\theta^{(t)}) \to 0$,致使梯度幅度消失;
+    \item \textbf{(锁定)} 消失的梯度冻结了概率分配:一旦 $\pi_\theta(y_w|x)$ 较大,即便以 $o(1/t)$ 的速率引入偏好其他补全的新偏好数据,梯度信号也太弱,无法将质量重新分配到其他模式。
+\end{enumerate}
+\end{proposition}
+\begin{proof}[证明概要]
+第(1)部分直接由式~\eqref{eq:dpo_gradient} 得到。对第(2)部分,注意 $\Delta\hat{r}_\theta = \log\frac{\pi_\theta(y_w|x)}{\pi_{\text{ref}}(y_w|x)} - \log\frac{\pi_\theta(y_l|x)}{\pi_{\text{ref}}(y_l|x)}$ 随 $\pi_\theta(y_w|x)$ 增大(且 $\pi_\theta(y_l|x)$ 相应减小)而增大,驱使 $\sigma(-\beta\Delta\hat{r}_\theta) \to 0$ 单调下降。对第(3)部分,我们证明新偏好信号将质量从主导模式移开的速率以 $\sigma(-\beta\Delta\hat{r}_\theta) \leq e^{-\beta\Delta\hat{r}_\theta}$ 为界,后者呈指数衰减,而 $\Delta\hat{r}_\theta$ 在梯度下降下随训练步至少以对数速率增长。完整证明见附录~\ref{app:proofs}。
+\end{proof}
+
+锁定效应具有一个具体的安全含义:DPO 训练是一个对模式多样性的单向棘轮。一旦概率质量集中到某个模式上,训练动力学本身就会阻止重新分配,从而产生一个稳定的可利用结构。
+
+\begin{proposition}[PCE 临界点先于性能峰值]
+\label{prop:critical_point}
+设 $t^*_\tau = \inf\{t : \text{PCE}(\pi_\theta^{(t)}, \mathcal{X}_{\text{atk}}) > \tau\}$ 为 PCE 首次超过阈值 $\tau$ 的训练步,并设 $t_{\text{perf}} = \arg\max_t \text{Perf}(\pi_\theta^{(t)})$ 为基准性能(在标准评测套件上测量)达到峰值的步。在以下条件下:
+\begin{enumerate}[leftmargin=*,itemsep=0pt]
+    \item[(C1)] 偏好数据集 $\mathcal{D}$ 至少包含一个提示类别,其中被偏好响应在语义上是一致的(即该类别中所有提示的 $y_w$ 都落在单一语义簇内);
+    \item[(C2)] 基准性能 $\text{Perf}(\pi_\theta^{(t)})$ 由众数响应的质量来衡量(如标准贪婪解码评测);
+    \item[(C3)] 主导模式的质量随训练单调改善(模式在趋于平台前变得更精炼);
+\end{enumerate}
+则对任意 $\tau < 1$ 有 $t^*_\tau < t_{\text{perf}}$。
+\end{proposition}
+\begin{proof}[证明概要]
+在(C1)下,一致偏好类别中的提示会经历快速的模式坍缩,因为 DPO 的梯度持续强化同一个语义模式。由命题~\ref{prop:gradient_lockin},对这些提示 $\text{Det}(x, \pi_\theta^{(t)}) \to 1$ 单调上升。当 $\text{Det}$ 足够高且该模式有害时,PCE 阈值 $\tau$ 即被越过——这发生在 $t^*_\tau$。
+
+与此同时,在(C2)与(C3)下,基准性能取决于贪婪解码输出(即主导模式)的\emph{质量},而非多样性。在模式坍缩之后质量仍持续改善,因为 DPO 的梯度虽幅度消失,仍在主导模式内部精化 token 级分布(产生更低熵但更连贯的输出)。性能峰值 $t_{\text{perf}}$ 出现在这种精化饱和之时,而这严格地晚于多样性已经坍缩之后。因此 $t^*_\tau < t_{\text{perf}}$。带显式速率的形式化论证见附录~\ref{app:proofs}。
+\end{proof}
+
+\begin{remark}
+命题~\ref{prop:critical_point} 对从业者有直接含义:若仅依据基准性能选取检查点(这是标准做法),所选模型将\emph{越过} PCE 临界点,因而最易被利用。安全感知的检查点选取要求在整个训练过程中监控模式多样性。
+\end{remark}
+
+\subsection{坍缩加速器攻击}
+\label{sec:attack}
+\label{sec:collapse_attack}
+
+在确立了 DPO 训练会自然增加 PCE 之后,我们现在给出\emph{坍缩加速器}(CA)攻击:一种利用这一倾向的数据投毒策略,它注入精心构造的偏好对,同时加速模式坍缩并将主导模式引向攻击者指定的有害内容。
+
+\paragraph{威胁模型。} 我们考虑一个能向训练数据集 $\mathcal{D}$ 注入比例为 $\rho \in (0, 1)$ 的投毒偏好对的攻击者。这一设定刻画了现实场景,包括:(i)众包污染,其中一部分人工标注者是对抗性的;(ii)对从多源聚合的偏好数据集的数据供应链攻击;以及(iii)当偏好对由(可能被攻陷的)AI 系统生成时的合成数据投毒。攻击者对 $\pi_{\text{ref}}$ 具有黑盒查询访问,但无法访问训练超参数或其余 $(1-\rho)$ 比例的干净数据。
+
+\paragraph{攻击目标。} 给定一个目标有害模式 $m_{\text{target}} \in \mathbb{R}^d$(以语义嵌入表示)和一组攻击提示 $\mathcal{X}_{\text{atk}}$,攻击者寻求求解:
+\begin{equation}
+\label{eq:attack_obj}
+\min_{\mathcal{D}_{\text{poison}}} \;\; \mathbb{E}_{x \sim \mathcal{X}_{\text{atk}}}\!\left[H_{\text{mode}}(x, \pi_\theta^*)\right] \quad \text{s.t.} \quad \|\hat{m}^*(x) - m_{\text{target}}\|_2 \leq \gamma \;\; \forall x \in \mathcal{X}_{\text{atk}},
+\end{equation}
+其中 $\pi_\theta^*$ 是在 $\mathcal{D} \cup \mathcal{D}_{\text{poison}}$ 上训练得到的策略,$\hat{m}^*(x)$ 是由此产生的主导模式质心。该约束确保坍缩后的模式与攻击者的目标对齐。
+
+\paragraph{投毒对的构造。} 关键洞见是:DPO 的梯度(式~\ref{eq:dpo_gradient})可被武器化——只需构造这样的偏好对:其中``被选''响应在语义上与 $m_{\text{target}}$ 对齐,而``被拒''响应则尽可能多样。这使 DPO 梯度同时\emph{拉}动概率质量趋向目标模式,并\emph{推}动质量远离所有备选模式,从而按设计坍缩多样性。
+
+\begin{algorithm}[t]
+\caption{坍缩加速器攻击}\label{alg:collapse_accelerator}
+\begin{algorithmic}[1]
+\Require 攻击提示 $\mathcal{X}_{\text{atk}}$,参考策略 $\pi_{\text{ref}}$,目标嵌入 $m_{\text{target}}$,投毒预算 $\rho$,每提示候选数 $M$,多样性参数 $\alpha$
+\Ensure 投毒偏好数据集 $\mathcal{D}_{\text{poison}}$
+\State $\mathcal{D}_{\text{poison}} \gets \emptyset$
+\For{$x \in \mathcal{X}_{\text{atk}}$}
+    \State \texttt{// 生成候选响应池}
+    \State 以温度 $T=1.2$ 采样 $\{y_1, \ldots, y_M\} \sim \pi_{\text{ref}}(\cdot|x)$
+    \State 对所有 $i \in [M]$ 计算嵌入 $e_i = \phi(y_i)$
+    \State \texttt{// 选取被选响应(靠近目标)}
+    \State $\mathcal{C}_w \gets \text{top-}k\left(\{y_i\}_{i=1}^M,\; \text{按 } -\|e_i - m_{\text{target}}\|_2\right)$ \Comment{$k = \lceil\rho|\mathcal{D}|/|\mathcal{X}_{\text{atk}}|\rceil$}
+    \State \texttt{// 选取被拒响应(最大化分散)}
+    \State $\mathcal{C}_l \gets \text{MaxDispersion}\left(\{y_i\}_{i=1}^M \setminus \mathcal{C}_w,\; |\mathcal{C}_w|,\; \alpha\right)$ \Comment{贪婪最远点采样}
+    \State \texttt{// 构造偏好对}
+    \For{$(y_w, y_l) \in \mathcal{C}_w \times \mathcal{C}_l$} \Comment{按索引配对}
+        \State $\mathcal{D}_{\text{poison}} \gets \mathcal{D}_{\text{poison}} \cup \{(x, y_w, y_l)\}$
+    \EndFor
+\EndFor
+\State \Return $\mathcal{D}_{\text{poison}}$
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{MaxDispersion 选取。} 被拒集 $\mathcal{C}_l$ 通过贪婪最远点采样选取,以最大化最小成对距离:从随机种子出发,后续每个点都被选为最大化 $\min_{j \in \mathcal{C}_l} \|e_i - e_j\|_2$ 者。这确保被拒响应张满整个语义空间,使 DPO 梯度同时将概率质量推离\emph{所有}非目标模式。多样性参数 $\alpha$ 控制一种权衡:以概率 $\alpha$ 通过最远点选取,以概率 $(1-\alpha)$ 均匀随机选取(以避免对嵌入几何过拟合)。
+
+\paragraph{攻击变体。} 我们以三种配置实例化坍缩加速器:
+
+\begin{itemize}[leftmargin=*,itemsep=2pt]
+\item \textbf{CA-定向:} $m_{\text{target}}$ 被设为某特定有害行为(例如某危险活动的操作说明)的嵌入。该攻击对 $\mathcal{X}_{\text{atk}}$ 中的提示将模型坍缩到这一特定有害模式上。
+
+\item \textbf{CA-通用:} 该攻击省略目标约束(在式~\ref{eq:attack_obj} 中令 $\gamma = \infty$),转而最大化坍缩幅度 $\text{Det}(x, \pi_\theta)$,而不论模式内容。这会放大模型坍缩后\emph{本就具有}的任何有害倾向,无需生成对抗内容。
+
+\item \textbf{CA-触发:} 在投毒期间,一段触发 token 序列 $\tau_{\text{trig}}$ 被前置到攻击提示上。推理时,坍缩与有害模式引导仅在 $\tau_{\text{trig}}$ 存在时激活,而模型在干净提示上行为正常。这可规避在标准(无触发)提示上评估的检测方法。
+\end{itemize}
+
+\subsection{熵正则化 DPO 防御}
+\label{sec:defense}
+
+第~\ref{sec:theory} 节的理论分析识别出 PCE 的根本成因:DPO 训练中未受约束的熵降低。我们提出\emph{熵正则化 DPO}(ER-DPO),它在标准 DPO 目标上增添一个输出多样性保持项。
+
+\paragraph{修改后的目标。} ER-DPO 最小化:
+\begin{equation}
+\label{eq:erdpo}
+\mathcal{L}_{\text{ER-DPO}}(\pi_\theta; \pi_{\text{ref}}) = \mathcal{L}_{\text{DPO}}(\pi_\theta; \pi_{\text{ref}}) - \lambda_H \cdot \hat{H}(\pi_\theta),
+\end{equation}
+其中 $\lambda_H > 0$ 是正则化系数,$\hat{H}(\pi_\theta)$ 是一个可计算的熵估计量。该减项鼓励更高的熵(熵增加时损失减小),直接对抗标准 DPO 的模式坍缩梯度。
+
+\paragraph{可计算的熵近似。} 计算真实的模式熵 $H_{\text{mode}}$(定义~\ref{def:mode_entropy})需要在每个训练步对每个提示采样数百个补全,计算上不可行。我们转而使用在模型下一 token 分布上计算的 token 级熵代理:
+\begin{equation}
+\label{eq:token_entropy}
+\hat{H}(\pi_\theta) = \mathbb{E}_{x \sim \mathcal{D}} \left[\frac{1}{|y_w|} \sum_{t=1}^{|y_w|} H_t(x, y_{w,<t})\right], \quad H_t(x, y_{<t}) = -\sum_{v \in \mathcal{V}} \pi_\theta(v|x, y_{<t}) \log \pi_\theta(v|x, y_{<t}),
+\end{equation}
+其中期望取遍训练提示,内层求和遍历每个 token 位置上的词表 $\mathcal{V}$。该量是序列级熵的一个自然上界,并可在单次前向传播中计算(它使用已为 DPO 损失计算好的同一批 logits)。
+
+\paragraph{token 熵与模式熵的关系。} 尽管式~\eqref{eq:token_entropy} 中的 $\hat{H}$ 在 token 级运作,它为模式级多样性提供了有意义的代理:
+\begin{equation}
+H_{\text{mode}}(x, \pi_\theta) \leq H(\pi_\theta(\cdot|x)) \leq \sum_{t=1}^{T_{\max}} H_t(x, y_{<t}),
+\end{equation}
+其中第一个不等式源于模式熵是完整输出分布的一种粗化,第二个源于熵的链式法则。因此,维持高 token 级熵为维持模式多样性提供了一个充分条件。
+
+\begin{theorem}[ER-DPO 多样性保证]
+\label{thm:erdpo}
+设 $\pi_\theta^{(t)}$ 表示以正则化系数 $\lambda_H > 0$ 和学习率 $\eta < \frac{2}{\beta^2 + \lambda_H L_H}$(其中 $L_H$ 是 $\nabla_\theta \hat{H}$ 的 Lipschitz 常数)进行 ER-DPO 训练时第 $t$ 步的策略。则对所有提示 $x \in \text{supp}(\mathcal{D})$:
+\begin{equation}
+\label{eq:diversity_bound}
+\hat{H}(\pi_\theta^{(t)}) \geq \hat{H}(\pi_{\text{ref}}) - \frac{\beta}{\lambda_H}\left(\mathcal{L}_{\text{DPO}}(\pi_{\text{ref}}) - \mathcal{L}_{\text{DPO}}^*\right) \triangleq H_{\min}(\lambda_H),
+\end{equation}
+其中 $\mathcal{L}_{\text{DPO}}^*$ 是 DPO 损失的下确界。此外,ER-DPO 保持了标准 DPO 的收敛保证:$\mathcal{D}$ 上的偏好准确率收敛到 DPO 最优值的 $O(\lambda_H)$ 邻域内。
+\end{theorem}
+\begin{proof}[证明概要]
+在 $\mathcal{L}_{\text{ER-DPO}}$ 的任何驻点处,梯度条件要求 $\nabla_\theta \mathcal{L}_{\text{DPO}} = \lambda_H \nabla_\theta \hat{H}$。DPO 损失的改进以 $\beta$ 乘以奖励间隔为界(由式~\ref{eq:dpo_gradient}),而熵正则项提供一个正比于 $\lambda_H$ 的恢复力。平衡二者即得式~\eqref{eq:diversity_bound} 中的下界。收敛性源于 $\hat{H}$ 有界($0 \leq \hat{H} \leq \log|\mathcal{V}|$)且光滑,故复合目标满足标准的下降引理条件。完整证明见附录~\ref{app:proofs}。
+\end{proof}
+
+\paragraph{实际实现。} 我们如下实现 ER-DPO:
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+    \item 对每个小批量 $\mathcal{B} \subset \mathcal{D}$,在 $\mathcal{B}$ 上计算标准 DPO 损失 $\mathcal{L}_{\text{DPO}}$;
+    \item 使用步骤 1 的 logits 计算 token 级熵 $\hat{H}$(零额外前向传播);
+    \item 计算复合损失:$\mathcal{L} = \mathcal{L}_{\text{DPO}} - \lambda_H \hat{H}$;
+    \item 反向传播并以标准优化器(AdamW)更新 $\theta$。
+\end{enumerate}
+计算开销可忽略:$\hat{H}$ 仅需在已有的 logit 张量上做一次 softmax 与逐元素 $\log$,在我们的实验中增加的墙钟时间 $<3\%$。
+
+\paragraph{选取 $\lambda_H$。} 定理~\ref{thm:erdpo} 中的界表明 $\lambda_H$ 应设为正比于 $\beta$,以维持目标熵底。实践中,我们在验证集上对 $\{0.01, 0.05, 0.1, 0.5\}$ 做简短网格搜索,选取在留出对上不使偏好准确率退化超过 1\% 的最大值。我们发现 $\lambda_H \in [0.05, 0.1]$ 在不同模型规模上提供了一个稳健的工作点(见第~\ref{sec:experiments} 节)。

@@ -1,0 +1,43 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Implications for Alignment Practice}
+
+Our central finding---that the security-critical threshold $t^*$ arrives \emph{before} the performance-optimal checkpoint $t_{\text{perf}}$---has immediate consequences for current training practice. The standard workflow of training DPO until held-out reward or benchmark accuracy plateaus systematically overshoots the point at which the model becomes exploitably collapsed. Every model we audited (Section~5) that was trained to convergence exhibited PCE scores in the exploitable regime. This is not an implementation failure; it is the direct consequence of optimizing a preference objective that concentrates probability mass on a shrinking set of high-reward outputs.
+
+We propose that \textbf{Preference Collapse Exploitability (PCE) should become a mandatory entry in model cards}, reported alongside perplexity and benchmark scores. PCE captures a dimension of model quality---output distributional geometry---that existing metrics are blind to. A model can score highly on MT-Bench, pass red-team evaluations, and still be trivially exploitable if its output distribution has collapsed to the point where adversarial transfer succeeds with near-certainty.
+
+This reveals a fundamental tension in alignment-by-preference-optimization. The very property that makes DPO effective---concentrating mass on preferred responses, suppressing the undesirable tail---is precisely what makes the resulting model predictable and therefore attackable. High alignment quality (in the sense of reliably producing the ``right'' answer) and high security (in the sense of being difficult to predict and exploit) are in direct opposition under distributional concentration. This is not a bug to be patched but a \emph{design-level tradeoff} that alignment researchers must explicitly navigate. ER-DPO (Section~4.4) represents one point in this tradeoff space; others---perhaps adaptive regularization schedules or entropy-aware early stopping---remain to be explored.
+
+\subsection{Comparison with Existing Attack Paradigms}
+
+Collapse exploitation is \emph{orthogonal} to jailbreaking. Jailbreak attacks (GCG, AutoDAN, prompt injection) search for specific inputs that bypass safety filters. Collapse exploitation does not require finding such inputs---it leverages the distributional geometry of the model's output space to make \emph{any} downstream attack more effective. A jailbreak that succeeds with probability $p$ against a diverse model succeeds with probability $p + \Delta(PCE)$ against a collapsed one, because the collapsed model's responses are more predictable and its safety boundary more brittle (Proposition~3). The two attack classes compose multiplicatively: collapse raises the baseline success rate upon which input-specific attacks build.
+
+The collapse accelerator (Section~4.3) also differs structurally from standard data poisoning. Traditional poisoning changes \emph{what} the model outputs---injecting backdoors, biasing completions toward attacker-chosen content. The collapse accelerator changes the \emph{geometry} of the output distribution without necessarily altering the modal response for any single prompt. A poisoned model may pass output-level safety checks (its top-1 completions remain benign) while becoming dramatically more exploitable because its entropy has been driven below the critical threshold. This makes collapse poisoning fundamentally harder to detect with existing output-monitoring defenses that check individual responses rather than distributional properties.
+
+\subsection{Limitations}
+
+\textbf{Measurement cost.} Computing PCE requires drawing $k=128$ samples per prompt (our default), making it expensive at inference time. While we showed that $k=64$ suffices for ranking models (Spearman $\rho > 0.95$ with $k=128$), integrating PCE into real-time monitoring remains an engineering challenge. Batch auditing during training checkpoints is feasible; per-request PCE is not.
+
+\textbf{Theoretical simplifications.} Propositions~2 and~3 assume deterministic gradient flow on the population loss. Real DPO training involves minibatch stochasticity, learning rate schedules, and weight decay---all of which can delay or accelerate collapse relative to our continuous-time predictions. The monotonicity result (Theorem~1) is empirically robust but its formal proof requires regularity conditions that may not hold universally.
+
+\textbf{Snapshot validity.} Our audit of open-weight models (Table~2) captures a moment in time. Models are frequently updated, retrained, or fine-tuned by downstream users. PCE scores may shift with subsequent training runs, though the structural vulnerability (DPO concentrates mass) persists across runs.
+
+\textbf{Scale.} Our controlled experiments use models up to 13B parameters. A pilot study applying LoRA-based DPO to LLaMA-2-70B showed qualitatively similar collapse dynamics ($t^* / t_{\text{perf}} \approx 0.73$, consistent with smaller models), but we lack full-rank training results at frontier scale. Whether models trained with significantly more data exhibit slower collapse---or merely delayed collapse---remains open.
+
+\textbf{DBSCAN sensitivity.} PCE's cluster-counting step uses DBSCAN with a fixed $\varepsilon$ parameter. While our ablation (Appendix~C) shows stability across $\varepsilon \in [0.3, 0.7]$ in normalized embedding space, edge cases with bimodal output distributions can produce discontinuous PCE jumps at boundary values.
+
+\textbf{Defense overhead.} ER-DPO adds approximately 15\% wall-clock training time due to the entropy regularization term requiring per-token probability computation across the full vocabulary. For large-vocabulary models, this overhead may be reduced via top-$k$ entropy approximations, though we did not evaluate such approximations here.
+
+\subsection{Broader Impact and Responsible Disclosure}
+
+We disclosed our findings---including PCE scores, exploit success rates, and collapse accelerator methodology---to the maintainers of all audited open-weight models 90 days prior to submission. Two teams (Mistral, StabilityAI) confirmed receipt and indicated they are investigating entropy-aware training modifications. We received no objection to publication.
+
+The collapse accelerator code is released within a gated research framework that requires institutional affiliation and enforces rate limits on poisoned-data generation. We do not release pre-computed poisoned datasets. The ER-DPO defense, PCE computation library, and all evaluation scripts are fully open-sourced without restriction.
+
+We emphasize that collapse exploitability is a \emph{systemic} property of preference-optimized models, not a flaw in any particular system. Our goal is to shift the community's attention from output-level safety (``does the model refuse harmful queries?'') to distributional-level safety (``is the model's output geometry robust to exploitation?''). These are complementary, not competing, concerns.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We have demonstrated that the mode collapse induced by Direct Preference Optimization is not merely an aesthetic or diversity concern but a concrete, measurable security vulnerability. Our contributions span the problem's full arc: the PCE metric provides the first quantitative bridge between distributional collapse and exploit success; the monotonicity finding ($t^* < t_{\text{perf}}$) shows that standard training practices systematically produce exploitable models; the collapse accelerator demonstrates that adversaries can deliberately amplify this vulnerability through data poisoning that evades output-level detection; our audit of seven open-weight model families confirms the vulnerability exists in production systems; and ER-DPO offers an effective defense that preserves 97\% of alignment quality while maintaining output entropy above the critical exploitation threshold. The most urgent practical takeaway is that the community must integrate PCE monitoring into DPO training pipelines---not as an optional diagnostic, but as a first-class safety constraint on par with loss convergence and benchmark performance. As preference optimization methods continue to proliferate (KTO, IPO, SPPO), understanding and controlling the security implications of distributional concentration will remain a central challenge for safe deployment of aligned language models.

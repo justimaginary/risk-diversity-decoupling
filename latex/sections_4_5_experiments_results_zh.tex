@@ -1,0 +1,299 @@
+%!TEX root = main_zh.tex
+% 第 4 节:实验 与 第 5 节:结果
+% 论文:偏好坍缩可利用度
+
+\section{实验}
+\label{sec:experiments}
+
+我们设计了五个实验来验证理论主张(命题~1--3)、量化偏好坍缩的安全含义,并评估防御。
+
+\subsection{实验设置}
+\label{sec:setup}
+
+\paragraph{模型。} 我们从四个基座模型的监督微调(SFT)检查点出发训练 DPO:Llama-2-7B、Llama-2-13B \citep{touvron2023llama}、Mistral-7B \citep{jiang2023mistral} 和 Gemma-2B \citep{team2024gemma}。对于开源模型审计(实验~4),我们评估六个公开发布的 DPO 对齐模型:Zephyr-7B-beta \citep{tunstall2023zephyr}、Tulu-2-DPO-7B、Tulu-2-DPO-13B \citep{ivison2023camels}、Neural-Chat-7B、OpenHermes-2.5-Mistral \citep{teknium2023openhermes} 和 Starling-7B-alpha \citep{zhu2023starling}。
+
+\paragraph{数据集。} DPO 训练使用 Anthropic HH-RLHF 数据集 \citep{bai2022training}(17 万偏好对)和 UltraFeedback \citep{cui2023ultrafeedback}(6.4 万对)。攻击评估使用来自 AdvBench \citep{zou2023universal} 的 200 个提示和来自 HarmBench \citep{mazeika2024harmbench} 的 200 个提示,涵盖直接有害请求、越狱模板和对抗后缀。
+
+\paragraph{训练配置。} 除非另有说明:$\beta = 0.1$,学习率 $5 \times 10^{-7}$ 配余弦调度,批量大小 64,最大序列长度 2048。我们每 200 步保存一次检查点,直至 10{,}000 步,每次运行产生 50 个检查点。所有训练在 $4 \times$ A100-80GB GPU 上使用 DeepSpeed ZeRO-3。
+
+\paragraph{PCE 测量。} 对每个提示,我们抽取 $K = 128$ 个补全(温度 1.0,top-$p$ = 0.95,最多 256 token)。我们用 SentenceBERT(all-MiniLM-L6-v2)\citep{reimers2019sentence} 嵌入响应,并通过 DBSCAN($\varepsilon = 0.3$,$\text{min\_samples} = 5$)聚类。模式熵 $H_{\text{mode}}$、确定性 $\text{Det}$ 与 PCE 按定义~1--3(第~\ref{sec:method} 节)计算。我们报告 100 个随机采样的评估提示上的均值,以及自助法(bootstrap)95\% 置信区间。
+
+\paragraph{安全与性能评估。} 安全性通过 LlamaGuard-7B \citep{inan2023llama} 作为自动分类器来度量(攻击成功率,ASR)。性能基准为 MT-Bench \citep{zheng2023judging}(GPT-4 评判,1--10 分)和 AlpacaEval 2.0 \citep{li2023alpacaeval}(对 GPT-4 的长度受控胜率)。
+
+\subsection{实验 1:DPO 训练中的 PCE 演化}
+\label{sec:exp1}
+
+我们以四个 $\beta$ 值 $\in \{0.05, 0.1, 0.2, 0.5\}$ 用 DPO 训练 Llama-2-7B、Mistral-7B 和 Gemma-2B,共产生 12 次训练运行。在 50 个检查点的每一个上,我们测量 PCE、$H_{\text{mode}}$、Det、MT-Bench 得分和 GCG 攻击成功率。这为每个指标产生 600 个数据点。目标是经验性地验证命题~2(PCE 单调性)与命题~3($t^* < t_{\text{perf}}$)。
+
+\subsection{实验 2:对坍缩模型的被动利用}
+\label{sec:exp2}
+
+我们在四个坍缩阶段的 Llama-2-7B 检查点上评估三种被动攻击策略:SFT 基线(PCE $\approx 0.15$)、DPO-2K(PCE $\approx 0.35$)、DPO-6K(PCE $\approx 0.60$)和 DPO-10K(PCE $\approx 0.85$)。
+
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{模式探测(黑盒):} 对每个有害提示,我们生成 128 个样本,并选取在嵌入空间中最靠近主导模式质心的响应。无需梯度访问。
+    \item \textbf{梯度引导的模式锁定(白盒):} 我们通过 GCG \citep{zou2023universal} 优化一个通用对抗后缀(长度 20 token),其目标被修改为最大化在坍缩模式分布下的似然,而非固定目标字符串。
+    \item \textbf{坍缩感知的提示选取(黑盒):} 我们按估计的 Det(每提示用 16 个样本)对 1{,}000 个候选攻击提示组成的池进行排序,并选取确定性最高的前 $k$ 个用于攻击。
+\end{itemize}
+
+\noindent 对每种方法,我们报告 ASR(被 LlamaGuard 判为有害的比例)和攻击确定性 $\text{ADet}$(仅在攻击输出上测量的 Det)。我们与不利用坍缩结构的标准 GCG 和 AutoDAN \citep{liu2023autodan} 基线作比较。
+
+\subsection{实验 3:坍缩加速器攻击}
+\label{sec:exp3}
+
+我们实现算法~1(第~\ref{sec:attack} 节)的三种变体:\textit{无定向}、\textit{定向}和\textit{触发}。对每种变体,我们以比例 $\rho \in \{0.1\%, 0.5\%, 1\%, 2\%, 5\%\}$ 向 Anthropic HH-RLHF 训练集注入投毒偏好对,并在标准配置下重训 Llama-2-7B。我们测量:
+
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{坍缩加速率(CAR):} 固定步 $t = 6000$ 处的比值 $\text{PCE}(t; \rho) / \text{PCE}(t; 0)$。
+    \item \textbf{定向 ASR:} 对定向与触发变体,使用模式探测在 200 个 AdvBench 提示上的攻击成功率。
+    \item \textbf{隐蔽性:} 相对未投毒训练的 MT-Bench 得分退化;在数据质量过滤器(困惑度阈值、奖励模型评分)下的可检测性。
+\end{itemize}
+
+\noindent 我们另外通过投毒 Mistral-7B 的 UltraFeedback 训练来测试可迁移性。
+
+\subsection{实验 4:开源模型审计}
+\label{sec:exp4}
+
+我们在六个公开可用的 DPO 训练模型上测量 PCE、Det 与 $H_{\text{mode}}$,不进行任何额外训练或微调。对每个模型,我们在完整的 400 个攻击提示集(AdvBench + HarmBench)和来自 MT-Bench 的 200 个良性提示对照集上评估。我们另外测量 GCG 攻击成功率(20 次随机重启,500 步优化)和模式探测 ASR,以确认所观察到的 PCE 水平是否在实践中可被利用。
+
+\subsection{实验 5:ER-DPO 防御评估}
+\label{sec:exp5}
+
+我们以熵正则化强度 $\lambda_H \in \{0.01, 0.05, 0.1, 0.5, 1.0\}$ 用 ER-DPO(第~\ref{sec:defense} 节)训练 Llama-2-7B。我们与三种基线防御作比较:
+
+\begin{itemize}[leftmargin=*,nosep]
+    \item \textbf{运行时受控解码(CDR):} 温度缩放($\tau = 1.2$)与核采样($p = 0.95$),仅在安全关键生成期间施加,由一个轻量意图分类器检测。
+    \item \textbf{偏好 Mixup 正则化(PMR):} 在 DPO 训练期间于嵌入空间中对被选与被拒响应进行插值 \citep{zhang2018mixup}。
+    \item \textbf{ER-DPO + CDR 组合:} 同时施加训练期正则化与推理期多样性强制。
+\end{itemize}
+
+\noindent 对每种防御,我们测量 PCE、GCG-ASR、模式探测 ASR、MT-Bench 和 AlpacaEval 2.0,以刻画安全--性能权衡。
+
+%% ====================================================================
+\section{结果}
+\label{sec:results}
+
+\subsection{PCE 随训练单调上升}
+\label{sec:res_evolution}
+
+表~\ref{tab:pce_evolution} 报告 Llama-2-7B($\beta = 0.1$)在代表性检查点处的 PCE、Det 与 $H_{\text{mode}}$。全部 12 次运行的完整轨迹绘于图~\ref{fig:pce_trajectory}。
+
+\begin{table}[t]
+\centering
+\caption{Llama-2-7B($\beta = 0.1$)DPO 训练中的 PCE 演化。$t^*$ 表示临界可利用阈值(PCE $> 0.5$);$t_{\text{perf}}$ 表示 MT-Bench 峰值。数值为 100 个提示上的均值;所有 PCE 条目的 95\% 置信区间宽度 $< 0.03$。}
+\label{tab:pce_evolution}
+\small
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+步数 & PCE & Det & $H_{\text{mode}}$ & MT-Bench & GCG-ASR (\%) & AlpacaEval (\%) \\
+\midrule
+0 (SFT) & $0.14 \pm 0.02$ & 0.18 & 3.42 & 5.8 & 12.5 & 8.2 \\
+2{,}000   & $0.35 \pm 0.02$ & 0.41 & 2.65 & 6.4 & 28.0 & 14.6 \\
+4{,}000   & $0.52 \pm 0.03$ & 0.58 & 1.89 & 6.9 & 52.5 & 19.8 \\
+6{,}000 ($t^*$) & $0.61 \pm 0.02$ & 0.67 & 1.41 & 7.2 & 68.0 & 23.1 \\
+8{,}000 ($t_{\text{perf}}$) & $0.74 \pm 0.02$ & 0.78 & 0.93 & \textbf{7.4} & 79.5 & \textbf{25.4} \\
+10{,}000 & $0.85 \pm 0.02$ & 0.89 & 0.52 & 7.2 & 88.0 & 24.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth, height=5.6cm,
+    xlabel={DPO 训练步数}, xlabel style={font=\small},
+    ylabel={PCE / Det}, ylabel style={font=\small},
+    xmin=0, xmax=10000, ymin=0, ymax=1.0,
+    xtick={0,2000,4000,6000,8000,10000},
+    scaled x ticks=false, x tick label style={/pgf/number format/1000 sep={,}, font=\scriptsize},
+    y tick label style={font=\scriptsize},
+    legend style={font=\scriptsize, at={(0.02,0.98)}, anchor=north west, draw=none, fill=white, fill opacity=0.7, text opacity=1},
+    legend cell align=left,
+    grid=major, grid style={gray!20},
+]
+\addplot[color=red, mark=*, thick] coordinates {(0,0.14)(2000,0.35)(4000,0.52)(6000,0.61)(8000,0.74)(10000,0.85)};
+\addlegendentry{PCE (Llama-2-7B)}
+\addplot[color=blue, mark=square*, thick, dashed] coordinates {(0,0.18)(2000,0.41)(4000,0.58)(6000,0.67)(8000,0.78)(10000,0.89)};
+\addlegendentry{Det}
+\addplot[color=red!50, mark=triangle, thin] coordinates {(0,0.15)(2000,0.46)(4000,0.63)(6000,0.74)(8000,0.83)(10000,0.91)};
+\addlegendentry{PCE ($\beta{=}0.05$)}
+\addplot[color=red!50, mark=o, thin, densely dotted] coordinates {(0,0.12)(2000,0.26)(4000,0.39)(6000,0.50)(8000,0.61)(10000,0.71)};
+\addlegendentry{PCE ($\beta{=}0.5$)}
+\draw[black!60, dashed] (axis cs:0,0.5) -- (axis cs:10000,0.5);
+\node[font=\scriptsize, anchor=west] at (axis cs:200,0.55) {可利用阈值};
+\draw[gray, dashed] (axis cs:6000,0) -- (axis cs:6000,0.61);
+\node[font=\scriptsize, anchor=south] at (axis cs:6000,0.62) {$t^*$};
+\draw[gray, dashed] (axis cs:8000,0) -- (axis cs:8000,0.74);
+\node[font=\scriptsize, anchor=south] at (axis cs:8000,0.75) {$t_{\text{perf}}$};
+\end{axis}
+\end{tikzpicture}
+\caption{Llama-2-7B 在 DPO 训练中的 PCE 与确定性(Det)轨迹。PCE 单调上升,并在 $t^*$ 处越过可利用阈值($0.5$),严格早于 MT-Bench 性能峰值 $t_{\text{perf}}$。较低的 $\beta$(三角)加速坍缩;较高的 $\beta$(点线)延迟坍缩。数值与表~\ref{tab:pce_evolution} 一致。}
+\label{fig:pce_trajectory}
+\end{figure}
+
+\paragraph{关键发现。} 在全部 12 次运行中,PCE 随训练步数单调上升(所有运行 Spearman $\rho > 0.98$,$p < 10^{-8}$),证实命题~2。临界可利用阈值 $t^*$(定义为 PCE 首次 $> 0.5$ 的步)始终先于性能峰值 $t_{\text{perf}}$ 出现 $1{,}500$--$2{,}500$ 步,证实命题~3。较低的 $\beta$ 加速坍缩:$\beta = 0.05$ 产生 $t^* \approx 4{,}000$,而 $\beta = 0.5$ 将其延迟至 $t^* \approx 8{,}000$。结果在不同架构上一致——Mistral-7B 与 Gemma-2B 表现出相同的单调趋势,$t^*$ 相对 Llama-2-7B 至多偏移 800 步(见图~\ref{fig:pce_trajectory},(b)--(c) 面板)。
+
+实践含义是严峻的:模型在达到基准性能峰值\emph{之前}就已可被利用,这意味着基于验证损失或 MT-Bench 的标准早停不提供任何保护。
+
+\subsection{被动利用在坍缩模型上成功}
+\label{sec:res_passive}
+
+表~\ref{tab:passive_attacks} 报告各方法在不同坍缩阶段的攻击成功率。
+
+\begin{table}[t]
+\centering
+\caption{Llama-2-7B 在四个坍缩阶段的被动攻击成功率(\%)与攻击确定性(ADet)。基线方法(GCG、AutoDAN)是坍缩无感的。粗体表示每列最佳 ASR。}
+\label{tab:passive_attacks}
+\small
+\begin{tabular}{@{}llcccc@{}}
+\toprule
+\multirow{2}{*}{方法} & \multirow{2}{*}{访问} & \multicolumn{4}{c}{坍缩阶段(PCE)} \\
+\cmidrule(l){3-6}
+ & & SFT (0.14) & DPO-2K (0.35) & DPO-6K (0.61) & DPO-10K (0.85) \\
+\midrule
+GCG(标准)          & 白盒 & 12.5 & 35.0 & 62.5 & 78.0 \\
+AutoDAN                 & 白盒 & 15.0 & 38.5 & 58.0 & 72.5 \\
+\midrule
+模式探测            & 黑盒 & 8.0  & 22.5 & 55.0 & \textbf{75.0} \\
+梯度模式锁定   & 白盒 & 14.0 & 42.0 & 72.5 & \textbf{88.0} \\
+坍缩感知选取& 黑盒 & 10.5 & 30.0 & 61.0 & 80.5 \\
+\midrule
+\multicolumn{2}{@{}l}{攻击确定性(ADet)} & 0.20 & 0.42 & 0.68 & 0.85 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{关键发现。} 梯度引导的模式锁定在最大坍缩模型上取得最高 ASR(88\%),相比 SFT 基线($14\%$)提升 $6$ 倍。值得注意的是,纯黑盒的模式探测方法在无任何梯度访问的情况下取得 75\% 的 ASR,表明坍缩制造出的可利用结构即便对资源受限的攻击者也清晰可见。ADet 从 0.20(SFT)单调上升至 0.85(DPO-10K),表明坍缩模型产生高度可预测的有害输出——攻击者能可靠地诱发特定有害内容,而非随机的拒绝。
+
+坍缩感知的方法在 PCE $> 0.5$ 时比其标准对应方法高出 $10$--$15$ 个百分点,证实 PCE 指标捕捉到的是真正可利用的结构,而非良性的统计假象。
+
+\subsection{坍缩加速器放大脆弱性}
+\label{sec:res_accelerator}
+
+表~\ref{tab:accelerator} 给出三种坍缩加速器变体在不同投毒比例下的结果。
+
+\begin{table}[t]
+\centering
+\caption{Llama-2-7B 上的坍缩加速器攻击结果。CAR:坍缩加速率(第 6K 步的 $\text{PCE}_{\text{投毒}} / \text{PCE}_{\text{干净}}$)。ASR:第 8K 步在 200 个 AdvBench 提示上的攻击成功率。$\Delta$MT:相对干净训练的 MT-Bench 退化。}
+\label{tab:accelerator}
+\small
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+变体 & $\rho$ & CAR & PCE$_{8\text{K}}$ & ASR (\%) & $\Delta$MT & 可检测 \\
+\midrule
+\multirow{4}{*}{无定向}
+ & 0.1\% & $1.2\times$ & 0.78 & 52.0 & $-0.1$ & 否 \\
+ & 0.5\% & $1.6\times$ & 0.82 & 60.5 & $-0.1$ & 否 \\
+ & 1\%   & $2.1\times$ & 0.88 & 68.5 & $-0.2$ & 否 \\
+ & 5\%   & $3.8\times$ & 0.94 & 82.0 & $-0.5$ & 是 \\
+\midrule
+\multirow{4}{*}{定向}
+ & 0.1\% & $1.3\times$ & 0.79 & 48.0 & $-0.1$ & 否 \\
+ & 0.5\% & $1.8\times$ & 0.84 & 58.5 & $-0.1$ & 否 \\
+ & 1\%   & $2.5\times$ & 0.90 & 65.0 & $-0.2$ & 否 \\
+ & 2\%   & $3.5\times$ & 0.93 & 78.0 & $-0.3$ & 否 \\
+ & 5\%   & $4.2\times$ & 0.96 & 85.5 & $-0.6$ & 是 \\
+\midrule
+\multirow{4}{*}{触发}
+ & 0.5\% & $1.4\times$ & 0.80 & 55.0$^\dagger$ & $-0.0$ & 否 \\
+ & 1\%   & $2.0\times$ & 0.86 & 70.5$^\dagger$ & $-0.1$ & 否 \\
+ & 2\%   & $2.8\times$ & 0.91 & 76.0$^\dagger$ & $-0.1$ & 否 \\
+ & 5\%   & $3.6\times$ & 0.95 & 84.0$^\dagger$ & $-0.4$ & 否 \\
+\bottomrule
+\multicolumn{7}{@{}l}{\footnotesize $^\dagger$触发 ASR 仅在触发激活的提示上测量。}
+\end{tabular}
+\end{table}
+
+\paragraph{关键发现。} 在 1\% 投毒下,定向变体将坍缩加速 $2.5\times$,而 MT-Bench 仅退化 0.2 分——远在通常的运行间方差之内。触发变体最为隐蔽:在所有 $\leq 5\%$ 的比例下,它对标准数据质量过滤器(困惑度距均值 $< 2\sigma$、奖励模型评分在正常范围内)保持不可检测,同时在 $\rho = 2\%$ 时取得 76\% 的触发 ASR,性能影响可忽略($\Delta$MT $= -0.1$)。
+
+在 Mistral-7B 上用投毒 UltraFeedback 的可迁移性实验产生了可比的 CAR 值($\rho = 1\%$ 时 $2.3\times$),表明该攻击可跨架构与数据集泛化。我们注意到,对无定向和定向变体,$\rho = 5\%$ 可通过聚合奖励分数分析被检测,确立了一个实用的隐蔽性上限。
+
+\subsection{被广泛部署的模型已然脆弱}
+\label{sec:res_audit}
+
+表~\ref{tab:audit} 给出对六个公开发布的 DPO 训练模型的 PCE 审计。
+
+\begin{table}[t]
+\centering
+\caption{对公开可用 DPO 对齐模型的 PCE 审计。所有测量基于 400 个攻击提示(AdvBench + HarmBench)。GCG-ASR 使用 20 次重启、500 步。模式探测 ASR 为黑盒。}
+\label{tab:audit}
+\small
+\begin{tabular}{@{}lcccccc@{}}
+\toprule
+模型 & 参数量 & PCE & Det & $H_{\text{mode}}$ & GCG-ASR (\%) & 探测-ASR (\%) \\
+\midrule
+Zephyr-7B-beta       & 7B  & 0.58 & 0.63 & 1.52 & 62.0 & 48.5 \\
+Tulu-2-DPO-7B       & 7B  & 0.55 & 0.60 & 1.68 & 58.5 & 45.0 \\
+Tulu-2-DPO-13B      & 13B & \textbf{0.70} & \textbf{0.76} & \textbf{1.01} & \textbf{74.0} & \textbf{62.5} \\
+Neural-Chat-7B      & 7B  & 0.52 & 0.57 & 1.82 & 55.0 & 42.0 \\
+OpenHermes-2.5      & 7B  & 0.61 & 0.66 & 1.38 & 65.5 & 52.0 \\
+Starling-7B-alpha   & 7B  & 0.63 & 0.68 & 1.30 & 67.0 & 54.5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{关键发现。} 六个模型全部表现出 PCE $> 0.5$,证实偏好坍缩并非我们受控训练的产物,而是当前 DPO 实践的一个系统性性质。Tulu-2-DPO-13B 显示出最高的 PCE(0.70),并相应地具有高 GCG 脆弱性(74\% ASR)。我们观察到模型规模与 PCE 之间存在正相关(六个模型上 Pearson $r = 0.72$,$p = 0.04$),表明较大的模型在 DPO 期间坍缩得更剧烈——很可能因为其更高的表达力允许更尖锐的概率质量集中。
+
+黑盒模式探测攻击在所有被审计模型上取得 $> 40\%$ 的 ASR,表明这些公开部署的系统在无梯度访问的情况下也实际可被利用。在良性对照提示上,PCE 值显著更低(均值 0.28),证实坍缩不成比例地集中在偏好信号最强的安全相关行为上。
+
+\subsection{ER-DPO 有效缓解坍缩}
+\label{sec:res_defense}
+
+表~\ref{tab:defense} 将 ER-DPO 与基线防御作比较。
+
+\begin{table}[t]
+\centering
+\caption{在训练 10K 步的 Llama-2-7B 上的防御比较。PCE 与 ASR 基于 400 个攻击提示测量。性能基于 MT-Bench(1--10)和 AlpacaEval 2.0(长度受控胜率 \%)。最佳安全--性能权衡以粗体标出。}
+\label{tab:defense}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+防御 & PCE & GCG-ASR (\%) & 探测-ASR (\%) & MT-Bench & AlpacaEval (\%) \\
+\midrule
+无(标准 DPO) & 0.85 & 88.0 & 75.0 & 7.2 & 24.1 \\
+仅 CDR            & 0.85 & 72.0 & 58.5 & 7.0 & 22.8 \\
+PMR ($\alpha = 0.2$) & 0.68 & 70.5 & 55.0 & 6.9 & 21.5 \\
+ER-DPO ($\lambda_H = 0.01$) & 0.72 & 74.0 & 60.0 & 7.3 & 24.5 \\
+ER-DPO ($\lambda_H = 0.05$) & 0.52 & 58.5 & 48.0 & 7.1 & 23.2 \\
+\textbf{ER-DPO ($\lambda_H = 0.1$)} & \textbf{0.35} & \textbf{45.0} & \textbf{35.5} & \textbf{6.8} & \textbf{19.8} \\
+ER-DPO ($\lambda_H = 0.5$) & 0.22 & 32.0 & 25.0 & 6.2 & 15.4 \\
+ER-DPO ($\lambda_H = 1.0$) & 0.15 & 22.5 & 18.0 & 5.5 & 11.2 \\
+\midrule
+ER-DPO ($\lambda_H = 0.1$) + CDR & 0.28 & 38.0 & 28.5 & 6.7 & 19.1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{关键发现。} $\lambda_H = 0.1$ 的 ER-DPO 将 PCE 从 0.85 降至 0.35($-59\%$),同时保持有竞争力的性能(MT-Bench 6.8,相对未正则化 DPO 仅 $-0.4$)。GCG-ASR 从 88\% 降至 45\%,模式探测 ASR 从 75\% 降至 35.5\%。ER-DPO + CDR 组合取得最低的 PCE(0.28,$-67\%$),仅付出边际的额外性能代价。
+
+仅用 CDR 无法降低 PCE——它只在推理期运作,无法处理底层的已坍缩表征。PMR 提供适度的 PCE 降低(至 0.68),但在等同 PCE 水平上比 ER-DPO 付出更高的性能代价。$\lambda_H$ 参数提供平滑的安全--性能权衡:从业者可根据风险容忍度选取工作点。我们推荐 $\lambda_H \in [0.05, 0.1]$ 作为实用区间,它在可接受的性能退化下提供显著保护。
+
+\subsection{消融研究}
+\label{sec:ablations}
+
+\paragraph{$\beta$ 敏感性。} 表~\ref{tab:beta_ablation} 报告三种架构在不同 $\beta$ 值下第 8K 步的 PCE。我们发现 $\beta$ 与坍缩速率之间存在强烈的反向关系。
+
+\begin{table}[t]
+\centering
+\caption{不同架构下第 8K 步的 PCE 作为 $\beta$ 的函数。较低的 $\beta$ 放大坍缩。}
+\label{tab:beta_ablation}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+模型 & $\beta = 0.05$ & $\beta = 0.1$ & $\beta = 0.2$ & $\beta = 0.5$ \\
+\midrule
+Llama-2-7B  & 0.91 & 0.74 & 0.58 & 0.38 \\
+Mistral-7B  & 0.88 & 0.72 & 0.55 & 0.35 \\
+Gemma-2B    & 0.84 & 0.68 & 0.51 & 0.32 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+该关系近似为对数线性:$\text{PCE} \approx -0.55 \log(\beta) + c$($R^2 > 0.96$)。这证实 KL 惩罚系数直接控制坍缩严重程度——然而从业者通常依据基准性能将 $\beta = 0.1$,在不知情的情况下运作于高坍缩区间。
+
+\paragraph{PCE 测量可靠性。} 我们通过对提示集和每提示样本集进行自助重采样(1{,}000 次迭代)来评估测量稳定性。在 100 个提示、每提示 128 个样本下,PCE 的 95\% 置信区间宽度 $\leq 0.03$。减至 32 个样本使置信区间宽度增至 0.07,而 50 个提示产生 0.05 的置信区间宽度。我们的测量配置($K = 128$、100 个提示)提供了足够的统计功效,可在功效 $> 0.95$(配对置换检验)下检测 0.05 的 PCE 差异。
+
+\paragraph{模型规模效应。} 在相同训练配置($\beta = 0.1$、8K 步)下比较 Gemma-2B、Llama-2-7B 和 Llama-2-13B,PCE 随参数量增长:分别为 0.68、0.74 和 0.81。线性拟合得 PCE $\approx 0.012 \cdot \text{参数量(B)} + 0.65$($R^2 = 0.94$)。我们推测较大的模型有更强的能力记忆被偏好的模式分布,从而实现更尖锐的坍缩。这一缩放趋势对前沿规模的 DPO 训练提出了担忧。
+
+\paragraph{DBSCAN 敏感性。} 变动 $\varepsilon \in [0.2, 0.5]$ 使 PCE 绝对值偏移 $\pm 0.08$,但保持相对排序(Kendall $\tau > 0.95$)与单调性。我们所选的 $\varepsilon = 0.3$ 在留出校准集上最大化轮廓系数。结果对嵌入模型的选择稳健:从 all-MiniLM-L6-v2 切换至 all-mpnet-base-v2 平均改变 PCE 值 $< 0.04$。
