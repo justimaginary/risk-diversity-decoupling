@@ -127,6 +127,8 @@ Distributed risk migration may be harder to detect than collapse-based risk beca
 | RDI | Risk Distribution Index，跨语义模式的期望风险 | 衡量整体分布风险 |
 | Risk Entropy | 风险在不同语义模式中的分散程度 | 衡量风险是否集中 |
 
+术语说明：本地 policy-proxy 中的 `Compliance` 表示“对风险请求的配合性”启发式信号，不表示“符合安全规范”。中文报告中应优先写作“风险请求配合率（proxy）”，并以 Granite Guardian 等安全分类器的风险评分作为安全方向判断的主要依据。
+
 ### A5. 新指标设想
 
 #### Risk Distribution Index
