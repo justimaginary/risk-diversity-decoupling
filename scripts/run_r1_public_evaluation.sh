@@ -97,3 +97,8 @@ run_stage harmbench_mistral "${METRICS_DIR}/harmbench_mistral.json" \
     --classifier_model "${HARMBENCH_MODEL}" \
     --batch_size 8 \
     --output_path "${METRICS_DIR}/harmbench_mistral.json"
+
+run_stage r1_summary "${R1_DIR}/r1_summary.json" \
+    python scripts/summarize_r1_public.py \
+    "${R1_DIR}" \
+    --output_path "${R1_DIR}/r1_summary.json"
