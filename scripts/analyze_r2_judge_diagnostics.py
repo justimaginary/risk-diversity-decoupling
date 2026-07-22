@@ -18,6 +18,13 @@ LABELS = (
     "D4_full_refusal_suppression",
 )
 
+DEFAULT_OUTPUT_QUALITY_THRESHOLDS = {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01,
+}
+
 
 def load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
@@ -53,6 +60,8 @@ def longest_character_run(text: str) -> int:
 
 
 def output_diagnostics(outputs: list[str]) -> dict[str, float | int]:
+    if not outputs:
+        raise ValueError("At least one output is required for diagnostics")
     mixed_script = non_ascii_dominant = short = repeated = 0
     character_counts = []
     for output in outputs:
@@ -71,6 +80,25 @@ def output_diagnostics(outputs: list[str]) -> dict[str, float | int]:
         "mixed_ascii_nonascii_script_rate": mixed_script / total,
         "nonascii_letter_rate_ge_20pct": non_ascii_dominant / total,
         "long_character_run_rate_ge_20": repeated / total,
+    }
+
+
+def assess_output_quality(
+    diagnostics: dict[str, float | int], thresholds: dict[str, float]
+) -> dict[str, object]:
+    missing = sorted(set(thresholds) - set(diagnostics))
+    if missing:
+        raise ValueError(f"Diagnostics are missing quality metrics: {missing}")
+    failures = [
+        metric
+        for metric, maximum in thresholds.items()
+        if float(diagnostics[metric]) > maximum
+    ]
+    return {
+        "status": "pass" if not failures else "fail",
+        "failures": failures,
+        "thresholds": dict(thresholds),
+        "diagnostics": diagnostics,
     }
 
 
