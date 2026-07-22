@@ -220,6 +220,13 @@ def select_token_matched(
     return best
 
 
+def feasible_token_range(pool: list[Preference], count: int) -> tuple[int, int]:
+    if len(pool) < count:
+        raise ValueError(f"Requested {count} pairs but only {len(pool)} remain")
+    costs = sorted(item.token_cost for item in pool)
+    return sum(costs[:count]), sum(costs[-count:])
+
+
 def build_conditions(
     d0_pool: list[Preference],
     d1_pool: list[Preference],
@@ -228,9 +235,14 @@ def build_conditions(
     seed: int,
     poison_fraction: float,
 ) -> dict[str, list[Preference]]:
-    d1 = select_count(d1_pool, count, seed)
-    target = sum(item.token_cost for item in d1)
+    ranges = [feasible_token_range(pool, count) for pool in (d0_pool, d1_pool, d2_pool)]
+    common_min = max(lower for lower, _ in ranges)
+    common_max = min(upper for _, upper in ranges)
+    if common_min > common_max:
+        raise ValueError(f"No common token budget is feasible across D0/D1/D2: {ranges}")
+    target = (common_min + common_max) // 2
     d0 = select_token_matched(d0_pool, count, target, seed + 100)
+    d1 = select_token_matched(d1_pool, count, target, seed)
     d2 = select_token_matched(d2_pool, count, target, seed + 200)
     poison_count = round(count * poison_fraction)
     poison_ids = set(random.Random(seed + 300).sample(range(count), poison_count))

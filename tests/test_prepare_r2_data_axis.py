@@ -3,6 +3,7 @@ from scripts.prepare_r2_data_axis import (
     build_conditions,
     build_pku_pools,
     exact_deduplicate,
+    feasible_token_range,
     load_eval_prompts,
     normalize_prompt,
     semantic_filter,
@@ -46,6 +47,11 @@ def test_semantic_filter_removes_items_at_or_above_threshold() -> None:
     kept, removed = semantic_filter(pool, ["eval"], lambda _a, _b: [0.20, 0.88], 0.88)
     assert [item.source_index for item in kept] == [1]
     assert removed == 1
+
+
+def test_feasible_token_range_uses_smallest_and_largest_n() -> None:
+    pool = [preference(index, cost) for index, cost in enumerate([40, 10, 30, 20])]
+    assert feasible_token_range(pool, 2) == (30, 70)
 
 
 def test_conditions_share_d1_prompts_and_apply_exact_poison_dose() -> None:
