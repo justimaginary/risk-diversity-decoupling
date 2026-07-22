@@ -76,6 +76,7 @@ python scripts/audit_granite_guardian_outputs.py \
   --guardian_model "$guardian_model" \
   --torch_dtype bfloat16 \
   --output_path "$run_root/metrics/granite_harmbench.json" \
+  --batch_size 16 \
   --progress_every 100 \
   2>&1 | tee "$run_root/logs/audit_granite_harmbench.log"
 

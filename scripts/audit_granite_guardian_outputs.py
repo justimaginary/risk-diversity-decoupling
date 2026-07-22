@@ -66,6 +66,9 @@ class GraniteGuardianJudge:
             local_files_only=args.local_files_only,
             use_fast=args.use_fast_tokenizer,
         )
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+        self.tokenizer.padding_side = "left"
         dtype = resolve_dtype(args.torch_dtype, self.device)
         self.model = AutoModelForCausalLM.from_pretrained(
             args.guardian_model,
@@ -80,21 +83,33 @@ class GraniteGuardianJudge:
         self.no_id = single_token_id(self.tokenizer, "No")
 
     def score(self, prompt: str, response: str) -> dict[str, float | str]:
-        messages = [
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": response},
-        ]
-        input_ids = self.tokenizer.apply_chat_template(
-            messages,
-            guardian_config={"risk_name": self.risk_name},
-            add_generation_prompt=True,
+        return self.score_many(prompt, [response])[0]
+
+    def score_many(
+        self, prompt: str, responses: list[str]
+    ) -> list[dict[str, float | str]]:
+        input_ids = []
+        for response in responses:
+            messages = [
+                {"role": "user", "content": prompt},
+                {"role": "assistant", "content": response},
+            ]
+            input_ids.append(
+                self.tokenizer.apply_chat_template(
+                    messages,
+                    guardian_config={"risk_name": self.risk_name},
+                    add_generation_prompt=True,
+                    tokenize=True,
+                )
+            )
+        encoded = self.tokenizer.pad(
+            {"input_ids": input_ids},
+            padding=True,
             return_tensors="pt",
         ).to(self.device)
-        attention_mask = torch.ones_like(input_ids, device=self.device)
         with torch.no_grad():
             output = self.model.generate(
-                input_ids,
-                attention_mask=attention_mask,
+                **encoded,
                 max_new_tokens=self.max_new_tokens,
                 do_sample=False,
                 return_dict_in_generate=True,
@@ -102,21 +117,26 @@ class GraniteGuardianJudge:
                 pad_token_id=self.tokenizer.eos_token_id,
             )
 
-        generated = self.tokenizer.decode(
-            output.sequences[0, input_ids.shape[1] :],
-            skip_special_tokens=True,
-        ).strip()
-        logits = output.scores[0][0].float()
-        risk_score = torch.softmax(
-            torch.stack([logits[self.no_id], logits[self.yes_id]]),
-            dim=0,
-        )[1].item()
-        label = parse_yes_no(generated)
-        return {
-            "label": label,
-            "generated": generated,
-            "risk_score": float(risk_score),
-        }
+        results = []
+        input_width = encoded["input_ids"].shape[1]
+        for index in range(len(responses)):
+            generated = self.tokenizer.decode(
+                output.sequences[index, input_width:],
+                skip_special_tokens=True,
+            ).strip()
+            logits = output.scores[0][index].float()
+            risk_score = torch.softmax(
+                torch.stack([logits[self.no_id], logits[self.yes_id]]),
+                dim=0,
+            )[1].item()
+            results.append(
+                {
+                    "label": parse_yes_no(generated),
+                    "generated": generated,
+                    "risk_score": float(risk_score),
+                }
+            )
+        return results
 
 
 def resolve_device(device: str) -> str:
@@ -204,9 +224,13 @@ def audit_file(
     for record in records:
         prompt = str(record["prompt"])
         outputs = [str(output) for output in record["outputs"]]
-        results = [judge.score(prompt, output) for output in outputs]
+        results = []
+        for start in range(0, len(outputs), args.batch_size):
+            results.extend(judge.score_many(prompt, outputs[start : start + args.batch_size]))
         completed += len(outputs)
-        if args.progress_every and completed % args.progress_every == 0:
+        if args.progress_every and completed // args.progress_every > (
+            completed - len(outputs)
+        ) // args.progress_every:
             print(f"{label}: scored {completed} outputs")
 
         dominant = dominant_indices(outputs, eps=args.dbscan_eps, min_samples=args.dbscan_min_samples)
@@ -270,6 +294,7 @@ def main() -> None:
     parser.add_argument("--device", default="auto")
     parser.add_argument("--torch_dtype", choices=["auto", "float16", "bfloat16", "float32"], default="auto")
     parser.add_argument("--max_new_tokens", type=int, default=2)
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--max_outputs_per_prompt", type=int, default=None)
     parser.add_argument("--dbscan_eps", type=float, default=0.8)
     parser.add_argument("--dbscan_min_samples", type=int, default=1)
