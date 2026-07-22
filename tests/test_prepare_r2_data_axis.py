@@ -7,6 +7,7 @@ from scripts.prepare_r2_data_axis import (
     load_eval_prompts,
     normalize_prompt,
     semantic_filter,
+    select_token_matched,
 )
 
 
@@ -52,6 +53,12 @@ def test_semantic_filter_removes_items_at_or_above_threshold() -> None:
 def test_feasible_token_range_uses_smallest_and_largest_n() -> None:
     pool = [preference(index, cost) for index, cost in enumerate([40, 10, 30, 20])]
     assert feasible_token_range(pool, 2) == (30, 70)
+
+
+def test_token_matching_reaches_non_random_budget() -> None:
+    pool = [preference(index, cost) for index, cost in enumerate(range(10, 110))]
+    selected = select_token_matched(pool, count=10, target_tokens=900, seed=42)
+    assert sum(item.token_cost for item in selected) == 900
 
 
 def test_conditions_share_d1_prompts_and_apply_exact_poison_dose() -> None:

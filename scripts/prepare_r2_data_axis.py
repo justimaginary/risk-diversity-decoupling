@@ -8,6 +8,7 @@ split remains reproducible without committing harmful text.
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import hashlib
 import json
@@ -201,23 +202,45 @@ def select_count(pool: list[Preference], count: int, seed: int) -> list[Preferen
 
 
 def select_token_matched(
-    pool: list[Preference], count: int, target_tokens: int, seed: int, attempts: int = 4000
+    pool: list[Preference], count: int, target_tokens: int, seed: int, attempts: int = 1000
 ) -> list[Preference]:
     if len(pool) < count:
         raise ValueError(f"Requested {count} pairs but only {len(pool)} remain")
     rng = random.Random(seed)
-    best: list[Preference] | None = None
-    best_delta: int | None = None
-    indices = list(range(len(pool)))
+    target_mean = target_tokens / count
+    tie_breakers = {item.sample_id: rng.random() for item in pool}
+    ranked = sorted(pool, key=lambda item: (abs(item.token_cost - target_mean), tie_breakers[item.sample_id]))
+    selected = ranked[:count]
+    unselected = ranked[count:]
+    total = sum(item.token_cost for item in selected)
+
     for _ in range(attempts):
-        selected = [pool[index] for index in rng.sample(indices, count)]
-        delta = abs(sum(item.token_cost for item in selected) - target_tokens)
-        if best_delta is None or delta < best_delta:
-            best, best_delta = selected, delta
-            if delta == 0:
-                break
-    assert best is not None
-    return best
+        current_delta = target_tokens - total
+        if current_delta == 0 or not unselected:
+            break
+        available = sorted((item.token_cost, item.sample_id, item) for item in unselected)
+        available_keys = [(cost, sample_id) for cost, sample_id, _ in available]
+        best_swap: tuple[int, Preference, Preference] | None = None
+        best_absolute = abs(current_delta)
+        for outgoing in selected:
+            desired_cost = outgoing.token_cost + current_delta
+            position = bisect.bisect_left(available_keys, (desired_cost, ""))
+            for candidate_index in (position - 1, position):
+                if 0 <= candidate_index < len(available):
+                    incoming = available[candidate_index][2]
+                    new_delta = current_delta - (incoming.token_cost - outgoing.token_cost)
+                    if abs(new_delta) < best_absolute:
+                        best_absolute = abs(new_delta)
+                        best_swap = (new_delta, outgoing, incoming)
+        if best_swap is None:
+            break
+        _, outgoing, incoming = best_swap
+        selected.remove(outgoing)
+        unselected.remove(incoming)
+        selected.append(incoming)
+        unselected.append(outgoing)
+        total += incoming.token_cost - outgoing.token_cost
+    return selected
 
 
 def feasible_token_range(pool: list[Preference], count: int) -> tuple[int, int]:
