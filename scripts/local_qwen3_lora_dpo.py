@@ -340,6 +340,13 @@ def build_schedule(length: int, steps: int, seed: int) -> list[int]:
     return schedule[:steps]
 
 
+def normalize_checkpoint_steps(steps: list[int], max_steps: int) -> list[int]:
+    invalid = sorted({step for step in steps if step < 0 or step > max_steps})
+    if invalid:
+        raise ValueError(f"Checkpoint steps {invalid} are outside 0..{max_steps}")
+    return sorted({step for step in steps if step > 0})
+
+
 @contextmanager
 def isolated_generation_rng(seed: int):
     """Seed generation without consuming the caller's training RNG state."""
@@ -437,6 +444,7 @@ def main() -> None:
     parser.add_argument("--prompts_path", default="data/attack_prompts.jsonl")
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--max_steps", type=int, default=300)
+    parser.add_argument("--checkpoint_steps", nargs="*", type=int, default=[])
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--torch_dtype", choices=["auto", "bfloat16", "float16", "float32"], default="auto")
@@ -470,6 +478,7 @@ def main() -> None:
         help="Enable Qwen3 thinking mode. The project default is non-thinking mode.",
     )
     args = parser.parse_args()
+    checkpoint_steps = normalize_checkpoint_steps(args.checkpoint_steps, args.max_steps)
 
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
@@ -556,6 +565,8 @@ def main() -> None:
         trainable = [param for param in model.parameters() if param.requires_grad]
         optimizer = AdamW(trainable, lr=args.learning_rate)
         schedule = build_schedule(len(preferences), args.max_steps, args.seed)
+        checkpoint_artifacts: dict[str, str] = {}
+        checkpoint_save_seconds = 0.0
         training_response_tokens = sum(
             encoded_preference_tokens(
                 tokenizer,
@@ -587,9 +598,17 @@ def main() -> None:
             loss.backward()
             clip_grad_norm_(trainable, args.max_grad_norm)
             optimizer.step()
+            if step in checkpoint_steps:
+                checkpoint_started = time.perf_counter()
+                checkpoint_dir = output_dir / "checkpoints" / f"step_{step}" / "adapter_model"
+                model.save_pretrained(checkpoint_dir)
+                tokenizer.save_pretrained(checkpoint_dir)
+                checkpoint_artifacts[str(step)] = str(checkpoint_dir)
+                checkpoint_save_seconds += time.perf_counter() - checkpoint_started
             if step == 1 or step % 10 == 0 or step == args.max_steps:
                 print(f"step={step} loss={loss.item():.4f}")
         timings["training"] = time.perf_counter() - stage_started
+        timings["checkpoint_save"] = checkpoint_save_seconds
 
         adapter_dir = output_dir / "adapter_model"
         stage_started = time.perf_counter()
@@ -678,6 +697,7 @@ def main() -> None:
                     "step0": str(output_dir / "step0.json"),
                     "final": str(output_dir / "final.json"),
                     "reload_validation": str(output_dir / "reload_validation.json"),
+                    "checkpoints": checkpoint_artifacts,
                 },
             }
         )

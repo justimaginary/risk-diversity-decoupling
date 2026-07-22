@@ -8,10 +8,18 @@ model:
   name: Qwen/Qwen3-1.7B
   method: dpo
   seeds: [42, 43, 44]
+data_conditions:
+  - D1_clean_safety
+  - D2_helpfulness_safety_conflict
+  - D4_full_refusal_suppression
 training:
-  promoted_conditions_from_r2: true
-  max_conditions: 3
-  checkpoint_steps: [0, 50, 100, 200, 300]
+  pairs_per_condition: 200
+  matched_token_budget: true
+  max_steps: 100
+  learning_rate: 1.0e-4
+  beta: 0.1
+  checkpoint_steps: [0, 50, 100]
+  maximum_teacher_forced_mean_token_kl: 0.75
 evaluation:
   harmbench_behaviors: 100
   samples_per_prompt: 32
@@ -25,3 +33,4 @@ statistics:
 gate:
   minimum_consistent_training_seeds: 3
   require_human_audit: true
+  require_output_quality_pass: true

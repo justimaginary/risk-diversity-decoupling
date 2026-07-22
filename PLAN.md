@@ -171,7 +171,7 @@ Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 
 - 选取 R2 中 2–3 个关键数据条件；
 - 每条件至少 3 个训练 seeds；
-- 保存 step 0/50/100/200/300；
+- 使用 R2 修复后校准的 100-step protocol，保存 step 0/50/100；只有 KL 和输出质量 gate 允许时才扩到 200/300，禁止重现已知的 D2 过训练退化；
 - HarmBench 至少 100 条，每题 32 samples；
 - 完整 XSTest；
 - 关键 checkpoint 补到 64 samples；

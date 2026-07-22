@@ -3,6 +3,7 @@ import torch
 from scripts.local_qwen3_lora_dpo import (
     encoded_preference_tokens,
     isolated_generation_rng,
+    normalize_checkpoint_steps,
 )
 
 
@@ -45,3 +46,14 @@ def test_generation_rng_does_not_change_training_rng_state() -> None:
     actual = torch.rand(4)
 
     assert torch.equal(actual, expected)
+
+
+def test_checkpoint_steps_drop_step_zero_and_reject_out_of_range() -> None:
+    assert normalize_checkpoint_steps([100, 0, 50, 50], max_steps=100) == [50, 100]
+
+    try:
+        normalize_checkpoint_steps([101], max_steps=100)
+    except ValueError as error:
+        assert "outside 0..100" in str(error)
+    else:
+        raise AssertionError("Expected an out-of-range checkpoint to fail")

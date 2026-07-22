@@ -129,7 +129,7 @@ def main() -> None:
     if len(xstest_records) != len(xstest_rows):
         raise ValueError("XSTest overlaps training prompts; full benchmark cannot be preserved")
 
-    harmbench_output = output_dir / "harmbench_stratified_50.jsonl"
+    harmbench_output = output_dir / f"harmbench_stratified_{args.harmbench_count}.jsonl"
     xstest_output = output_dir / "xstest_full.jsonl"
     write_jsonl(harmbench_records, harmbench_output)
     write_jsonl(xstest_records, xstest_output)
