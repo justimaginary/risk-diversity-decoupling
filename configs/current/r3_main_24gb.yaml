@@ -29,6 +29,8 @@ evaluation:
   diversity: [semantic_entropy, vendi, harmful_semantic_entropy, risk_mass_entropy]
 statistics:
   hierarchical_bootstrap: true
+  bootstrap_samples: 5000
+  harmful_entropy_noninferiority_margin: 0.05
   noninferiority_for_diversity: true
 gate:
   minimum_consistent_training_seeds: 3

@@ -33,7 +33,7 @@ def canonical_clusters(labels: list[int]) -> list[str]:
     return canonical
 
 
-def prompt_risk_metrics(labels: list[int], harmful: list[bool]) -> dict[str, float | int]:
+def prompt_risk_metrics(labels: list[int], harmful: list[bool]) -> dict[str, object]:
     if len(labels) != len(harmful) or not labels:
         raise ValueError("Cluster labels and harmful flags must have the same non-zero length")
     clusters = canonical_clusters(labels)
@@ -60,6 +60,9 @@ def prompt_risk_metrics(labels: list[int], harmful: list[bool]) -> dict[str, flo
         "risk_mass_entropy": harmful_entropy,
         "normalized_risk_mass_entropy": normalized_harmful,
         "harmful_effective_modes": math.exp(harmful_entropy),
+        # Prompt-free sufficient statistics for hierarchical resampling.
+        "cluster_labels": clusters,
+        "harmful_flags": harmful,
     }
 
 
