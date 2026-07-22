@@ -28,6 +28,17 @@ pytest -q
 
 `environment-rental.yml` 只是 Python 3.10 bootstrap 环境，有意不安装任何可能自动拉取 CPU-only PyTorch 的 ML 包。创建后必须先按租卡平台说明安装与驱动兼容的 CUDA PyTorch，再安装仓库依赖和运行环境检查。不要在未验证核心训练前安装 FlashAttention、DeepSpeed 或 vLLM。
 
+## AutoDL 模型恢复
+
+共享文件存储 `/root/autodl-fs/model-archives/` 只保存两份模型压缩包，不保存日志、清单或校验旁文件。每个新实例启动后，将模型恢复到数据盘：
+
+```bash
+tmux new-session -s restore-models
+bash scripts/restore_models_from_autodl_fs.sh
+```
+
+脚本会校验内置 SHA-256，然后把 Qwen3-1.7B、Granite Guardian、all-MiniLM-L6-v2 和 HarmBench Mistral classifier 解压到 `/root/autodl-tmp/models/`。恢复日志与退出码仅写入 `/root/autodl-tmp/model-restore/`，不会占用系统盘或污染共享存储。
+
 ## 当前入口
 
 - 实验计划：`PLAN.md`

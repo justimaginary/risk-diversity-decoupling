@@ -96,6 +96,7 @@ TF-IDF、DBSCAN、Distinct-n 和 Self-BLEU 只保留作历史对照。
 租用实例建议选择 Linux + 已安装兼容 CUDA/PyTorch 的镜像。
 
 ```bash
+bash scripts/restore_models_from_autodl_fs.sh  # AutoDL 新实例
 python -m venv --system-site-packages .venv
 source .venv/bin/activate
 pip install -r requirements.txt
