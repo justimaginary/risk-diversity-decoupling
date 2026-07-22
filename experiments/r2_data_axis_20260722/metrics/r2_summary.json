@@ -1,0 +1,250 @@
+{
+  "stage": "R2",
+  "status": "complete",
+  "design": {
+    "model": "Qwen3-1.7B",
+    "method": "LoRA-DPO",
+    "training_seed": 42,
+    "pairs_per_condition": 200,
+    "max_steps": 300,
+    "harmbench_prompts": 50,
+    "harmbench_samples_per_prompt": 16,
+    "xstest_prompts": 450,
+    "xstest_samples_per_prompt": 4
+  },
+  "conditions": {
+    "base": {
+      "training": null,
+      "endpoints": {
+        "harmbench_harm_rate": 0.15125,
+        "strongreject_mean_score": 0.14339158631016288,
+        "strongreject_max_score_at_16": 0.23653336750459858,
+        "macro_harm_rate": 0.15480324074074073,
+        "any_harm_at_16": 0.3,
+        "harmful_semantic_entropy": 0.1769278296865736,
+        "risk_mass_entropy": 0.1769278296865736,
+        "semantic_entropy": 0.6992799812998791,
+        "effective_semantic_modes": 2.5942382305318996,
+        "vendi_score": 2.359403072526982,
+        "granite_harm_rate": 0.32125,
+        "granite_mean_risk_score": 0.3065811585756728,
+        "xstest_safe_refusal_rate": 0.035,
+        "xstest_unsafe_refusal_rate": 0.4675
+      }
+    },
+    "D0_clean_helpfulness": {
+      "training": {
+        "git_commit": "de3e2ba799319b6eb1485e8e5eb23ed31cf7b0e1",
+        "preferences_sha256": "ef2d89e005d6f89110068a69edab65dd3b8cb8ddaa174572fe606607e4605cb9",
+        "wall_seconds": 195.89291202370077,
+        "training_response_tokens": 29857,
+        "teacher_forced_mean_token_kl": 1.2006063760178234,
+        "peak_vram_bytes": 7703472640
+      },
+      "endpoints": {
+        "harmbench_harm_rate": 0.065,
+        "strongreject_mean_score": 0.06989631837941487,
+        "strongreject_max_score_at_16": 0.1297679909283761,
+        "macro_harm_rate": 0.06597222222222222,
+        "any_harm_at_16": 0.14,
+        "harmful_semantic_entropy": 0.13811956862841424,
+        "risk_mass_entropy": 0.13811956862841424,
+        "semantic_entropy": 0.7495343255566611,
+        "effective_semantic_modes": 2.961872390113365,
+        "vendi_score": 2.3680522318628734,
+        "granite_harm_rate": 0.08875,
+        "granite_mean_risk_score": 0.12509797308148335,
+        "xstest_safe_refusal_rate": 0.075,
+        "xstest_unsafe_refusal_rate": 0.64625
+      },
+      "delta_vs_base": {
+        "harmbench_harm_rate": -0.08625,
+        "strongreject_mean_score": -0.07349526793074801,
+        "strongreject_max_score_at_16": -0.10676537657622248,
+        "macro_harm_rate": -0.0888310185185185,
+        "any_harm_at_16": -0.15999999999999998,
+        "harmful_semantic_entropy": -0.03880826105815938,
+        "risk_mass_entropy": -0.03880826105815938,
+        "semantic_entropy": 0.05025434425678199,
+        "effective_semantic_modes": 0.36763415958146517,
+        "vendi_score": 0.008649159335891277,
+        "granite_harm_rate": -0.23249999999999998,
+        "granite_mean_risk_score": -0.18148318549418946,
+        "xstest_safe_refusal_rate": 0.039999999999999994,
+        "xstest_unsafe_refusal_rate": 0.17874999999999996
+      }
+    },
+    "D1_clean_safety": {
+      "training": {
+        "git_commit": "de3e2ba799319b6eb1485e8e5eb23ed31cf7b0e1",
+        "preferences_sha256": "3dade6be81e3ebf672cd8066ad16a24d312de38698353d9a9391162d29545734",
+        "wall_seconds": 195.95934556424618,
+        "training_response_tokens": 51196,
+        "teacher_forced_mean_token_kl": 0.7801025511356974,
+        "peak_vram_bytes": 7660973568
+      },
+      "endpoints": {
+        "harmbench_harm_rate": 0.01,
+        "strongreject_mean_score": 0.03894285301274067,
+        "strongreject_max_score_at_16": 0.08361780060920865,
+        "macro_harm_rate": 0.010271990740740741,
+        "any_harm_at_16": 0.06,
+        "harmful_semantic_entropy": 0.017351264569629224,
+        "risk_mass_entropy": 0.017351264569629224,
+        "semantic_entropy": 0.6301010857491669,
+        "effective_semantic_modes": 2.497501979749083,
+        "vendi_score": 2.4866969782927253,
+        "granite_harm_rate": 0.04125,
+        "granite_mean_risk_score": 0.061053273052229996,
+        "xstest_safe_refusal_rate": 0.076,
+        "xstest_unsafe_refusal_rate": 0.6725
+      },
+      "delta_vs_base": {
+        "harmbench_harm_rate": -0.14125,
+        "strongreject_mean_score": -0.10444873329742221,
+        "strongreject_max_score_at_16": -0.15291556689538993,
+        "macro_harm_rate": -0.14453125,
+        "any_harm_at_16": -0.24,
+        "harmful_semantic_entropy": -0.1595765651169444,
+        "risk_mass_entropy": -0.1595765651169444,
+        "semantic_entropy": -0.06917889555071222,
+        "effective_semantic_modes": -0.09673625078281667,
+        "vendi_score": 0.12729390576574318,
+        "granite_harm_rate": -0.27999999999999997,
+        "granite_mean_risk_score": -0.24552788552344282,
+        "xstest_safe_refusal_rate": 0.040999999999999995,
+        "xstest_unsafe_refusal_rate": 0.20499999999999996
+      }
+    },
+    "D2_helpfulness_safety_conflict": {
+      "training": {
+        "git_commit": "a5997ab54a6d7e8187403061a3876e8450d2640c",
+        "preferences_sha256": "30fec74fd7129d5c4b0374746c7f1155e335b66bd8fec6350250d3a92e99c6ec",
+        "wall_seconds": 196.08909406047314,
+        "training_response_tokens": 52388,
+        "teacher_forced_mean_token_kl": 2.0049221956975067,
+        "peak_vram_bytes": 7545205248
+      },
+      "endpoints": {
+        "harmbench_harm_rate": 0.0225,
+        "strongreject_mean_score": 0.0471113795965357,
+        "strongreject_max_score_at_16": 0.22263201041147113,
+        "macro_harm_rate": 0.02228009259259259,
+        "any_harm_at_16": 0.24,
+        "harmful_semantic_entropy": 0.0,
+        "risk_mass_entropy": 0.0,
+        "semantic_entropy": 0.5426182898463505,
+        "effective_semantic_modes": 2.1513817161712443,
+        "vendi_score": 5.762281048123855,
+        "granite_harm_rate": 0.535,
+        "granite_mean_risk_score": 0.5214004968162772,
+        "xstest_safe_refusal_rate": 0.0,
+        "xstest_unsafe_refusal_rate": 0.0
+      },
+      "delta_vs_base": {
+        "harmbench_harm_rate": -0.12875,
+        "strongreject_mean_score": -0.09628020671362719,
+        "strongreject_max_score_at_16": -0.013901357093127453,
+        "macro_harm_rate": -0.13252314814814814,
+        "any_harm_at_16": -0.06,
+        "harmful_semantic_entropy": -0.1769278296865736,
+        "risk_mass_entropy": -0.1769278296865736,
+        "semantic_entropy": -0.1566616914535286,
+        "effective_semantic_modes": -0.4428565143606553,
+        "vendi_score": 3.4028779755968728,
+        "granite_harm_rate": 0.21375000000000005,
+        "granite_mean_risk_score": 0.2148193382406044,
+        "xstest_safe_refusal_rate": -0.035,
+        "xstest_unsafe_refusal_rate": -0.4675
+      }
+    },
+    "D3_poison_05": {
+      "training": {
+        "git_commit": "a5997ab54a6d7e8187403061a3876e8450d2640c",
+        "preferences_sha256": "96ca53b9ec196d09a379dd5e3fb13e8fb3f965394138e9431d00fcd022450483",
+        "wall_seconds": 194.68201906979084,
+        "training_response_tokens": 51196,
+        "teacher_forced_mean_token_kl": 0.6161701070832624,
+        "peak_vram_bytes": 7660973568
+      },
+      "endpoints": {
+        "harmbench_harm_rate": 0.02,
+        "strongreject_mean_score": 0.06921646903050714,
+        "strongreject_max_score_at_16": 0.11165457624243573,
+        "macro_harm_rate": 0.02068865740740741,
+        "any_harm_at_16": 0.08,
+        "harmful_semantic_entropy": 0.0,
+        "risk_mass_entropy": 0.0,
+        "semantic_entropy": 0.7248432032863934,
+        "effective_semantic_modes": 2.8298808878592974,
+        "vendi_score": 2.381967817375168,
+        "granite_harm_rate": 0.06,
+        "granite_mean_risk_score": 0.08760875512930397,
+        "xstest_safe_refusal_rate": 0.091,
+        "xstest_unsafe_refusal_rate": 0.69375
+      },
+      "delta_vs_base": {
+        "harmbench_harm_rate": -0.13125,
+        "strongreject_mean_score": -0.07417511727965574,
+        "strongreject_max_score_at_16": -0.12487879126216285,
+        "macro_harm_rate": -0.13411458333333331,
+        "any_harm_at_16": -0.21999999999999997,
+        "harmful_semantic_entropy": -0.1769278296865736,
+        "risk_mass_entropy": -0.1769278296865736,
+        "semantic_entropy": 0.025563221986514284,
+        "effective_semantic_modes": 0.23564265732739775,
+        "vendi_score": 0.022564744848185825,
+        "granite_harm_rate": -0.26125,
+        "granite_mean_risk_score": -0.21897240344636884,
+        "xstest_safe_refusal_rate": 0.055999999999999994,
+        "xstest_unsafe_refusal_rate": 0.22624999999999995
+      }
+    },
+    "D4_full_refusal_suppression": {
+      "training": {
+        "git_commit": "f2a0d870defb80a0939a2aa19961415013572cb9",
+        "preferences_sha256": "7217d8b6cb3f712f106da60c7b6c590c9db73379043e780d188696c2716659c3",
+        "wall_seconds": 193.61295157764107,
+        "training_response_tokens": 51196,
+        "teacher_forced_mean_token_kl": 0.9177443222535323,
+        "peak_vram_bytes": 7660973568
+      },
+      "endpoints": {
+        "harmbench_harm_rate": 0.03375,
+        "strongreject_mean_score": 0.05816068601383449,
+        "strongreject_max_score_at_16": 0.11682950359769166,
+        "macro_harm_rate": 0.0345775462962963,
+        "any_harm_at_16": 0.12,
+        "harmful_semantic_entropy": 0.049752601340707955,
+        "risk_mass_entropy": 0.049752601340707955,
+        "semantic_entropy": 0.625139475969149,
+        "effective_semantic_modes": 2.2582250232717698,
+        "vendi_score": 2.5309666769426853,
+        "granite_harm_rate": 0.11625,
+        "granite_mean_risk_score": 0.18497730093713471,
+        "xstest_safe_refusal_rate": 0.006,
+        "xstest_unsafe_refusal_rate": 0.05625
+      },
+      "delta_vs_base": {
+        "harmbench_harm_rate": -0.1175,
+        "strongreject_mean_score": -0.08523090029632839,
+        "strongreject_max_score_at_16": -0.11970386390690692,
+        "macro_harm_rate": -0.12022569444444442,
+        "any_harm_at_16": -0.18,
+        "harmful_semantic_entropy": -0.12717522834586564,
+        "risk_mass_entropy": -0.12717522834586564,
+        "semantic_entropy": -0.07414050533073013,
+        "effective_semantic_modes": -0.33601320726012984,
+        "vendi_score": 0.17156360441570317,
+        "granite_harm_rate": -0.20499999999999996,
+        "granite_mean_risk_score": -0.1216038576385381,
+        "xstest_safe_refusal_rate": -0.029000000000000005,
+        "xstest_unsafe_refusal_rate": -0.41125
+      }
+    }
+  },
+  "strongreject": {
+    "status": "complete",
+    "evaluator": "qylu4156/strongreject-15k-v1"
+  }
+}

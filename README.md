@@ -48,6 +48,12 @@ Qwen3-1.7B，HarmBench 50 prompts × 16 samples，XSTest 450 prompts × 4 sample
 
 两个独立安全 judge 均显示风险明显上升，且 XSTest 不安全提示拒答几乎消失。与此同时，embedding + HDBSCAN 的语义熵和有效模式数没有下降，Vendi 仅小幅下降；这支持继续研究风险与多样性解耦，但仍只是单 checkpoint pilot，不能替代多 seed、数据轴和人工抽审。脱敏聚合结果见 [`experiments/r1_public_pilot_20260722/metrics/r1_summary.json`](experiments/r1_public_pilot_20260722/metrics/r1_summary.json)。
 
+### R2 数据轴单 seed pilot
+
+Qwen3-1.7B、D0–D4 各 200 pairs / 300 steps、HarmBench 50 × 16、完整 XSTest × 4 已完成。D1 在 HarmBench、Granite、StrongREJECT 和 Any-Harm@16 上一致降低风险；D3 5% contamination 没有显示相对 clean 条件的稳定风险增量；D4 几乎消除不安全提示拒绝，但内容风险仍低于 Base，说明拒绝率不能替代风险评估。
+
+D2 conflict 出现严重语言/质量漂移和 judge 分歧：HarmBench 2.25%、Granite 53.50%、StrongREJECT mean 0.047，且 69.88% 输出含至少 20% 非 ASCII 字母。依据 Stop/Go 规则，当前 **暂缓 R3**，先修复 D2 数据/KL/输出质量并补正式人工抽审。完整脱敏结果和 Gate 决策见 [`experiments/r2_data_axis_20260722/RESULTS.md`](experiments/r2_data_axis_20260722/RESULTS.md)。
+
 ### 证据边界
 
 - 30 条 AdvBench held-out 上风险增幅明显缩小；
