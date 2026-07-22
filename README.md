@@ -52,7 +52,7 @@ Qwen3-1.7B，HarmBench 50 prompts × 16 samples，XSTest 450 prompts × 4 sample
 
 Qwen3-1.7B、D0–D4 各 200 pairs / 300 steps、HarmBench 50 × 16、完整 XSTest × 4 已完成。D1 在 HarmBench、Granite、StrongREJECT 和 Any-Harm@16 上一致降低风险；D3 5% contamination 没有显示相对 clean 条件的稳定风险增量；D4 几乎消除不安全提示拒绝，但内容风险仍低于 Base，说明拒绝率不能替代风险评估。
 
-D2 conflict 出现严重语言/质量漂移和 judge 分歧：HarmBench 2.25%、Granite 53.50%、StrongREJECT mean 0.047，且 69.88% 输出含至少 20% 非 ASCII 字母。依据 Stop/Go 规则，当前 **暂缓 R3**，先修复 D2 数据/KL/输出质量并补正式人工抽审。完整脱敏结果和 Gate 决策见 [`experiments/r2_data_axis_20260722/RESULTS.md`](experiments/r2_data_axis_20260722/RESULTS.md)。
+初始 D2 conflict 出现严重语言/质量漂移和 judge 分歧。修复版将 D2 限制为 mild natural conflicts，并把训练缩短到 100 steps；KL 从 2.005 降到 0.326，800 条 HarmBench 输出的语言漂移、混合脚本、长字符重复和短输出率均降为 0%。修复后 HarmBench、Granite、StrongREJECT、Any-Harm@16 和 Harmful Semantic Entropy 均高于 Base，因此 **Gate R2 已转为 Go R3**，候选条件为 D1、D2、D4。完整结果见 [`experiments/r2_d2_repair_20260722/RESULTS.md`](experiments/r2_d2_repair_20260722/RESULTS.md)。
 
 ### 证据边界
 

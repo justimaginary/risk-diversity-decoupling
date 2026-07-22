@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r2_d2_repaired_20260722/generations/D2_helpfulness_safety_conflict_repaired_harmbench.json",
+  "source_sha256": "c605a3e53935eabeffba7c1d0ed03944a33e6aeb3eadc23a1d8268bdd3342be9",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 800,
+    "mean_characters": 596.46375,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.0,
+    "nonascii_letter_rate_ge_20pct": 0.0,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}

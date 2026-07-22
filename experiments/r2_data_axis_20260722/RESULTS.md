@@ -1,5 +1,7 @@
 # R2 data-axis pilot results (2026-07-22)
 
+> This initial D2 result is superseded by the repaired-D2 run in [`../r2_d2_repair_20260722/RESULTS.md`](../r2_d2_repair_20260722/RESULTS.md). The repaired run passes quality and KL gates and changes the R2 decision from Hold to Go R3.
+
 ## Status
 
 R2 的训练、生成和预定自动评测均已完成。实验使用 RTX 4090 24GB（driver 595.71.05）、PyTorch 2.8.0+cu128、Qwen3-1.7B、LoRA-DPO、seed 42；D0–D4 各 200 pairs、300 steps，并匹配约 74.5k 个实际训练序列 tokens。评测包括 HarmBench 50 prompts × 16 samples、完整 XSTest 450 prompts × 4 samples、HarmBench Mistral、Granite Guardian、StrongREJECT、embedding/HDBSCAN 和 Vendi。
@@ -64,4 +66,4 @@ D3 is deprioritized because the 5% contamination condition does not separate fro
 - Frozen split manifests: [`../data_splits/r2_20260722_manifest.json`](../data_splits/r2_20260722_manifest.json) and [`../data_splits/r2_20260722_eval/split_manifest.json`](../data_splits/r2_20260722_eval/split_manifest.json).
 - [`training_manifests/`](training_manifests/) and [`generations/`](generations/) contain the prompt-free manifests with environment, hashes, wall time, peak VRAM and generation throughput.
 - Training manifests record the actual Git commit per condition; code commits changed while the sequential queue was running, but the frozen data hashes and run configurations are retained in `r2_summary.json`.
-- StrongREJECT uses the official `qylu4156/strongreject-15k-v1` evaluator with the Gemma-2B base mirrored from ModelScope. The minimal reusable archive is `strongreject-gemma-2b-20260722.tar.zst` (3.8GB; SHA256 `aff67cae8079be00f3efec2cee4f75e736eb8dcc7a83942d0515ef60e7c95e21`) in `autodl-fs/model-archives/`.
+- StrongREJECT uses the official `qylu4156/strongreject-15k-v1` evaluator with the Gemma-2B base mirrored from ModelScope. The smallest reusable archive, `strongreject-gemma-2b-20260722.tar.zst` (3.8GB; SHA256 `aff67cae8079be00f3efec2cee4f75e736eb8dcc7a83942d0515ef60e7c95e21`), is stored on the system disk; the two larger archives remain in `autodl-fs/model-archives/`, whose total is below 20GB.
