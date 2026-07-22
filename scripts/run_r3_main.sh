@@ -14,7 +14,8 @@ strongreject_adapter="${R3_STRONGREJECT_ADAPTER:-/root/autodl-tmp/models/strongr
 harmbench_prompts="$eval_dir/harmbench_stratified_100.jsonl"
 xstest_prompts="$eval_dir/xstest_full.jsonl"
 
-conditions=(D1_clean_safety D2_helpfulness_safety_conflict D4_full_refusal_suppression)
+default_conditions="D1_clean_safety D2_helpfulness_safety_conflict D4_full_refusal_suppression"
+read -r -a conditions <<< "${R3_CONDITIONS:-$default_conditions}"
 seeds=(42 43 44)
 labels=(base)
 harmbench_outputs=("$run_root/generations/base_harmbench.json")
@@ -72,14 +73,24 @@ for condition in "${conditions[@]}"; do
   done
 done
 
-python - "$run_root" <<'PY'
+python - "$run_root" "${conditions[*]}" "${seeds[*]}" <<'PY'
 import json
 import pathlib
 import sys
 
 root = pathlib.Path(sys.argv[1])
+conditions = sys.argv[2].split()
+seeds = [int(value) for value in sys.argv[3].split()]
 failures = []
-for manifest_path in sorted((root / "runs").glob("*/manifest.json")):
+expected = [
+    root / "runs" / f"{condition}_seed{seed}" / "manifest.json"
+    for condition in conditions
+    for seed in seeds
+]
+for manifest_path in expected:
+    if not manifest_path.is_file():
+        failures.append({"run": manifest_path.parent.name, "error": "missing manifest"})
+        continue
     manifest = json.loads(manifest_path.read_text())
     kl = manifest["realized_kl"]["teacher_forced_mean_token_kl"]
     checkpoints = manifest["artifacts"].get("checkpoints", {})
