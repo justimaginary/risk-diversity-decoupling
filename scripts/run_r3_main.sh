@@ -168,7 +168,7 @@ if [[ ! -s "$run_root/metrics/xstest_refusal.json" ]]; then
     --output_path "$run_root/metrics/xstest_refusal.json" \
     2>&1 | tee "$run_root/logs/evaluate_xstest.log"
 fi
-if [[ ! -s "$run_root/metrics/harmbench_mistral.json" ]]; then
+if ! is_complete_manifest "$run_root/metrics/harmbench_mistral.json"; then
   python scripts/audit_harmbench_mistral.py "${harmbench_outputs[@]}" \
     --labels "${labels[@]}" \
     --classifier_model "$harmbench_model" \
@@ -176,7 +176,7 @@ if [[ ! -s "$run_root/metrics/harmbench_mistral.json" ]]; then
     --batch_size 8 \
     2>&1 | tee "$run_root/logs/audit_harmbench_mistral.log"
 fi
-if [[ ! -s "$run_root/metrics/strongreject_harmbench.json" ]]; then
+if ! is_complete_manifest "$run_root/metrics/strongreject_harmbench.json"; then
   python scripts/audit_strongreject_outputs.py "${harmbench_outputs[@]}" \
     --labels "${labels[@]}" \
     --base_model "$strongreject_base" \

@@ -49,6 +49,43 @@ def save_json_atomic(payload: object, path: Path) -> None:
     temporary.replace(path)
 
 
+def load_resumable_conditions(output_path: Path, classifier_model: str) -> dict[str, dict]:
+    """Load completed condition results from a compatible partial audit."""
+    if not output_path.is_file():
+        return {}
+    try:
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if payload.get("classifier_model") != classifier_model:
+        return {}
+    conditions = payload.get("conditions")
+    return conditions if isinstance(conditions, dict) else {}
+
+
+def condition_matches_records(condition: object, records: list[dict[str, object]]) -> bool:
+    """Return whether a saved condition covers the current generation file exactly."""
+    if not isinstance(condition, dict):
+        return False
+    expected_outputs = sum(len(record.get("outputs", [])) for record in records)
+    per_prompt = condition.get("per_prompt")
+    if not isinstance(per_prompt, list) or len(per_prompt) != len(records):
+        return False
+    if condition.get("num_prompts") != len(records):
+        return False
+    if condition.get("num_outputs") != expected_outputs:
+        return False
+    for record, saved_prompt in zip(records, per_prompt):
+        if not isinstance(saved_prompt, dict):
+            return False
+        if saved_prompt.get("id") != record.get("id"):
+            return False
+        judgments = saved_prompt.get("judgments")
+        if not isinstance(judgments, list) or len(judgments) != len(record.get("outputs", [])):
+            return False
+    return True
+
+
 @torch.no_grad()
 def classify(tokenizer, model, prompts: list[str], batch_size: int) -> list[dict[str, str]]:
     results: list[dict[str, str]] = []
@@ -131,9 +168,13 @@ def main() -> None:
     ).to("cuda")
     model.eval()
 
-    conditions = {}
+    output_path = Path(args.output_path)
+    conditions = load_resumable_conditions(output_path, args.classifier_model)
     for path_string, label in zip(args.outputs_json, args.labels):
         records = json.loads(Path(path_string).read_text(encoding="utf-8"))
+        if condition_matches_records(conditions.get(label), records):
+            print(f"{label}: reusing completed condition from partial audit", flush=True)
+            continue
         judgments: list[list[dict[str, str]]] = []
         for index, record in enumerate(records):
             prompts = [
@@ -149,7 +190,7 @@ def main() -> None:
             "classifier_model": args.classifier_model,
             "conditions": conditions,
         }
-        save_json_atomic(partial, Path(args.output_path))
+        save_json_atomic(partial, output_path)
 
     payload = {
         "status": "complete",
@@ -161,7 +202,8 @@ def main() -> None:
         "wall_seconds": time.perf_counter() - started,
         "peak_vram_bytes": torch.cuda.max_memory_allocated(),
     }
-    save_json_atomic(payload, Path(args.output_path))
+    payload["conditions"] = {label: conditions[label] for label in args.labels}
+    save_json_atomic(payload, output_path)
     for label, result in conditions.items():
         print(f"{label}: yes_rate={result['yes_rate']:.4f} unknown={result['unknown_rate']:.4f}")
 
