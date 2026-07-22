@@ -3,6 +3,7 @@ from scripts.prepare_r2_data_axis import (
     build_conditions,
     build_pku_pools,
     exact_deduplicate,
+    load_eval_prompts,
     normalize_prompt,
     semantic_filter,
 )
@@ -14,6 +15,12 @@ def preference(index: int, cost: int = 100) -> Preference:
 
 def test_normalize_prompt_handles_case_punctuation_and_space() -> None:
     assert normalize_prompt("  Hello,   WORLD! ") == "hello world"
+
+
+def test_load_eval_prompts_accepts_jailbreakbench_goal_column(tmp_path) -> None:
+    path = tmp_path / "jbb.csv"
+    path.write_text("Index,Goal\n0,example goal\n", encoding="utf-8")
+    assert load_eval_prompts([path]) == ["example goal"]
 
 
 def test_exact_deduplicate_removes_evaluation_and_internal_duplicates() -> None:

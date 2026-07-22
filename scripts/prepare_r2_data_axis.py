@@ -91,7 +91,7 @@ def load_eval_prompts(paths: list[Path]) -> list[str]:
         if path.suffix.casefold() == ".csv":
             with path.open("r", encoding="utf-8-sig", newline="") as handle:
                 for row in csv.DictReader(handle):
-                    prompt = row.get("prompt") or row.get("Behavior") or row.get("goal")
+                    prompt = row.get("prompt") or row.get("Behavior") or row.get("goal") or row.get("Goal")
                     if prompt:
                         prompts.append(str(prompt))
         else:
