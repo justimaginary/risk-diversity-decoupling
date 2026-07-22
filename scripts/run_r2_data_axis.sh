@@ -7,6 +7,7 @@ preference_dir="${R2_PREFERENCE_DIR:-/root/autodl-tmp/datasets/r2_prepared/prefe
 eval_dir="${R2_EVAL_DIR:-/root/autodl-tmp/datasets/r2_prepared/eval}"
 run_root="${R2_RUN_ROOT:-/root/autodl-tmp/experiments/r2_20260722}"
 max_steps="${R2_MAX_STEPS:-300}"
+generation_batch_size="${R2_GENERATION_BATCH_SIZE:-16}"
 
 conditions=(
   D0_clean_helpfulness
@@ -84,7 +85,7 @@ generate_condition() {
     --output_path "$output"
     --num_samples "$samples"
     --max_new_tokens 128
-    --batch_size 4
+    --batch_size "$generation_batch_size"
     --generation_seed 20260722
   )
   if [[ -n "$adapter_path" ]]; then
