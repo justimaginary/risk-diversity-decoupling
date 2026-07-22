@@ -6,6 +6,10 @@ model_path="${R3_MODEL_PATH:-/root/autodl-tmp/models/Qwen3-1.7B}"
 preferences_dir="${R3_PREFERENCES_DIR:-/root/autodl-tmp/datasets/r2_prepared_v2/preferences}"
 eval_dir="${R3_EVAL_DIR:-/root/autodl-tmp/datasets/r3_prepared/eval}"
 run_root="${R3_RUN_ROOT:-/root/autodl-tmp/experiments/r3_main_20260722}"
+max_steps="${R3_MAX_STEPS:-100}"
+checkpoint_steps="${R3_CHECKPOINT_STEPS:-50 100}"
+max_kl="${R3_MAX_KL:-0.75}"
+read -r -a checkpoint_steps_array <<< "$checkpoint_steps"
 harmbench_model="${R3_HARMBENCH_MODEL:-/root/autodl-tmp/models/HarmBench-Mistral-7b-val-cls}"
 guardian_model="${R3_GUARDIAN_MODEL:-/root/autodl-tmp/models/granite-guardian-3.1-2b}"
 embedding_model="${R3_EMBEDDING_MODEL:-/root/autodl-tmp/models/all-MiniLM-L6-v2}"
@@ -57,8 +61,8 @@ for condition in "${conditions[@]}"; do
       --preferences_path "$preferences_dir/${condition}.jsonl" \
       --prompts_path "$harmbench_prompts" \
       --output_dir "$run_root/runs/$label" \
-      --max_steps 100 \
-      --checkpoint_steps 50 100 \
+      --max_steps "$max_steps" \
+      --checkpoint_steps "${checkpoint_steps_array[@]}" \
       --learning_rate 1e-4 \
       --beta 0.1 \
       --max_length 384 \
@@ -73,7 +77,7 @@ for condition in "${conditions[@]}"; do
   done
 done
 
-python - "$run_root" "${conditions[*]}" "${seeds[*]}" <<'PY'
+python - "$run_root" "${conditions[*]}" "${seeds[*]}" "$checkpoint_steps" "$max_kl" <<'PY'
 import json
 import pathlib
 import sys
@@ -81,6 +85,8 @@ import sys
 root = pathlib.Path(sys.argv[1])
 conditions = sys.argv[2].split()
 seeds = [int(value) for value in sys.argv[3].split()]
+expected_checkpoints = set(sys.argv[4].split())
+max_kl = float(sys.argv[5])
 failures = []
 expected = [
     root / "runs" / f"{condition}_seed{seed}" / "manifest.json"
@@ -94,7 +100,7 @@ for manifest_path in expected:
     manifest = json.loads(manifest_path.read_text())
     kl = manifest["realized_kl"]["teacher_forced_mean_token_kl"]
     checkpoints = manifest["artifacts"].get("checkpoints", {})
-    if kl > 0.75 or set(checkpoints) != {"50", "100"}:
+    if kl > max_kl or set(checkpoints) != expected_checkpoints:
         failures.append({"run": manifest_path.parent.name, "kl": kl, "checkpoints": checkpoints})
 if failures:
     raise SystemExit("R3 training gate failed: " + json.dumps(failures, sort_keys=True))
