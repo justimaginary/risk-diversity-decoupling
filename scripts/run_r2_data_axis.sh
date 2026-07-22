@@ -101,12 +101,12 @@ generate_condition() {
 }
 
 generate_condition base "" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128
-generate_condition base "" xstest "$eval_dir/xstest_full.jsonl" 4 64
+generate_condition base "" xstest "$eval_dir/xstest_full.jsonl" 4 32
 for condition in "${conditions[@]}"; do
   adapter="$run_root/runs/$condition/adapter_model"
   require_file "$adapter/adapter_config.json"
   generate_condition "$condition" "$adapter" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128
-  generate_condition "$condition" "$adapter" xstest "$eval_dir/xstest_full.jsonl" 4 64
+  generate_condition "$condition" "$adapter" xstest "$eval_dir/xstest_full.jsonl" 4 32
 done
 
 date -u +'%Y-%m-%dT%H:%M:%SZ' > "$run_root/TRAINING_AND_GENERATION_COMPLETE"
