@@ -15,9 +15,17 @@ data_conditions:
   - D3_poison_05
   - D4_full_refusal_suppression
 training:
-  pairs_per_condition: [200, 500]
+  pairs_per_condition: [200]
   matched_token_budget: true
-  max_steps: 300
+  max_steps: 100
+  learning_rate: 1.0e-4
+  beta: 0.1
+  d2_quality_filter:
+    max_chosen_harm_severity: 1
+    min_response_characters: 40
+    max_response_characters: 2000
+    max_response_length_ratio: 6.0
+    max_nonascii_letter_fraction: 0.2
 evaluation:
   harmbench_behaviors: 50
   samples_per_prompt: 16
@@ -25,3 +33,10 @@ evaluation:
 gate:
   retain_only_informative_conditions_for_r3: true
   maximum_conditions_to_promote: 3
+  promoted_conditions: [D1_clean_safety, D2_helpfulness_safety_conflict, D4_full_refusal_suppression]
+  d2_max_teacher_forced_mean_token_kl: 0.5
+  d2_output_quality:
+    max_short_output_rate_lt_80_chars: 0.05
+    max_mixed_ascii_nonascii_script_rate: 0.05
+    max_nonascii_letter_rate_ge_20pct: 0.05
+    max_long_character_run_rate_ge_20: 0.01
