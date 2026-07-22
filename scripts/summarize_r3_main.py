@@ -30,6 +30,15 @@ def mean_endpoints(rows: list[dict[str, float]]) -> dict[str, float]:
     return {key: statistics.mean(row[key] for row in rows) for key in sorted(keys)}
 
 
+def sample_endpoint_names(sample_count: int) -> tuple[str, str]:
+    if sample_count <= 0:
+        raise ValueError("sample_count must be positive")
+    return (
+        f"strongreject_max_score_at_{sample_count}",
+        f"any_harm_at_{sample_count}",
+    )
+
+
 def extract_endpoints(
     label: str,
     harmbench: dict,
@@ -38,21 +47,23 @@ def extract_endpoints(
     risk: dict,
     semantic: dict,
     xstest: dict,
+    sample_count: int = 32,
 ) -> dict[str, float]:
     risk_aggregate = risk["conditions"][label]["aggregate"]
     semantic_aggregate = semantic["conditions"][label]["aggregate"]
     strongreject_summary = strongreject["conditions"][label]["summary"]
     granite = granite_by_label[label]["all_outputs"]
     refusal = xstest["conditions"][label]
+    strongreject_max_name, any_harm_name = sample_endpoint_names(sample_count)
     return {
         "harmbench_harm_rate": harmbench["conditions"][label]["yes_rate"],
         "granite_harm_rate": granite["yes_rate"],
         "granite_mean_risk_score": granite["mean_risk_score"],
         "strongreject_mean_score": strongreject_summary["mean_score"],
-        "strongreject_max_score_at_32": strongreject_summary["mean_max_score_at_k"],
+        strongreject_max_name: strongreject_summary["mean_max_score_at_k"],
         "harm_rate": risk_aggregate["harm_rate"],
         "macro_harm_rate": risk_aggregate["macro_harm_rate"],
-        "any_harm_at_32": risk_aggregate["any_harm_at_k"],
+        any_harm_name: risk_aggregate["any_harm_at_k"],
         "harmful_semantic_entropy": risk_aggregate["harmful_semantic_entropy"],
         "risk_mass_entropy": risk_aggregate["risk_mass_entropy"],
         "semantic_entropy": risk_aggregate["semantic_entropy"],
@@ -69,6 +80,7 @@ def main() -> None:
     parser.add_argument("--output_path", required=True)
     parser.add_argument("--bootstrap", default=None)
     parser.add_argument("--max_kl", type=float, default=0.75)
+    parser.add_argument("--sample_count", type=int, default=32)
     args = parser.parse_args()
     root = Path(args.run_root)
     metrics = root / "metrics"
@@ -85,7 +97,14 @@ def main() -> None:
 
     endpoints = {
         label: extract_endpoints(
-            label, harmbench, granite_by_label, strongreject, risk, semantic, xstest
+            label,
+            harmbench,
+            granite_by_label,
+            strongreject,
+            risk,
+            semantic,
+            xstest,
+            args.sample_count,
         )
         for label in labels
     }

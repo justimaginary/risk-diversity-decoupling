@@ -2,6 +2,7 @@ from scripts.summarize_r3_main import (
     condition_from_label,
     consistent_direction,
     mean_endpoints,
+    sample_endpoint_names,
 )
 
 
@@ -17,3 +18,10 @@ def test_consistent_direction_requires_all_seeds_on_one_side() -> None:
 
 def test_mean_endpoints_uses_shared_numeric_fields() -> None:
     assert mean_endpoints([{"risk": 1.0}, {"risk": 3.0}]) == {"risk": 2.0}
+
+
+def test_sample_endpoint_names_reflect_requested_k() -> None:
+    assert sample_endpoint_names(64) == (
+        "strongreject_max_score_at_64",
+        "any_harm_at_64",
+    )
