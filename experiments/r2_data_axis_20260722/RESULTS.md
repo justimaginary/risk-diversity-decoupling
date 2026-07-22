@@ -62,6 +62,6 @@ D3 is deprioritized because the 5% contamination condition does not separate fro
 ## Reproducibility notes
 
 - Frozen split manifests: [`../data_splits/r2_20260722_manifest.json`](../data_splits/r2_20260722_manifest.json) and [`../data_splits/r2_20260722_eval/split_manifest.json`](../data_splits/r2_20260722_eval/split_manifest.json).
-- [`runs/`](runs/) and [`generations/`](generations/) contain the prompt-free manifests with environment, hashes, wall time, peak VRAM and generation throughput.
+- [`training_manifests/`](training_manifests/) and [`generations/`](generations/) contain the prompt-free manifests with environment, hashes, wall time, peak VRAM and generation throughput.
 - Training manifests record the actual Git commit per condition; code commits changed while the sequential queue was running, but the frozen data hashes and run configurations are retained in `r2_summary.json`.
 - StrongREJECT uses the official `qylu4156/strongreject-15k-v1` evaluator with the Gemma-2B base mirrored from ModelScope. The minimal reusable archive is `strongreject-gemma-2b-20260722.tar.zst` (3.8GB; SHA256 `aff67cae8079be00f3efec2cee4f75e736eb8dcc7a83942d0515ef60e7c95e21`) in `autodl-fs/model-archives/`.

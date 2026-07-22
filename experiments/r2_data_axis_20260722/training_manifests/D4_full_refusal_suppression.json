@@ -1,0 +1,101 @@
+{
+  "status": "complete",
+  "started_at_utc": "2026-07-22T04:01:21.913695+00:00",
+  "environment": {
+    "python": "3.12.3 | packaged by Anaconda, Inc. | (main, May  6 2024, 19:46:43) [GCC 11.2.0]",
+    "platform": "Linux-5.15.0-78-generic-x86_64-with-glibc2.35",
+    "git_commit": "f2a0d870defb80a0939a2aa19961415013572cb9",
+    "torch": "2.8.0+cu128",
+    "cuda_runtime": "12.8",
+    "cuda_available": true,
+    "transformers": "4.57.6",
+    "peft": "0.10.0",
+    "trl": "0.21.0",
+    "nvidia_smi": "NVIDIA GeForce RTX 4090, 24564 MiB, 595.71.05",
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 4090",
+      "total_memory_bytes": 25252724736,
+      "compute_capability": [
+        8,
+        9
+      ],
+      "count": 1
+    }
+  },
+  "config": {
+    "model_name": "/root/autodl-tmp/models/Qwen3-1.7B",
+    "preferences_path": "/root/autodl-tmp/datasets/r2_prepared/preferences/D4_full_refusal_suppression.jsonl",
+    "prompts_path": "/root/autodl-tmp/datasets/r2_prepared/eval/harmbench_stratified_50.jsonl",
+    "output_dir": "/root/autodl-tmp/experiments/r2_20260722/runs/D4_full_refusal_suppression",
+    "max_steps": 300,
+    "learning_rate": 0.0001,
+    "beta": 0.1,
+    "torch_dtype": "auto",
+    "max_grad_norm": 1.0,
+    "max_length": 384,
+    "num_prompts": 1,
+    "num_samples": 1,
+    "max_new_tokens": 32,
+    "eval_batch_size": 1,
+    "dbscan_eps": 0.8,
+    "dbscan_min_samples": 1,
+    "seed": 42,
+    "generation_seed": 20260722,
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "realized_kl_samples": 20,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "enable_thinking": false
+  },
+  "data_sha256": {
+    "preferences": "7217d8b6cb3f712f106da60c7b6c590c9db73379043e780d188696c2716659c3",
+    "prompts": "26749f5a8d8444494baf75a27bb58ccfbbe4683323a6d85a76f64ed2cf011fad"
+  },
+  "completed_at_utc": "2026-07-22T04:04:35.526174+00:00",
+  "timings_seconds": {
+    "tokenizer_load": 0.4492450561374426,
+    "reference_model_load": 1.069282322190702,
+    "reference_logprobs": 14.77623191382736,
+    "train_model_load": 0.8792697265744209,
+    "step0_evaluation": 1.2532120691612363,
+    "step0_generation": 1.2468228032812476,
+    "training": 163.69117656257004,
+    "adapter_save": 0.33360974211245775,
+    "final_evaluation": 1.7403882574290037,
+    "final_generation": 1.734404237009585,
+    "realized_kl": 4.94292485807091,
+    "adapter_reload_and_generation": 3.126514557749033
+  },
+  "throughput": {
+    "training_steps_per_second": 1.832719431186486,
+    "estimated_300_step_training_seconds": 163.69117656257004,
+    "generation_answers": 2,
+    "generation_seconds": 2.9812270402908325,
+    "generation_answers_per_second": 0.6708647053613503,
+    "estimated_1000_answer_seconds": 1490.6135201454163
+  },
+  "training_response_tokens": 51196,
+  "realized_kl": {
+    "teacher_forced_mean_token_kl": 0.9177443222535323,
+    "sample_pairs": 20,
+    "response_tokens": 3523
+  },
+  "peak_vram_bytes": 7660973568,
+  "peak_vram_reserved_bytes": 7778336768,
+  "artifacts": {
+    "adapter": "/root/autodl-tmp/experiments/r2_20260722/runs/D4_full_refusal_suppression/adapter_model",
+    "step0": "/root/autodl-tmp/experiments/r2_20260722/runs/D4_full_refusal_suppression/step0.json",
+    "final": "/root/autodl-tmp/experiments/r2_20260722/runs/D4_full_refusal_suppression/final.json",
+    "reload_validation": "/root/autodl-tmp/experiments/r2_20260722/runs/D4_full_refusal_suppression/reload_validation.json"
+  },
+  "total_wall_seconds": 193.61295157764107
+}
