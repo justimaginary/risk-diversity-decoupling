@@ -42,3 +42,17 @@ Separate total risk from risk structure. Primary outputs include Macro Harm Rate
 ## Reproducibility
 
 Every paid run must record Git commit, data split hash, GPU/driver/CUDA/PyTorch, wall-clock, peak VRAM, training tokens, generation/judge throughput, realized KL, checkpoints, and failures. Never commit secrets, model weights, raw large generations, or provider credentials.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the canonical `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, and `wontfix` labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository with `CONTEXT.md` at the root and ADRs under `docs/adr/`. See `docs/agents/domain.md`.
