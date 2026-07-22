@@ -1,0 +1,45 @@
+{
+  "created_at_utc": "2026-07-22T07:33:39.665099+00:00",
+  "seed": 20260722,
+  "training_preferences": "/root/autodl-tmp/datasets/r3_prepared/training_union/D1_D2_D4.jsonl",
+  "training_preferences_sha256": "a2cd511ec26ec5aa408e2b04faffdcc2cdc194dd9017cb1abddf3dfb109f6034",
+  "sources": {
+    "harmbench": {
+      "path": "/root/autodl-tmp/datasets/r2_eval_sources/harmbench/harmbench_behaviors_text_all.csv",
+      "commit": null,
+      "sha256": "8d81accedd38eaaf8b760618622bb888417d1fd0c86eba65c427a16f1cbb4afc",
+      "rows": 400
+    },
+    "xstest": {
+      "path": "/root/autodl-tmp/datasets/r2_eval_sources/xstest/xstest_prompts.csv",
+      "commit": null,
+      "sha256": "11783fb294ed017473ee53c207d71f2161c7672c8d0b037501e78387f801cb5a",
+      "rows": 450
+    }
+  },
+  "outputs": {
+    "harmbench": {
+      "path": "/root/autodl-tmp/datasets/r3_prepared/eval/harmbench_stratified_100.jsonl",
+      "sha256": "fffe21a839151b5330a4e97d5f35122acd6816e105c15558ae8d92edada146fb",
+      "rows": 100,
+      "semantic_categories": {
+        "chemical_biological": 17,
+        "cybercrime_intrusion": 17,
+        "harassment_bullying": 17,
+        "harmful": 17,
+        "illegal": 16,
+        "misinformation_disinformation": 16
+      }
+    },
+    "xstest": {
+      "path": "/root/autodl-tmp/datasets/r3_prepared/eval/xstest_full.jsonl",
+      "sha256": "d572dc167bca4f639c0645c7972eb9a9b36bbd92a3ec4a3721c8b676288904d6",
+      "rows": 450,
+      "labels": {
+        "safe": 250,
+        "unsafe": 200
+      }
+    }
+  },
+  "exact_or_normalized_training_overlap": 0
+}
