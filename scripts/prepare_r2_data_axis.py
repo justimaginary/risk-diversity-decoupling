@@ -49,6 +49,8 @@ class Preference:
     rejected: str
     token_cost: int = 0
     synthetic_poison: bool = False
+    chosen_harm_severity: int | None = None
+    rejected_harm_severity: int | None = None
 
     @property
     def sample_id(self) -> str:
@@ -64,6 +66,8 @@ class Preference:
             rejected=self.chosen,
             token_cost=self.token_cost,
             synthetic_poison=synthetic_poison,
+            chosen_harm_severity=self.rejected_harm_severity,
+            rejected_harm_severity=self.chosen_harm_severity,
         )
 
 
@@ -139,17 +143,85 @@ def build_pku_pools(path: Path) -> tuple[list[Preference], list[Preference]]:
         if safe[0] == safe[1]:
             continue
         better = int(row["better_response_id"])
-        safer = 0 if safe[0] else 1
+        derived_safer = 0 if safe[0] else 1
+        safer = int(row.get("safer_response_id", derived_safer))
+        if safer != derived_safer:
+            raise ValueError(
+                f"PKU safety labels disagree at row {source_index}: "
+                f"safer_response_id={safer}, derived={derived_safer}"
+            )
         prompt = str(row["prompt"]).strip()
         responses = [str(row["response_0"]).strip(), str(row["response_1"]).strip()]
+        severities = [
+            int(row["response_0_severity_level"])
+            if row.get("response_0_severity_level") is not None
+            else None,
+            int(row["response_1_severity_level"])
+            if row.get("response_1_severity_level") is not None
+            else None,
+        ]
         if not prompt or not all(responses) or responses[0] == responses[1]:
             continue
-        preference = Preference(path.name, source_index, prompt, responses[better], responses[1 - better])
+        preference = Preference(
+            path.name,
+            source_index,
+            prompt,
+            responses[better],
+            responses[1 - better],
+            chosen_harm_severity=severities[better],
+            rejected_harm_severity=severities[1 - better],
+        )
         if better == safer:
             clean_safety.append(preference)
         else:
             natural_conflict.append(preference)
     return clean_safety, natural_conflict
+
+
+def nonascii_letter_fraction(text: str) -> float:
+    letters = [character for character in text if character.isalpha()]
+    if not letters:
+        return 0.0
+    return sum(not character.isascii() for character in letters) / len(letters)
+
+
+def filter_natural_conflicts(
+    pool: list[Preference],
+    *,
+    max_chosen_harm_severity: int,
+    min_response_characters: int,
+    max_response_characters: int,
+    max_response_length_ratio: float,
+    max_nonascii_letter_fraction: float,
+) -> tuple[list[Preference], dict[str, int]]:
+    """Keep mild, fluent D2 conflicts and report one removal reason per row."""
+
+    removals = {
+        "missing_severity": 0,
+        "severity": 0,
+        "response_length": 0,
+        "response_length_ratio": 0,
+        "nonascii_letters": 0,
+    }
+    kept: list[Preference] = []
+    for item in pool:
+        lengths = (len(item.chosen.strip()), len(item.rejected.strip()))
+        if item.chosen_harm_severity is None:
+            removals["missing_severity"] += 1
+        elif item.chosen_harm_severity > max_chosen_harm_severity:
+            removals["severity"] += 1
+        elif min(lengths) < min_response_characters or max(lengths) > max_response_characters:
+            removals["response_length"] += 1
+        elif max(lengths) / max(1, min(lengths)) > max_response_length_ratio:
+            removals["response_length_ratio"] += 1
+        elif any(
+            nonascii_letter_fraction(text) >= max_nonascii_letter_fraction
+            for text in (item.prompt, item.chosen, item.rejected)
+        ):
+            removals["nonascii_letters"] += 1
+        else:
+            kept.append(item)
+    return kept, removals
 
 
 def exact_deduplicate(pool: list[Preference], excluded_prompts: set[str]) -> list[Preference]:
@@ -181,13 +253,15 @@ def add_token_costs(
 ) -> list[Preference]:
     return [
         Preference(
-            item.source,
-            item.source_index,
-            item.prompt,
-            item.chosen,
-            item.rejected,
-            token_cost(item),
-            item.synthetic_poison,
+            source=item.source,
+            source_index=item.source_index,
+            prompt=item.prompt,
+            chosen=item.chosen,
+            rejected=item.rejected,
+            token_cost=token_cost(item),
+            synthetic_poison=item.synthetic_poison,
+            chosen_harm_severity=item.chosen_harm_severity,
+            rejected_harm_severity=item.rejected_harm_severity,
         )
         for item in pool
     ]
@@ -297,6 +371,8 @@ def write_jsonl(condition: str, records: list[Preference], path: Path) -> None:
                             "source_index": item.source_index,
                             "synthetic_poison": item.synthetic_poison,
                             "effective_token_cost": item.token_cost,
+                            "chosen_harm_severity": item.chosen_harm_severity,
+                            "rejected_harm_severity": item.rejected_harm_severity,
                         },
                     },
                     ensure_ascii=False,
@@ -320,6 +396,11 @@ def main() -> None:
     parser.add_argument("--max_length", type=int, default=384)
     parser.add_argument("--semantic_threshold", type=float, default=0.88)
     parser.add_argument("--token_budget_tolerance", type=float, default=0.03)
+    parser.add_argument("--d2_max_chosen_harm_severity", type=int, default=1)
+    parser.add_argument("--d2_min_response_characters", type=int, default=40)
+    parser.add_argument("--d2_max_response_characters", type=int, default=2000)
+    parser.add_argument("--d2_max_response_length_ratio", type=float, default=6.0)
+    parser.add_argument("--d2_max_nonascii_letter_fraction", type=float, default=0.2)
     args = parser.parse_args()
 
     from transformers import AutoTokenizer
@@ -347,6 +428,14 @@ def main() -> None:
         build_ultrafeedback_pool([Path(path) for path in args.ultrafeedback_jsonl]), excluded
     )
     d1_pool, d2_pool = build_pku_pools(Path(args.pku_jsonl))
+    d2_pool, d2_quality_removals = filter_natural_conflicts(
+        d2_pool,
+        max_chosen_harm_severity=args.d2_max_chosen_harm_severity,
+        min_response_characters=args.d2_min_response_characters,
+        max_response_characters=args.d2_max_response_characters,
+        max_response_length_ratio=args.d2_max_response_length_ratio,
+        max_nonascii_letter_fraction=args.d2_max_nonascii_letter_fraction,
+    )
     d1_pool = exact_deduplicate(d1_pool, excluded)
     d2_pool = exact_deduplicate(d2_pool, excluded | {normalize_prompt(item.prompt) for item in d1_pool})
 
@@ -408,6 +497,8 @@ def main() -> None:
                     "source_index": item.source_index,
                     "synthetic_poison": item.synthetic_poison,
                     "effective_token_cost": item.token_cost,
+                    "chosen_harm_severity": item.chosen_harm_severity,
+                    "rejected_harm_severity": item.rejected_harm_severity,
                 }
                 for item in records
             ],
@@ -422,6 +513,14 @@ def main() -> None:
         "semantic_threshold": args.semantic_threshold if similarity else None,
         "evaluation_prompt_count": len(evaluation_prompts),
         "semantic_overlap_removed": removed_semantic,
+        "d2_quality_filter": {
+            "max_chosen_harm_severity": args.d2_max_chosen_harm_severity,
+            "min_response_characters": args.d2_min_response_characters,
+            "max_response_characters": args.d2_max_response_characters,
+            "max_response_length_ratio": args.d2_max_response_length_ratio,
+            "max_nonascii_letter_fraction": args.d2_max_nonascii_letter_fraction,
+            "removals": d2_quality_removals,
+        },
         "source_sha256": {
             str(path): sha256_file(path)
             for path in [*[Path(value) for value in args.ultrafeedback_jsonl], Path(args.pku_jsonl), *evaluation_paths]

@@ -4,6 +4,7 @@ from scripts.prepare_r2_data_axis import (
     build_pku_pools,
     exact_deduplicate,
     feasible_token_range,
+    filter_natural_conflicts,
     load_eval_prompts,
     normalize_prompt,
     semantic_filter,
@@ -41,6 +42,88 @@ def test_pku_pools_separate_clean_safety_from_natural_conflict(tmp_path) -> None
     clean, conflict = build_pku_pools(path)
     assert [(item.prompt, item.chosen, item.rejected) for item in clean] == [("a", "safe", "unsafe")]
     assert [(item.prompt, item.chosen, item.rejected) for item in conflict] == [("b", "unsafe", "safe")]
+
+
+def test_pku_pools_preserve_response_severity_metadata(tmp_path) -> None:
+    path = tmp_path / "pku.jsonl"
+    path.write_text(
+        '{"prompt":"p","response_0":"unsafe","response_1":"safe",'
+        '"is_response_0_safe":false,"is_response_1_safe":true,'
+        '"response_0_severity_level":2,"response_1_severity_level":0,'
+        '"better_response_id":0,"safer_response_id":1}\n',
+        encoding="utf-8",
+    )
+
+    _, conflict = build_pku_pools(path)
+
+    assert conflict[0].chosen_harm_severity == 2
+    assert conflict[0].rejected_harm_severity == 0
+
+
+def test_natural_conflict_filter_removes_unrealistic_or_low_quality_pairs() -> None:
+    valid = Preference(
+        "source",
+        1,
+        "plain English prompt",
+        "c" * 100,
+        "r" * 100,
+        chosen_harm_severity=1,
+        rejected_harm_severity=0,
+    )
+    severe = Preference(
+        "source",
+        2,
+        "plain English prompt",
+        "c" * 100,
+        "r" * 100,
+        chosen_harm_severity=2,
+        rejected_harm_severity=0,
+    )
+    short = Preference(
+        "source",
+        3,
+        "plain English prompt",
+        "short",
+        "r" * 100,
+        chosen_harm_severity=1,
+        rejected_harm_severity=0,
+    )
+    imbalanced = Preference(
+        "source",
+        4,
+        "plain English prompt",
+        "c" * 40,
+        "r" * 300,
+        chosen_harm_severity=1,
+        rejected_harm_severity=0,
+    )
+    multilingual = Preference(
+        "source",
+        5,
+        "plain English prompt",
+        "测" * 100,
+        "r" * 100,
+        chosen_harm_severity=1,
+        rejected_harm_severity=0,
+    )
+
+    kept, removals = filter_natural_conflicts(
+        [valid, severe, short, imbalanced, multilingual],
+        max_chosen_harm_severity=1,
+        min_response_characters=40,
+        max_response_characters=2000,
+        max_response_length_ratio=6.0,
+        max_nonascii_letter_fraction=0.2,
+    )
+
+    assert kept == [valid]
+    assert removals == {
+        "missing_severity": 0,
+        "severity": 1,
+        "response_length": 1,
+        "response_length_ratio": 1,
+        "nonascii_letters": 1,
+    }
 
 
 def test_semantic_filter_removes_items_at_or_above_threshold() -> None:
