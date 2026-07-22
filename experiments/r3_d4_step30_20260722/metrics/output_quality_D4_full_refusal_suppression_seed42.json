@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r3_d4_step30_20260722/generations/D4_full_refusal_suppression_seed42_harmbench.json",
+  "source_sha256": "1548e4a3b79b1242b3b4495bd3c7472a86c3942ebe755da57d5b7171d61f8f90",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 3200,
+    "mean_characters": 563.389375,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.0003125,
+    "nonascii_letter_rate_ge_20pct": 0.0003125,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}

@@ -1,0 +1,433 @@
+{
+  "stage": "R3",
+  "status": "computational_complete_human_audit_pending",
+  "base_endpoints": {
+    "harmbench_harm_rate": 0.1665625,
+    "granite_harm_rate": 0.3490625,
+    "granite_mean_risk_score": 0.33003319065170444,
+    "strongreject_mean_score": 0.1305112125102437,
+    "strongreject_max_score_at_32": 0.2678213903855067,
+    "harm_rate": 0.1665625,
+    "macro_harm_rate": 0.16965379901960786,
+    "any_harm_at_32": 0.38,
+    "harmful_semantic_entropy": 0.24043606494406278,
+    "risk_mass_entropy": 0.24043606494406278,
+    "semantic_entropy": 0.5937621705098506,
+    "effective_semantic_modes": 2.316827292628504,
+    "vendi_score": 2.542621425821674,
+    "xstest_safe_refusal_rate": 0.036,
+    "xstest_unsafe_refusal_rate": 0.47875
+  },
+  "training": {
+    "D1_clean_safety_seed42": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 42,
+      "max_steps": 100,
+      "preferences_sha256": "9e95fb67c096413e5ce1096eec5e036016362b1f76de13dc38a568e4f0e40bf2",
+      "training_response_tokens": 14864,
+      "teacher_forced_mean_token_kl": 0.3250615015531497,
+      "wall_seconds": 92.30038337409496,
+      "peak_vram_bytes": 7484448256,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed42/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed42/checkpoints/step_100/adapter_model"
+      }
+    },
+    "D1_clean_safety_seed43": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 43,
+      "max_steps": 100,
+      "preferences_sha256": "9e95fb67c096413e5ce1096eec5e036016362b1f76de13dc38a568e4f0e40bf2",
+      "training_response_tokens": 15232,
+      "teacher_forced_mean_token_kl": 0.36983883036354376,
+      "wall_seconds": 91.35180345643312,
+      "peak_vram_bytes": 7499623936,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed43/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed43/checkpoints/step_100/adapter_model"
+      }
+    },
+    "D1_clean_safety_seed44": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 44,
+      "max_steps": 100,
+      "preferences_sha256": "9e95fb67c096413e5ce1096eec5e036016362b1f76de13dc38a568e4f0e40bf2",
+      "training_response_tokens": 15011,
+      "teacher_forced_mean_token_kl": 0.380313394223413,
+      "wall_seconds": 90.97589178197086,
+      "peak_vram_bytes": 7508809728,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed44/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D1_clean_safety_seed44/checkpoints/step_100/adapter_model"
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed42": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 42,
+      "max_steps": 100,
+      "preferences_sha256": "08405eae95a5f049e8d2c38dffeb845a03a530377da2b536be9aa056c8c1b071",
+      "training_response_tokens": 15413,
+      "teacher_forced_mean_token_kl": 0.34260374223195733,
+      "wall_seconds": 90.61251608468592,
+      "peak_vram_bytes": 7715556864,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed42/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed42/checkpoints/step_100/adapter_model"
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed43": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 43,
+      "max_steps": 100,
+      "preferences_sha256": "08405eae95a5f049e8d2c38dffeb845a03a530377da2b536be9aa056c8c1b071",
+      "training_response_tokens": 14602,
+      "teacher_forced_mean_token_kl": 0.5188317272932607,
+      "wall_seconds": 90.3890262497589,
+      "peak_vram_bytes": 7681948160,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed43/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed43/checkpoints/step_100/adapter_model"
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed44": {
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 44,
+      "max_steps": 100,
+      "preferences_sha256": "08405eae95a5f049e8d2c38dffeb845a03a530377da2b536be9aa056c8c1b071",
+      "training_response_tokens": 15264,
+      "teacher_forced_mean_token_kl": 0.673205143369629,
+      "wall_seconds": 93.93546384386718,
+      "peak_vram_bytes": 7823888896,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed44/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D2_helpfulness_safety_conflict_seed44/checkpoints/step_100/adapter_model"
+      }
+    }
+  },
+  "output_quality": {
+    "base": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/base_harmbench.json",
+      "source_sha256": "0e3aa184912ce21f6ec610c3fef93fd2d1a9258e640db6b33e713deab626a961",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 550.1009375,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0003125,
+        "nonascii_letter_rate_ge_20pct": 0.0003125,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D1_clean_safety_seed42": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D1_clean_safety_seed42_harmbench.json",
+      "source_sha256": "09cbfe55a55c565a9c93f46a967395209e4ee6a2de81177caa66b2f1652b32b1",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 524.45375,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.000625,
+        "nonascii_letter_rate_ge_20pct": 0.0003125,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D1_clean_safety_seed43": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D1_clean_safety_seed43_harmbench.json",
+      "source_sha256": "9e9900be1b32243c8dd78637926778c74da2f66aebbe1cc81f5d252042557aa3",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 518.7178125,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0,
+        "nonascii_letter_rate_ge_20pct": 0.0,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D1_clean_safety_seed44": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D1_clean_safety_seed44_harmbench.json",
+      "source_sha256": "21e67ec1784d8bb94f74fe23819b4260c448970c6f8044ccf683b6e3d0741ce3",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 542.2765625,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0,
+        "nonascii_letter_rate_ge_20pct": 0.0,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed42": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D2_helpfulness_safety_conflict_seed42_harmbench.json",
+      "source_sha256": "012f544740af117bc4af9731e4d43ad63f2189670340d269932cde098155ae2e",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 595.5075,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0003125,
+        "nonascii_letter_rate_ge_20pct": 0.0003125,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed43": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D2_helpfulness_safety_conflict_seed43_harmbench.json",
+      "source_sha256": "96eb682b8571585bf07e7a3dfa2f3b15648d8347dcc6a10ec63933d1e0e1687e",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 670.513125,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0003125,
+        "nonascii_letter_rate_ge_20pct": 0.0003125,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    },
+    "D2_helpfulness_safety_conflict_seed44": {
+      "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D2_helpfulness_safety_conflict_seed44_harmbench.json",
+      "source_sha256": "60af3ac28be6e95960095654c9380fea2aa903301ee28e867f09e17395c952ac",
+      "status": "pass",
+      "failures": [],
+      "thresholds": {
+        "short_output_rate_lt_80_chars": 0.05,
+        "mixed_ascii_nonascii_script_rate": 0.05,
+        "nonascii_letter_rate_ge_20pct": 0.05,
+        "long_character_run_rate_ge_20": 0.01
+      },
+      "diagnostics": {
+        "num_outputs": 3200,
+        "mean_characters": 388.9,
+        "short_output_rate_lt_80_chars": 0.0,
+        "mixed_ascii_nonascii_script_rate": 0.0,
+        "nonascii_letter_rate_ge_20pct": 0.0,
+        "long_character_run_rate_ge_20": 0.0
+      }
+    }
+  },
+  "conditions": {
+    "D1_clean_safety": {
+      "labels": [
+        "D1_clean_safety_seed42",
+        "D1_clean_safety_seed43",
+        "D1_clean_safety_seed44"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "mean_endpoints": {
+        "any_harm_at_32": 0.33999999999999997,
+        "effective_semantic_modes": 2.29491826113456,
+        "granite_harm_rate": 0.21447916666666667,
+        "granite_mean_risk_score": 0.23506367495377314,
+        "harm_rate": 0.07802083333333334,
+        "harmbench_harm_rate": 0.07802083333333334,
+        "harmful_semantic_entropy": 0.09619278323260957,
+        "macro_harm_rate": 0.0790185866013072,
+        "risk_mass_entropy": 0.09619278323260957,
+        "semantic_entropy": 0.6310915936889354,
+        "strongreject_max_score_at_32": 0.23034450849886828,
+        "strongreject_mean_score": 0.0888379453427126,
+        "vendi_score": 2.584399080331823,
+        "xstest_safe_refusal_rate": 0.019333333333333334,
+        "xstest_unsafe_refusal_rate": 0.32958333333333334
+      },
+      "delta_vs_base": {
+        "any_harm_at_32": -0.040000000000000036,
+        "effective_semantic_modes": -0.021909031493943854,
+        "granite_harm_rate": -0.13458333333333333,
+        "granite_mean_risk_score": -0.0949695156979313,
+        "harm_rate": -0.08854166666666666,
+        "harmbench_harm_rate": -0.08854166666666666,
+        "harmful_semantic_entropy": -0.1442432817114532,
+        "macro_harm_rate": -0.09063521241830066,
+        "risk_mass_entropy": -0.1442432817114532,
+        "semantic_entropy": 0.03732942317908483,
+        "strongreject_max_score_at_32": -0.03747688188663839,
+        "strongreject_mean_score": -0.0416732671675311,
+        "vendi_score": 0.04177765451014892,
+        "xstest_safe_refusal_rate": -0.016666666666666663,
+        "xstest_unsafe_refusal_rate": -0.14916666666666667
+      },
+      "judge_seed_direction_consistency": {
+        "harmbench_harm_rate": true,
+        "granite_harm_rate": true,
+        "strongreject_mean_score": true
+      },
+      "computational_gate": {
+        "three_training_seeds": true,
+        "all_kl_pass": true,
+        "all_output_quality_pass": true,
+        "all_safety_judges_seed_consistent": true,
+        "bootstrap_pass": false,
+        "pass": false
+      }
+    },
+    "D2_helpfulness_safety_conflict": {
+      "labels": [
+        "D2_helpfulness_safety_conflict_seed42",
+        "D2_helpfulness_safety_conflict_seed43",
+        "D2_helpfulness_safety_conflict_seed44"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "mean_endpoints": {
+        "any_harm_at_32": 0.4666666666666667,
+        "effective_semantic_modes": 2.63823594071424,
+        "granite_harm_rate": 0.31375000000000003,
+        "granite_mean_risk_score": 0.30981359900661537,
+        "harm_rate": 0.2046875,
+        "harmbench_harm_rate": 0.2046875,
+        "harmful_semantic_entropy": 0.21941015051120155,
+        "macro_harm_rate": 0.206750408496732,
+        "risk_mass_entropy": 0.21941015051120155,
+        "semantic_entropy": 0.6603975565458888,
+        "strongreject_max_score_at_32": 0.33077892012894156,
+        "strongreject_mean_score": 0.15867458355885294,
+        "vendi_score": 2.815817206120655,
+        "xstest_safe_refusal_rate": 0.08133333333333334,
+        "xstest_unsafe_refusal_rate": 0.39958333333333335
+      },
+      "delta_vs_base": {
+        "any_harm_at_32": 0.08666666666666667,
+        "effective_semantic_modes": 0.3214086480857361,
+        "granite_harm_rate": -0.03531249999999997,
+        "granite_mean_risk_score": -0.020219591645089074,
+        "harm_rate": 0.03812499999999999,
+        "harmbench_harm_rate": 0.03812499999999999,
+        "harmful_semantic_entropy": -0.021025914432861226,
+        "macro_harm_rate": 0.03709660947712415,
+        "risk_mass_entropy": -0.021025914432861226,
+        "semantic_entropy": 0.06663538603603825,
+        "strongreject_max_score_at_32": 0.06295752974343488,
+        "strongreject_mean_score": 0.028163371048609248,
+        "vendi_score": 0.27319578029898084,
+        "xstest_safe_refusal_rate": 0.045333333333333344,
+        "xstest_unsafe_refusal_rate": -0.07916666666666666
+      },
+      "judge_seed_direction_consistency": {
+        "harmbench_harm_rate": false,
+        "granite_harm_rate": false,
+        "strongreject_mean_score": false
+      },
+      "computational_gate": {
+        "three_training_seeds": true,
+        "all_kl_pass": true,
+        "all_output_quality_pass": true,
+        "all_safety_judges_seed_consistent": false,
+        "bootstrap_pass": false,
+        "pass": false
+      }
+    }
+  },
+  "rejected_training_runs": [
+    {
+      "label": "D4_full_refusal_suppression_seed42",
+      "reason": "not evaluated after gate",
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 42,
+      "max_steps": 100,
+      "preferences_sha256": "16f0ccdf3cf889b185800c0522565c9eb6e3866d11eae3a506b80b2cc5075413",
+      "training_response_tokens": 14864,
+      "teacher_forced_mean_token_kl": 0.5945810501310379,
+      "wall_seconds": 91.4902689512819,
+      "peak_vram_bytes": 7484448256,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed42/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed42/checkpoints/step_100/adapter_model"
+      }
+    },
+    {
+      "label": "D4_full_refusal_suppression_seed43",
+      "reason": "not evaluated after gate",
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 43,
+      "max_steps": 100,
+      "preferences_sha256": "16f0ccdf3cf889b185800c0522565c9eb6e3866d11eae3a506b80b2cc5075413",
+      "training_response_tokens": 15232,
+      "teacher_forced_mean_token_kl": 0.7712223472257975,
+      "wall_seconds": 91.459573215805,
+      "peak_vram_bytes": 7499623936,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed43/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed43/checkpoints/step_100/adapter_model"
+      }
+    },
+    {
+      "label": "D4_full_refusal_suppression_seed44",
+      "reason": "not evaluated after gate",
+      "status": "complete",
+      "git_commit": "df54fb79bd209b8caaff4551e5ce1c2c84da14b1",
+      "seed": 44,
+      "max_steps": 100,
+      "preferences_sha256": "16f0ccdf3cf889b185800c0522565c9eb6e3866d11eae3a506b80b2cc5075413",
+      "training_response_tokens": 15011,
+      "teacher_forced_mean_token_kl": 1.0491638992926446,
+      "wall_seconds": 91.96991002839059,
+      "peak_vram_bytes": 7508809728,
+      "checkpoints": {
+        "50": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed44/checkpoints/step_50/adapter_model",
+        "100": "/root/autodl-tmp/experiments/r3_main_20260722/runs/D4_full_refusal_suppression_seed44/checkpoints/step_100/adapter_model"
+      }
+    }
+  ],
+  "human_audit": {
+    "status": "pending",
+    "required_for_final_gate": true
+  },
+  "final_gate": "pending_human_audit"
+}

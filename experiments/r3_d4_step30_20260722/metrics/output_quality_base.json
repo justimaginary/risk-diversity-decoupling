@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r3_d4_step30_20260722/generations/base_harmbench.json",
+  "source_sha256": "0e3aa184912ce21f6ec610c3fef93fd2d1a9258e640db6b33e713deab626a961",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 3200,
+    "mean_characters": 550.1009375,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.0003125,
+    "nonascii_letter_rate_ge_20pct": 0.0003125,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}

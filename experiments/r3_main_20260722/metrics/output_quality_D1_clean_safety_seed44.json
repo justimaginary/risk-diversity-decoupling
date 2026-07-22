@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D1_clean_safety_seed44_harmbench.json",
+  "source_sha256": "21e67ec1784d8bb94f74fe23819b4260c448970c6f8044ccf683b6e3d0741ce3",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 3200,
+    "mean_characters": 542.2765625,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.0,
+    "nonascii_letter_rate_ge_20pct": 0.0,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}
