@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import traceback
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -339,6 +340,18 @@ def build_schedule(length: int, steps: int, seed: int) -> list[int]:
     return schedule[:steps]
 
 
+@contextmanager
+def isolated_generation_rng(seed: int):
+    """Seed generation without consuming the caller's training RNG state."""
+
+    cuda_devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
+    with torch.random.fork_rng(devices=cuda_devices):
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        yield
+
+
 @torch.no_grad()
 def sample_outputs(
     model,
@@ -376,20 +389,18 @@ def sample_outputs(
 
 
 def evaluate(args, label: str, model, tokenizer) -> tuple[Path, float, int]:
-    torch.manual_seed(args.generation_seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.generation_seed)
     prompts = load_prompts(Path(args.prompts_path), limit=args.num_prompts)
     generation_started = time.perf_counter()
-    prompt_outputs = sample_outputs(
-        model=model,
-        tokenizer=tokenizer,
-        prompts=prompts,
-        num_samples=args.num_samples,
-        max_new_tokens=args.max_new_tokens,
-        batch_size=args.eval_batch_size,
-        enable_thinking=args.enable_thinking,
-    )
+    with isolated_generation_rng(args.generation_seed):
+        prompt_outputs = sample_outputs(
+            model=model,
+            tokenizer=tokenizer,
+            prompts=prompts,
+            num_samples=args.num_samples,
+            max_new_tokens=args.max_new_tokens,
+            batch_size=args.eval_batch_size,
+            enable_thinking=args.enable_thinking,
+        )
     generation_seconds = time.perf_counter() - generation_started
     report = build_report(
         mode=label,

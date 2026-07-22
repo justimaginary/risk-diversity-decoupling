@@ -1,4 +1,9 @@
-from scripts.local_qwen3_lora_dpo import encoded_preference_tokens
+import torch
+
+from scripts.local_qwen3_lora_dpo import (
+    encoded_preference_tokens,
+    isolated_generation_rng,
+)
 
 
 class FakeEncoding:
@@ -28,3 +33,15 @@ def test_encoded_preference_tokens_counts_only_response_and_eos() -> None:
 def test_encoded_preference_tokens_respects_full_sequence_truncation() -> None:
     tokenizer = FakeTokenizer()
     assert encoded_preference_tokens(tokenizer, "abc", "wxyz", 8, False) == 2
+
+
+def test_generation_rng_does_not_change_training_rng_state() -> None:
+    torch.manual_seed(42)
+    expected = torch.rand(4)
+
+    torch.manual_seed(42)
+    with isolated_generation_rng(20260722):
+        torch.rand(100)
+    actual = torch.rand(4)
+
+    assert torch.equal(actual, expected)
