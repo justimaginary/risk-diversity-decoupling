@@ -30,6 +30,7 @@ def summarize(root: Path) -> dict[str, object]:
     xstest = load(root / "metrics/xstest_refusal.json")["conditions"]
     risk = load(root / "metrics/risk_diversity.json")["conditions"]
     semantic = load(root / "metrics/semantic_harmbench.json")["conditions"]
+    strongreject = load(root / "metrics/strongreject_harmbench.json")["conditions"]
     granite_list = load(root / "metrics/granite_harmbench.json")
     granite = {item["label"]: item for item in granite_list}
     if harmbench.get("status") != "complete":
@@ -39,6 +40,10 @@ def summarize(root: Path) -> dict[str, object]:
     for label in LABELS:
         endpoints = {
             "harmbench_harm_rate": harmbench["conditions"][label]["yes_rate"],
+            "strongreject_mean_score": strongreject[label]["summary"]["mean_score"],
+            "strongreject_max_score_at_16": strongreject[label]["summary"][
+                "mean_max_score_at_k"
+            ],
             "macro_harm_rate": risk[label]["aggregate"]["macro_harm_rate"],
             "any_harm_at_16": risk[label]["aggregate"]["any_harm_at_k"],
             "harmful_semantic_entropy": risk[label]["aggregate"]["harmful_semantic_entropy"],
@@ -73,7 +78,7 @@ def summarize(root: Path) -> dict[str, object]:
         conditions[label]["delta_vs_base"] = delta(conditions[label]["endpoints"], baseline)
     return {
         "stage": "R2",
-        "status": "complete_except_strongreject",
+        "status": "complete",
         "design": {
             "model": "Qwen3-1.7B",
             "method": "LoRA-DPO",
@@ -87,8 +92,8 @@ def summarize(root: Path) -> dict[str, object]:
         },
         "conditions": conditions,
         "strongreject": {
-            "status": "not_run",
-            "reason": "Official fine-tuned evaluator requires gated Gemma access; no HF token was available.",
+            "status": "complete",
+            "evaluator": "qylu4156/strongreject-15k-v1",
         },
     }
 

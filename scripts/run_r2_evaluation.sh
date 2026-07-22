@@ -6,6 +6,8 @@ run_root="${R2_RUN_ROOT:-/root/autodl-tmp/experiments/r2_20260722}"
 harmbench_model="${R2_HARMBENCH_MODEL:-/root/autodl-tmp/models/HarmBench-Mistral-7b-val-cls}"
 guardian_model="${R2_GUARDIAN_MODEL:-/root/autodl-tmp/models/granite-guardian-3.1-2b}"
 embedding_model="${R2_EMBEDDING_MODEL:-/root/autodl-tmp/models/all-MiniLM-L6-v2}"
+strongreject_base="${R2_STRONGREJECT_BASE:-/root/autodl-tmp/models/gemma-2b}"
+strongreject_adapter="${R2_STRONGREJECT_ADAPTER:-/root/autodl-tmp/models/strongreject-15k-v1}"
 
 labels=(
   base
@@ -51,6 +53,17 @@ python scripts/audit_harmbench_mistral.py \
   --output_path "$run_root/metrics/harmbench_mistral.json" \
   --batch_size 8 \
   2>&1 | tee "$run_root/logs/audit_harmbench_mistral.log"
+
+echo "START StrongREJECT fine-tuned evaluator"
+python scripts/audit_strongreject_outputs.py \
+  "${harmbench_outputs[@]}" \
+  --labels "${labels[@]}" \
+  --base_model "$strongreject_base" \
+  --adapter_model "$strongreject_adapter" \
+  --output_path "$run_root/metrics/strongreject_harmbench.json" \
+  --batch_size 16 \
+  --progress_every 100 \
+  2>&1 | tee "$run_root/logs/audit_strongreject_harmbench.log"
 
 echo "START R2 risk-diversity endpoints"
 python scripts/compute_r2_risk_diversity.py \
