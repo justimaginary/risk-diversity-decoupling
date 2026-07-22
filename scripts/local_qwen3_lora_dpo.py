@@ -187,6 +187,101 @@ def sequence_logprob(
     return token_log_probs[response_mask].sum()
 
 
+def encoded_preference_tokens(
+    tokenizer, prompt: str, response: str, max_length: int, enable_thinking: bool
+) -> int:
+    prompt_text = chat_prompt(tokenizer, prompt, enable_thinking=enable_thinking)
+    prompt_ids = tokenizer(prompt_text, add_special_tokens=False, truncation=True, max_length=max_length).input_ids
+    full_ids = tokenizer(
+        prompt_text + response + (tokenizer.eos_token or ""),
+        add_special_tokens=False,
+        truncation=True,
+        max_length=max_length,
+    ).input_ids
+    return max(len(full_ids) - min(len(prompt_ids), max(len(full_ids) - 1, 0)), 0)
+
+
+@torch.no_grad()
+def teacher_forced_response_kl(
+    policy_model,
+    reference_model,
+    tokenizer,
+    prompt: str,
+    response: str,
+    max_length: int,
+    enable_thinking: bool,
+) -> tuple[float, int]:
+    prompt_text = chat_prompt(tokenizer, prompt, enable_thinking=enable_thinking)
+    prompt_ids = tokenizer(
+        prompt_text, return_tensors="pt", add_special_tokens=False, truncation=True, max_length=max_length
+    ).input_ids
+    encoded = tokenizer(
+        prompt_text + response + (tokenizer.eos_token or ""),
+        return_tensors="pt",
+        add_special_tokens=False,
+        truncation=True,
+        max_length=max_length,
+    )
+    device = next(policy_model.parameters()).device
+    input_ids = encoded.input_ids.to(device)
+    attention_mask = encoded.attention_mask.to(device)
+    prompt_len = min(prompt_ids.shape[1], input_ids.shape[1] - 1)
+    start = max(prompt_len - 1, 0)
+    valid = attention_mask[:, 1:].bool()
+    valid[:, :start] = False
+    token_count = int(valid.sum().item())
+    if token_count == 0:
+        return 0.0, 0
+    policy_log_probs = F.log_softmax(
+        policy_model(input_ids=input_ids, attention_mask=attention_mask).logits[:, :-1, :].float(), dim=-1
+    )
+    reference_log_probs = F.log_softmax(
+        reference_model(input_ids=input_ids, attention_mask=attention_mask).logits[:, :-1, :].float(), dim=-1
+    )
+    per_token_kl = torch.sum(policy_log_probs.exp() * (policy_log_probs - reference_log_probs), dim=-1)
+    return float(per_token_kl[valid].sum().cpu()), token_count
+
+
+def estimate_realized_kl(
+    policy_model,
+    reference_model,
+    tokenizer,
+    preferences: list[dict[str, str]],
+    sample_count: int,
+    seed: int,
+    max_length: int,
+    enable_thinking: bool,
+) -> dict[str, float | int]:
+    if sample_count <= 0:
+        return {"teacher_forced_mean_token_kl": 0.0, "sample_pairs": 0, "response_tokens": 0}
+    indices = list(range(len(preferences)))
+    random.Random(seed).shuffle(indices)
+    indices = indices[: min(sample_count, len(indices))]
+    total_kl = 0.0
+    total_tokens = 0
+    policy_model.eval()
+    reference_model.eval()
+    for index in indices:
+        item = preferences[index]
+        for response in (item["chosen"], item["rejected"]):
+            kl_sum, token_count = teacher_forced_response_kl(
+                policy_model,
+                reference_model,
+                tokenizer,
+                item["prompt"],
+                response,
+                max_length,
+                enable_thinking,
+            )
+            total_kl += kl_sum
+            total_tokens += token_count
+    return {
+        "teacher_forced_mean_token_kl": total_kl / total_tokens if total_tokens else 0.0,
+        "sample_pairs": len(indices),
+        "response_tokens": total_tokens,
+    }
+
+
 @torch.no_grad()
 def precompute_reference_logprobs(
     model,
@@ -348,6 +443,12 @@ def main() -> None:
     parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--lora_dropout", type=float, default=0.05)
     parser.add_argument(
+        "--realized_kl_samples",
+        type=int,
+        default=20,
+        help="Preference pairs used for the teacher-forced mean token KL estimate.",
+    )
+    parser.add_argument(
         "--target_modules",
         nargs="+",
         default=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
@@ -444,6 +545,17 @@ def main() -> None:
         trainable = [param for param in model.parameters() if param.requires_grad]
         optimizer = AdamW(trainable, lr=args.learning_rate)
         schedule = build_schedule(len(preferences), args.max_steps, args.seed)
+        training_response_tokens = sum(
+            encoded_preference_tokens(
+                tokenizer,
+                preferences[index]["prompt"],
+                response,
+                args.max_length,
+                args.enable_thinking,
+            )
+            for index in schedule
+            for response in (preferences[index]["chosen"], preferences[index]["rejected"])
+        )
 
         print("Training LoRA-DPO...")
         stage_started = time.perf_counter()
@@ -479,6 +591,25 @@ def main() -> None:
         _, final_generation_seconds, final_answers = evaluate(args, "final", model, tokenizer)
         timings["final_evaluation"] = time.perf_counter() - stage_started
         timings["final_generation"] = final_generation_seconds
+
+        print("Estimating teacher-forced realized KL...")
+        stage_started = time.perf_counter()
+        realized_kl_reference = load_base_model(args.model_name, dtype=dtype)
+        realized_kl = estimate_realized_kl(
+            model,
+            realized_kl_reference,
+            tokenizer,
+            preferences,
+            args.realized_kl_samples,
+            args.seed + 911,
+            args.max_length,
+            args.enable_thinking,
+        )
+        del realized_kl_reference
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        timings["realized_kl"] = time.perf_counter() - stage_started
 
         print("Reloading LoRA adapter from disk for validation...")
         del optimizer, trainable, model, base_model
@@ -527,6 +658,8 @@ def main() -> None:
                 "completed_at_utc": datetime.now(timezone.utc).isoformat(),
                 "timings_seconds": timings,
                 "throughput": throughput,
+                "training_response_tokens": training_response_tokens,
+                "realized_kl": realized_kl,
                 "peak_vram_bytes": torch.cuda.max_memory_allocated() if torch.cuda.is_available() else 0,
                 "peak_vram_reserved_bytes": torch.cuda.max_memory_reserved() if torch.cuda.is_available() else 0,
                 "artifacts": {
