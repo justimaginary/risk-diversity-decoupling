@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/merged/base_harmbench_64.json",
+  "source_sha256": "6ce6070d3b4eaf587349b44520139537be22a22754e6272b394207e31e9738ac",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 6400,
+    "mean_characters": 549.2171875,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.00015625,
+    "nonascii_letter_rate_ge_20pct": 0.00015625,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}

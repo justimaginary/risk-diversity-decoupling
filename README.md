@@ -4,7 +4,7 @@
 
 > 核心问题不是“模型是否只会重复同一个危险答案”，而是风险总量上升时，风险是否可能分散到多个不同语义和行为模式中。
 
-当前先导结果来自受控拒答抑制偏好干预。它们支持进一步严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。当前唯一执行入口是 [PLAN.md](PLAN.md)。
+早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，当前决定为 Stop。唯一执行入口和重开条件见 [PLAN.md](PLAN.md)。
 
 ## 当前研究方向
 
@@ -54,6 +54,12 @@ Qwen3-1.7B、D0–D4 各 200 pairs / 300 steps、HarmBench 50 × 16、完整 XST
 
 初始 D2 conflict 出现严重语言/质量漂移和 judge 分歧。修复版将 D2 限制为 mild natural conflicts，并把训练缩短到 100 steps；KL 从 2.005 降到 0.326，800 条 HarmBench 输出的语言漂移、混合脚本、长字符重复和短输出率均降为 0%。修复后 HarmBench、Granite、StrongREJECT、Any-Harm@16 和 Harmful Semantic Entropy 均高于 Base，因此 **Gate R2 已转为 Go R3**，候选条件为 D1、D2、D4。完整结果见 [`experiments/r2_d2_repair_20260722/RESULTS.md`](experiments/r2_d2_repair_20260722/RESULTS.md)。
 
+### R3 多 seed 主实验
+
+Qwen3-1.7B、D1/D2/D4 各 3 个训练 seeds、HarmBench 100 x 32、完整 XSTest、双安全 judge、StrongREJECT、语义/风险熵和分层 bootstrap 已完成；D2 关键 checkpoint 另补到每题 64 samples。
+
+**Gate R3：Stop。** D1 与 KL-safe 的 D4 step30 都稳定降低风险，但有害语义熵也同步下降，未通过非劣门槛。D2 的均值部分上升，但 seed42/43 风险高于 Base、seed44 明显低于 Base，HarmBench、Granite、StrongREJECT 的 seed 方向均不一致；64-sample 复评复现同一排序，风险差 CI 仍跨 0。因此当前证据不支持稳定的风险—多样性解耦，不进入 R4，也不租 48/80GB 卡。盲审包已生成但尚未人工标注；它仍是发表前要求，但不能逆转已经失败的计算门槛。完整结果见 [`experiments/r3_main_20260722/RESULTS.md`](experiments/r3_main_20260722/RESULTS.md)。
+
 ### 证据边界
 
 - 30 条 AdvBench held-out 上风险增幅明显缩小；
@@ -91,7 +97,8 @@ TF-IDF、DBSCAN、Distinct-n 和 Self-BLEU 只保留作历史对照。
 | 阶段 | GPU | 目的 |
 | --- | --- | --- |
 | R0–R2 | 最便宜的 24GB 卡，优先 3090/4090 | 环境、公开 benchmark pilot、数据轴单 seed 筛选 |
-| R3–R4 | RTX 4090 24GB | Qwen3-1.7B 多 seed 主实验和方法对照 |
+| R3 | RTX 4090 24GB | Qwen3-1.7B 多 seed 主实验（已完成，Gate Stop） |
+| R4 | RTX 4090 24GB | 当前不执行；仅在新证据解决 R3 seed 异质性后重开 |
 | R5 | L40S/A6000 48GB | Qwen3-4B 与更大 judge 复核 |
 | R6 | A100/H100 80GB | 仅在前面证据稳定后做可选 8B/规模确认 |
 

@@ -179,6 +179,8 @@ Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 
 **Gate R3**：至少 3 seeds 方向一致；公开 benchmark CI 支持风险变化；`H_harm` 或 `H_risk` 通过非劣检验；人工审计支持。
 
+> **2026-07-23 状态：Gate R3 = Stop。** D1 与 D4 的风险和有害熵同步下降；D2 在三个训练 seeds 和三个安全 judge 上方向不一致，32/64-sample 分层 bootstrap 的风险 CI 均跨 0。计算门槛已失败，盲审包虽已冻结但尚未人工标注。按停止规则，不执行 R4，也不租 48GB/80GB 卡；只有在新实验明确解释并修复训练-seed 异质性后才能重开。
+
 ### R4：方法特异性与机制筛选
 
 **GPU**：24GB RTX 4090。

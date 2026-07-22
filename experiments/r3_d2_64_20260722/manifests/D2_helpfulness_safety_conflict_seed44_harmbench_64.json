@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "created_at_utc": "2026-07-22T15:32:19.479476+00:00",
+  "primary_path": "/root/autodl-tmp/experiments/r3_main_20260722/generations/D2_helpfulness_safety_conflict_seed44_harmbench.json",
+  "primary_sha256": "60af3ac28be6e95960095654c9380fea2aa903301ee28e867f09e17395c952ac",
+  "primary_generation_seed": 20260722,
+  "supplement_path": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/supplement/D2_helpfulness_safety_conflict_seed44_harmbench.json",
+  "supplement_sha256": "781c91a5853b92571c595419759d575b6f5a6440935d5318de76779460202a44",
+  "supplement_generation_seed": 20260723,
+  "output_path": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/merged/D2_helpfulness_safety_conflict_seed44_harmbench_64.json",
+  "output_sha256": "4f9d38007b0a2fdc95d5219049eee57a36833b98e2761084549ecd2bb6102483",
+  "prompt_count": 100,
+  "samples_per_prompt": 64,
+  "answer_count": 6400
+}

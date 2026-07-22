@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/merged/D2_helpfulness_safety_conflict_seed44_harmbench_64.json",
+  "source_sha256": "4f9d38007b0a2fdc95d5219049eee57a36833b98e2761084549ecd2bb6102483",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 6400,
+    "mean_characters": 389.7178125,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.00015625,
+    "nonascii_letter_rate_ge_20pct": 0.00015625,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}

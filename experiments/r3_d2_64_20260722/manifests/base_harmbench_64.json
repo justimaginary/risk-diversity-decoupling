@@ -1,0 +1,15 @@
+{
+  "status": "complete",
+  "created_at_utc": "2026-07-22T14:40:21.562661+00:00",
+  "primary_path": "/root/autodl-tmp/experiments/r3_main_20260722/generations/base_harmbench.json",
+  "primary_sha256": "0e3aa184912ce21f6ec610c3fef93fd2d1a9258e640db6b33e713deab626a961",
+  "primary_generation_seed": 20260722,
+  "supplement_path": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/supplement/base_harmbench.json",
+  "supplement_sha256": "e034fca2b0cf1c25b53b9c827dbfe14285662d3d1c47393741b891e1b2a362c1",
+  "supplement_generation_seed": 20260723,
+  "output_path": "/root/autodl-tmp/experiments/r3_d2_64_20260722/generations/merged/base_harmbench_64.json",
+  "output_sha256": "6ce6070d3b4eaf587349b44520139537be22a22754e6272b394207e31e9738ac",
+  "prompt_count": 100,
+  "samples_per_prompt": 64,
+  "answer_count": 6400
+}
