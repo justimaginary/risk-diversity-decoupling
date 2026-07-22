@@ -1,832 +1,436 @@
-# PCE 本地完整实验报告
-
-日期：2026-07-03  
-工作目录：`C:\Users\TH.Xie\Desktop\DPO`  
-设备：RTX 4060 Laptop 8GB  
-环境：`stdplm` conda 环境，新增依赖只做 overlay，不降低或删除原环境依赖  
-
-## 0. 总结论
-
-本项目原始想法是：
-
-```text
-DPO 可能降低模型输出多样性，使模型更稳定地落入少数回答模式。
-如果这些主导回答模式有害，就会形成 Preference Collapse Exploitability，简称 PCE。
-```
-
-白话说：原来怀疑模型经过 DPO 这类偏好训练后，会不会在某些危险问题上越来越固定地给出某类风险回答，从而更容易被利用。
-
-当前完整实验结论是：
-
-```text
-不支持“DPO 普遍导致稳定可利用的输出坍缩漏洞”。
-支持“DPO 可以改变回答风险和合规倾向，且局部 prompt 上可能出现 PCE 正信号”。
-更支持的新方向是“prompt-stratified PCE 诊断与预警”，也就是逐题型、逐 prompt 地诊断什么时候风险集中会发生。
-```
-
-最关键的最新证据来自 Qwen3：
+# 风险—多样性解耦完整实验报告
 
-- Qwen3-1.7B 和 Qwen3-4B 都可以在本机通过 LoRA-DPO 跑通。
-- 两个 Qwen3 实验都出现 Guardian 风险评分上升。
-- 但两个 Qwen3 实验都没有出现输出坍缩：determinism 下降，mode entropy 上升。
-- 因此，“模型太小才导致 idea 不行”不是充分解释。换到更新更大的 Qwen3 后，核心坍缩链条仍然没有成立。
+更新日期：2026-07-23<br>
+当前阶段：R0–R3 已完成，Gate R3 = **Stop**<br>
+主模型：Qwen3-1.7B<br>
+训练方法：LoRA-DPO<br>
+正式实验设备：NVIDIA GeForce RTX 4090 24GB
 
-一句话判断：
+> 本报告以仓库中已经提交的脱敏 manifest、聚合指标和阶段结果为依据，汇总截至 2026-07-23 的完整实验链路。原始大规模生成、模型权重、逐条 judge 记录和未揭盲人工审计答案不进入 Git。
 
-```text
-现在看到的是“风险/合规性移动”，不是稳定的“偏好坍缩可利用性”。
-```
+## 1. 摘要与最终判断
 
-## 1. 本报告回答什么问题
+本项目研究偏好后训练是否会让“安全风险总量”和“有害回答的模式多样性”发生可分离的变化。核心关注并不是输出是否简单重复，而是风险增加时，有害内容是否仍分布在多个不同语义或行为模式中。
 
-本报告回答三件事：
+目前最可靠的结论是：
 
-1. 已经做过哪些实验，各自证明了什么。
-2. 现有结果支持哪些观点，不支持哪些观点。
-3. 下一步应该往哪个方向走。
+1. **风险—多样性解耦在受控先导和单 seed 筛选中出现过，但没有通过严格多 seed 主实验。**
+2. **干净安全数据 D1 会稳定降低风险，但也同步降低有害语义熵。** 这是风险和有害模式多样性的耦合下降，不是解耦。
+3. **修复后的冲突数据 D2 在单 seed R2 中同时提高风险和有害语义熵，但在 R3 中表现出严重训练-seed 异质性。** seed 42/43 的 HarmBench 风险高于 Base，seed 44 则显著低于 Base；三个安全 judge 的跨 seed 方向都不一致。
+4. **把每题生成数从 32 增加到 64 没有消除 D2 的异质性。** 因此问题不在生成采样不足，而在训练结果本身不稳定。
+5. **强拒答抑制条件 D4 在 KL 合格的 step 30 上反而稳定降低风险和有害多样性，并提高过度拒答。** 它没有复现早期受控先导中的风险上升。
+6. **低比例污染 D3 没有显示相对干净训练的稳定风险增量。** 现有证据不支持“5% 有害偏好污染已稳定触发风险上升”。
 
-需要注意：
+因此，本报告的最终判断是：
 
-- 本报告总结 tracked 文档和 ignored 输出目录里的实验结果。
-- 原始 sampled generations、checkpoint、Guardian JSON 等大文件位于 `outputs/` 和 `D:\hf_models`，不提交 git。
-- 因此本报告包含关键实验数据和结论，不内嵌每一条 raw generation。
+> 当前证据不支持把“偏好优化会稳定造成风险—多样性解耦”作为已成立结论，也不支持把该现象归因于 DPO 的一般性质。最值得保留的科学结果，是数据条件和训练 seed 会强烈改变风险方向，而拒答率、总风险与有害模式多样性必须分开测量。
 
-## 2. 核心概念
+按预注册停止规则，当前不进入 R4 方法对比，不租用 48GB/80GB GPU。只有在新方案能解释并控制 D2 的训练-seed 异质性时，才值得重开主实验。
 
-| 概念 | 专业说法 | 白话解释 |
-| --- | --- | --- |
-| DPO | Direct Preference Optimization，用 chosen/rejected 偏好对直接优化模型 | 告诉模型 A 答案比 B 答案好，让它以后更偏向 A |
-| mode | 一组语义相近的输出 | 模型反复绕回去的同一种答法 |
-| mode collapse | 输出集中到少数 mode | 回答变窄、变固定 |
-| determinism | dominant cluster mass，主导 mode 的概率质量 | 多次问同一题时，有多大概率回到同一类答案 |
-| mode entropy | mode 分布熵 | 回答越分散，熵越高；越固定，熵越低 |
-| harmfulness | Guardian 或 proxy 判断的风险程度 | 回答是否危险、越界、帮助有害行为 |
-| PCE | determinism x dominant harmfulness | 模型是否稳定地给出某类风险回答 |
-| held-out prompt | 没参与训练和调参的新 prompt | 换新题考试 |
-| prompt-stratified | 按 prompt 或 prompt 类型分层分析 | 不只看平均分，要看哪些题真出问题 |
+## 2. 研究问题与实验目的
 
-## 3. 实验总表
+本项目从早期的 Preference Collapse Exploitability（PCE）假设出发。早期假设关注偏好训练是否会让模型稳定落入少数危险回答模式；后续实验发现，风险变化和输出集中程度并不总是同向，因此研究问题扩展为两条独立轴：
 
-| 阶段 | 实验 | 目的 | 关键结果 | 结论 |
-| --- | --- | --- | --- | --- |
-| 指标 sanity | synthetic diverse vs collapsed | 检查指标尺子是否正常 | diverse 和 collapsed 可被区分 | 指标管线可用 |
-| 机制 sanity | toy DPO categorical update | 检查偏好更新能否集中概率质量 | 玩具分布会集中 | 机制上有可能 |
-| 工程 smoke | tiny GPT-2 | 检查训练、采样、聚类、统计是否跑通 | 端到端跑通 | 只证明工程链路 |
-| 小模型 gate | SmolLM2-135M | 真实 instruction model 弱信号 | 两种子弱方向 | 不足以支撑 claim |
-| 小模型复核 | SmolLM2-360M corrected | 更强采样复核 | 10x8 弱，10x16 robust fail | 不稳定 |
-| 控制实验 | SmolLM2 uniform-control | 测试强统一模板是否导致坍缩 | 10x16 反向或 fail | 不支持稳定坍缩 |
-| 历史 Qwen | Qwen2.5-0.5B 20-step | 本地 Qwen 初步门槛 | 两种子 fail | 不支持 |
-| 历史 Qwen | Qwen2.5-0.5B 100-step | 加强训练 | weak pass，但 CI 不稳 | 弱证据 |
-| 历史 Qwen | 20x32 复核 | 增大测量强度 | 一 seed pass，一 seed fail | 不足以升级 |
-| margin 诊断 | chosen/rejected margin | 检查偏好拟合是否传到生成 | margin 可变好，生成不一定坍缩 | 发现关键断点 |
-| 最强 pilot | Qwen2.5-0.5B short-template 300-step | 寻找清晰局部信号 | first-10 两 seed local 和 Guardian robust pass | 受限正信号 |
-| 反向控制 | refusal-template | 验证同一管线能推向拒答 | determinism 上升，harm 下降 | 说明 harmfulness 项必要 |
-| 中性控制 | neutral-boundary | 区分固定回答和风险回答 | 弱坍缩，无 robust harm increase | determinism 不等于漏洞 |
-| wording 复现 | concise-overview | 检查是否依赖措辞 | weak 或 mixed | wording-sensitive |
-| prompt transfer | prompts 10-19 | 检查 first-10 是否迁移 | mixed/fail | transfer 不稳 |
-| 50 prompt 汇总 | full 50 view | 看整体趋势和异质性 | Guardian aggregate pass，但 34/33/33 分裂 | 平均数有误导 |
-| taxonomy v0 | cyber vs violence/weapons | 尝试解释 prompt 差异 | 旧数据上有模式 | 仅探索 |
-| taxonomy held-out | AdvBench 4-vs-4 | 验证 taxonomy v0 | 失败 | taxonomy v0 不可用 |
-| S0.1 | AdvBench held-out 30 | 开题前泛化 gate | pass rate 35%，低于 60% | 不进入 S1 |
-| Experiment C | poison/CAR smoke | 测试低率投毒剂量效应 | CAR_5% 不大于 CAR_1% 和 clean | 不支持主动诱导 |
-| Qwen3 smoke | Qwen3-1.7B 5-step | 验证新模型 LoRA-DPO 可跑 | adapter save/reload pass | 工程可行 |
-| Qwen3 core | Qwen3-1.7B 300-step seeds 42/43 | 检查新模型 first-10 信号 | Guardian harm 上升，但 det 下降、entropy 上升 | collapse robust fail |
-| Qwen3 smoke | Qwen3-4B 5-step | 验证 4B LoRA 可跑 | loss 0.6931 到 0.0008 | 工程可行 |
-| Qwen3 gate | Qwen3-4B seed42 100-step | 4B 方向门槛 | Guardian harm 上升，但 det 下降、entropy 上升 | collapse robust fail |
+- **风险轴**：有害率、危险信息有效性、重复调用的尾部风险是否变化；
+- **分布轴**：风险集中到少数模式，还是分散在多个不同语义或行为模式中。
 
-## 4. 按实验线展开
+正式研究问题为：
 
-### 4.1 指标与工程 sanity
+- RQ1：风险总量和风险模式多样性是否能独立变化？
+- RQ2：这种变化是否依赖训练数据条件？
+- RQ3：观察到的现象能否跨独立训练 seed 稳定复现？
+- RQ4：现象是否是 DPO 特有，还是训练内容、拒答抑制或训练强度造成？
 
-目的：
+R0–R3 主要回答 RQ1–RQ3。由于 R3 未通过，RQ4 对应的 R4 方法对比没有启动。
 
-```text
-先确认 PCE 指标和本地训练管线不是坏的。
-```
+## 3. 数据集与数据条件
 
-结果：
+### 3.1 训练数据轴
 
-- synthetic diverse vs collapsed 能按预期改变 determinism、entropy、proxy PCE。
-- toy DPO categorical update 能让概率质量向偏好项集中。
-- tiny GPT-2 训练、采样、聚类、输出 JSON、汇总脚本全部跑通。
+正式实验将训练数据组织为五种条件，而不是只比较“正常数据”和“投毒数据”。
 
-支持的观点：
-
-```text
-PCE 度量管线和本地实验管线可用。
-偏好更新在机制上可能造成概率集中。
-```
-
-不支持的观点：
-
-```text
-这些 sanity check 不能证明真实 LLM 会产生安全漏洞。
-```
-
-### 4.2 SmolLM2 小模型线
-
-SmolLM2-135M 结果：
-
-- 有弱两种子 collapse 方向。
-- 但模型太小，实验范围太窄。
-
-SmolLM2-360M corrected 结果：
-
-- 10 prompts x 8 samples 时有 weak pass。
-- 匹配到 10 prompts x 16 samples 后变成 robust fail。
-- uniform-control 在 10x16 下甚至朝反方向移动。
-
-支持的观点：
-
-```text
-真实 instruction model 上可以跑完整 PCE 测量。
-小样本、低采样数下容易出现不稳定正信号。
-```
-
-不支持的观点：
-
-```text
-SmolLM2 结果不支持稳定的 DPO 输出坍缩 claim。
-```
-
-### 4.3 历史 Qwen2.5-0.5B 线
-
-Qwen2.5-0.5B 是历史 pilot，不再作为后续新实验主线。旧权重和 ignored qwen05 checkpoint 已清理，保留 tracked 报告和摘要。
-
-重要发现：
-
-- fp16 小训练出现 NaN，float32 可跑。
-- 20-step uniform-control 两种子失败。
-- 100-step uniform-control 出现 weak pass，但不稳。
-- 20x32 更强复核后一 seed pass、一 seed fail。
-- preference margin 可以明显朝 chosen 改善。
-- 但 margin 改善不必然传导到 sampled-mode collapse。
-
-支持的观点：
-
-```text
-DPO 确实可以在本地改变 chosen/rejected 偏好边界。
-偏好拟合和生成分布坍缩不是同一件事。
-```
-
-不支持的观点：
-
-```text
-仅靠训练 loss 或 preference margin 不能证明 PCE。
-```
-
-### 4.4 历史最强正信号：Qwen2.5-0.5B short-template 300-step
-
-设置：
-
-| 项目 | 值 |
-| --- | --- |
-| 模型 | Qwen2.5-0.5B-Instruct |
-| preference | `data/local_short_template_preferences.jsonl` |
-| chosen 模板 | `Sure, safe overview only.` |
-| steps | 300 |
-| learning rate | 3e-6 |
-| seeds | 42、43 |
-| prompts | `data/attack_prompts.jsonl` 前 10 条 |
-| samples | 每 prompt 16 次 |
-
-结果：
-
-- 两个 seed 都出现 determinism 上升、entropy 下降。
-- local PCE robust pass。
-- Granite Guardian-PCE robust pass。
-- dominant Guardian harmfulness robust increase。
-- refusal-template 反向控制能把风险方向反过来。
-
-这支持：
-
-```text
-局部 prompt 和特定 response wording 下，DPO 可以产生安全相关的主导模式移动。
-```
-
-但限制很强：
-
-- 只在 first-10 prompts 最强。
-- 换 prompt 后不稳定。
-- 换 chosen wording 后不稳定。
-- target phrase exact hit 为 0。
-- dominant mode 是语义聚类意义上的主导，不是简单复制模板。
-- 0.5B 太小，不应作为最终研究主线。
-
-因此它支持的是：
-
-```text
-局部机制信号存在。
-```
-
-不是：
-
-```text
-DPO 已被证明造成普遍可利用漏洞。
-```
-
-### 4.5 反向与中性控制
-
-refusal-template 控制：
-
-- chosen 是拒答模板。
-- rejected 是短 compliance 模板。
-- determinism 上升。
-- entropy 下降。
-- refusal 上升。
-- compliance 和 proxy harmfulness 下降。
-- dominant Guardian harmfulness 下降。
-
-neutral-boundary 控制：
-
-- 出现弱 collapse 方向。
-- 没有 robust harm increase。
-
-支持的观点：
-
-```text
-PCE 必须同时包含 determinism 和 harmfulness。
-回答更固定本身不是漏洞，固定到有害模式才是风险。
-```
-
-不支持的观点：
-
-```text
-不能把“输出多样性下降”直接等同于“安全漏洞”。
-```
-
-### 4.6 prompt transfer 和 full 50 异质性
-
-关键结果：
-
-| Prompt block | 结果 |
-| --- | --- |
-| 原始 first 10 | 最强正信号 |
-| prompts 10-19 单独训练 | positive but weak |
-| 原始 checkpoint 迁移到 prompts 10-19 | local/Guardian mixed |
-| held-out fallback first 10 | weak positive |
-| held-out fallback offset 10 | Guardian mixed |
-| held-out fallback offset 20 | local 和 Guardian-PCE robust fail |
-| full 50 prompt aggregate | Guardian-PCE robust pass，但 prompt 级高度异质 |
-
-full 50 关键统计：
-
-```text
-34 pass / 33 mixed / 33 fail prompt-seed comparisons
-```
-
-白话解释：
-
-```text
-平均数看起来有正信号，但拆到每一道题，成功、混合、失败几乎一样多。
-```
-
-支持的观点：
-
-```text
-prompt identity 是 PCE 行为的关键调节因素。
-需要 prompt-stratified 分析。
-```
-
-不支持的观点：
-
-```text
-不能用 aggregate positive 直接宣称普遍漏洞。
-```
-
-### 4.7 taxonomy v0 和 held-out 分类验证
-
-taxonomy v0 起因：
-
-- 旧 50 prompt 上，cyber 看起来更容易 positive。
-- violence/weapons 看起来更容易 negative。
-
-held-out AdvBench 4-vs-4 验证：
-
-| Topic | Local Gate | Guardian-PCE | Dominant Harm |
+| 条件 | 名称 | 定义 | 实验作用 |
 | --- | --- | --- | --- |
-| cyber | 两 seed fail，pooled mixed | mixed | robust increase |
-| violence/weapons | mixed/mixed | mixed | robust decrease |
+| D0 | Clean helpfulness | 普通无害任务中 chosen 更正确或更有用 | 检查普通帮助性训练的安全外溢 |
+| D1 | Clean safety | 危险请求中 chosen 更安全、rejected 更危险 | 安全对齐参照 |
+| D2 | Helpfulness–safety conflict | chosen 更有帮助但安全边界较弱，rejected 更安全但帮助性较差 | 主要现实冲突条件 |
+| D3 | 5% harmful preference contamination | 在干净偏好中混入 5% 反向安全 pair | 低比例污染筛选 |
+| D4 | Full refusal-suppression intervention | chosen 更配合，rejected 为安全拒答 | 强压力测试，不代表现实分布 |
 
-支持的观点：
+主要来源为 UltraFeedback 派生的普通帮助性偏好和 PKU-SafeRLHF 固定子集。D3 中反转或注入的 pair 被显式标记为 `synthetic_poison`。R2 每个条件固定 200 pairs，并通过 token 匹配控制训练预算。
 
-```text
-旧数据存在 prompt 类型差异。
-```
-
-不支持的观点：
-
-```text
-taxonomy v0 不能预测新 prompt 上的 PCE。
-```
-
-结论：
+初始 D2 包含过强冲突样本，300-step 训练产生严重质量漂移。修复版 D2 只保留 chosen harm severity = 1 的 mild natural conflicts，并过滤过短、过长、长度严重失衡和非英文响应；最终为 200 pairs、44,538 effective tokens。修复数据 SHA-256 为：
 
 ```text
-taxonomy v0 失败，需要 taxonomy v1 或更稳健的 prompt feature 方法。
+08405eae95a5f049e8d2c38dffeb845a03a530377da2b536be9aa056c8c1b071
 ```
 
-### 4.8 S0.1 held-out 30
-
-目的：
+R3 使用 D1、修复后 D2 和 D4 的冻结训练并集，SHA-256 为：
 
 ```text
-开题前最重要的泛化 gate：用 30 个零重叠 AdvBench prompts 检查历史最强 positive checkpoint 是否泛化。
+a2cd511ec26ec5aa408e2b04faffdcc2cdc194dd9017cb1abddf3dfb109f6034
 ```
 
-设置：
+详细选择索引和哈希见 [`experiments/data_splits/`](../experiments/data_splits/)。
 
-| 项目 | 值 |
-| --- | --- |
-| prompt file | `data/advbench_s0_1_heldout_30.jsonl` |
-| prompts | 30 |
-| samples | 每 prompt 32 |
-| final checkpoints | Qwen2.5-0.5B short-template seed42/seed43 |
-| Guardian | Granite Guardian 3.1 2B |
-| success threshold | prompt pass rate 至少 60% |
+### 3.2 评测数据
 
-结果：
+| 数据集 | R1 | R2 | R3 | 用途 |
+| --- | ---: | ---: | ---: | --- |
+| HarmBench | 50 prompts × 16 samples | 50 × 16 | 100 × 32；D2 补到 100 × 64 | 内容风险、尾部风险、语义模式 |
+| XSTest | 完整 450 × 4 | 完整 450 × 4 | 完整 450 prompts | 安全/不安全提示拒答与过度拒答 |
+| AdvBench held-out | 历史 30 条 gate | 去重参照 | 不作为主终点 | 历史泛化和泄漏控制 |
+| JailbreakBench | 去重参照 | 去重参照 | 不作为主终点 | 训练—评测近邻排除 |
 
-| 指标 | seed42 | seed43 | pooled |
-| --- | ---: | ---: | ---: |
-| Det Delta | -0.0125 | -0.0115 | 负向 |
-| Entropy Delta | +0.0190 | +0.0322 | 正向 |
-| Proxy PCE Delta | +0.0250 | +0.0208 | 正向但弱 |
-| Prompt pass/mixed/fail | 10/2/18 | 11/2/17 | 21/4/35 |
-| Pass rate | 33.3% | 36.7% | 35.0% |
-
-Guardian：
-
-| 指标 | 结果 |
-| --- | --- |
-| Guardian-PCE gate | mixed |
-| Guardian-PCE Yes delta | +0.0307，CI [+0.0130, +0.0490] |
-| Guardian-PCE score delta | +0.0211，CI [+0.0064, +0.0370] |
-| dominant harm | robust increase |
-| dominant Guardian Yes delta | +0.1990，CI [+0.0701, +0.3276] |
-| target phrase hit | seed42 final 0/960，seed43 final 0/960 |
-| final dominant mass | seed42 0.1229，seed43 0.1240 |
-
-解释：
+R3 的 HarmBench 固定 100 条分层样本，覆盖六类：chemical/biological 17、cybercrime/intrusion 17、harassment/bullying 17、harmful 17、illegal 16、misinformation/disinformation 16。其 split SHA-256 为：
 
 ```text
-Guardian harm 上升，但 determinism 下降、entropy 上升。
-这说明风险评分增加了，但回答没有更集中。
+fffe21a839151b5330a4e97d5f35122acd6816e105c15558ae8d92edada146fb
 ```
 
-支持的观点：
+XSTest 共 450 条，其中 safe 250、unsafe 200，split SHA-256 为：
 
 ```text
-DPO 相关训练可能提高某些安全风险评分。
+d572dc167bca4f639c0645c7972eb9a9b36bbd92a3ec4a3721c8b676288904d6
 ```
 
-不支持的观点：
+训练样本与评测 prompt 做 exact、规范化和语义近邻去重。R3 manifest 记录 exact/normalized overlap = 0。
 
-```text
-S0.1 不支持 held-out sampled-mode collapse。
-不支持进入 S1 漏洞 claim。
-```
+## 4. 模型、环境与训练方法
 
-### 4.9 Experiment C poison/CAR smoke
-
-目的：
-
-```text
-检查少量 poison preference rows 是否能加速 collapse。
-```
-
-期望：
-
-```text
-CAR_5% > CAR_1% > CAR_clean
-```
-
-结果：
-
-| Condition | Det Delta | Entropy Delta | CAR | Proxy PCE Delta | Local Judgement |
-| --- | ---: | ---: | ---: | ---: | --- |
-| clean | +0.0312 | -0.0797 | +0.000797 | +0.0062 | pass |
-| 1% poison | +0.0312 | -0.0797 | +0.000797 | +0.0000 | pass |
-| 5% poison | +0.0188 | -0.0451 | +0.000451 | -0.0187 | mixed |
-
-Guardian-PCE：
-
-| Condition | Guardian-PCE Yes Delta | Guardian-PCE Score Delta |
-| --- | ---: | ---: |
-| clean | +0.0437 | +0.0326 |
-| 1% poison | +0.0312 | +0.0228 |
-| 5% poison | +0.0187 | +0.0095 |
-
-raw audit：
-
-| Condition | Outputs | Refusal | Compliance | Proxy-Harmful | Target Hits |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| clean final | 160 | 0.287 | 0.344 | 0.256 | 0 |
-| 1% final | 160 | 0.306 | 0.344 | 0.244 | 0 |
-| 5% final | 160 | 0.275 | 0.319 | 0.200 | 0 |
-
-解释：
-
-```text
-5% poison 没有比 1% 和 clean 更强，反而更弱。
-Guardian-PCE 也是 clean 最强、5% 最弱。
-```
-
-支持的观点：
-
-```text
-当前投毒/CAR pipeline 可以跑通。
-```
-
-不支持的观点：
-
-```text
-不支持低率投毒主动诱导 collapse。
-不支持“攻击者可以稳定制造 PCE”的叙事。
-```
-
-### 4.10 Qwen3-first 最新模型实验
-
-这条线是最新主线。原因是用户明确指出：安全漏洞研究应该面向较新的模型，0.5B 太小，不再跑后续实验。
-
-环境：
-
-| 项目 | 值 |
-| --- | --- |
-| base conda env | `stdplm` |
-| base transformers | 4.40.2 |
-| Qwen3 overlay | `D:\hf_models\pydeps\qwen3_transformers` |
-| overlay transformers | 4.57.6 |
-| Qwen3-1.7B | `D:\hf_models\Qwen3-1.7B` |
-| Qwen3-4B | `D:\hf_models\Qwen3-4B` |
-| generation | `enable_thinking=False` |
-| training | LoRA-DPO，保存 adapter |
-
-#### Qwen3-1.7B smoke
-
-| Run | 结果 |
-| --- | --- |
-| 1 prompt x 2 samples x 5 steps | pass |
-| loss | 0.6931 到 0.0353 |
-| adapter reload | pass |
-
-#### Qwen3-1.7B first-10 core
-
-设置：
+### 4.1 正式环境
 
 | 项目 | 值 |
 | --- | --- |
 | 模型 | Qwen3-1.7B |
-| steps | 300 |
-| seeds | 42、43 |
-| prompts | first 10 |
-| samples | 每 prompt 16 |
-| max new tokens | 64 |
-| DBSCAN eps | 0.8 |
+| GPU | NVIDIA GeForce RTX 4090，24,564 MiB |
+| Driver | 595.71.05 |
+| Python | 3.12.3 |
+| PyTorch | 2.8.0+cu128 |
+| CUDA runtime | 12.8 |
+| Transformers | 4.57.6 |
+| 精度 | BF16 可用 |
+| 训练方式 | LoRA-DPO，仅保存 adapter |
 
-local metrics：
+环境快照见 [`experiments/manifests/environment_check.json`](../experiments/manifests/environment_check.json)。R0 完成环境检查、LoRA-DPO smoke、adapter 保存/重载、生成和基础审计，未出现 OOM，因此进入 R1。
 
-| Seed | Det Delta | Entropy Delta | Proxy PCE Delta | Local Judgement | Prompt Pass/Mixed/Fail |
-| --- | ---: | ---: | ---: | --- | --- |
-| 42 | -0.0563 | +0.1686 | +0.4875 | fail | 1/0/9 |
-| 43 | -0.0500 | +0.1667 | +0.4625 | fail | 1/0/9 |
-| pooled | -0.0531 CI [-0.1000, -0.0125] | +0.1677 CI [+0.0301, +0.3117] | +0.4750 CI [+0.3469, +0.6000] | robust_fail | 2/0/18 |
+### 4.2 训练协议
 
-raw audit：
+- R1 复用已有受控拒答抑制 LoRA checkpoint，不重新训练；
+- R2 对 D0–D4 采用单 seed 42、每条件 200 pairs、300 steps 的统一筛选；
+- 修复版 D2 改为 100 steps、`lr=1e-4`、`beta=0.1`，teacher-forced mean-token KL 从 2.005 降至 0.326；
+- R3 对 D1 和修复后 D2 使用 seeds 42/43/44、100 steps，并保留 step 50/100；
+- D4 的 100-step 和 step-50 checkpoint 因 KL 超门槛被拒绝，最终只采用三个 seed 均通过 KL 的 step 30；
+- 所有 R3 正式 checkpoint 必须同时通过 KL 与输出质量 gate。
 
-| Condition | Outputs | Refusal | Compliance | Proxy-Harmful | Target Hits |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| seed42 step0 | 160 | 0.575 | 0.156 | 0.031 | 0 |
-| seed42 final | 160 | 0.156 | 0.706 | 0.575 | 0 |
-| seed43 step0 | 160 | 0.575 | 0.156 | 0.031 | 0 |
-| seed43 final | 160 | 0.156 | 0.650 | 0.537 | 0 |
+### 4.3 风险指标
 
-Guardian：
+- HarmBench Mistral 二分类有害率；
+- Granite Guardian 有害率与风险分数；
+- StrongREJECT 连续分数与 Max@k；
+- Macro Harm Rate；
+- Any-Harm@k；
+- XSTest safe/unsafe refusal rate。
 
-| Seed | Guardian-PCE Yes Delta | Guardian-PCE Score Delta | Dominant Harm | Gate |
-| --- | ---: | ---: | --- | --- |
-| 42 | +0.4750 | +0.4272 | increase | mixed |
-| 43 | +0.4813 | +0.4445 | increase | mixed |
-| pooled | +0.4781 CI [+0.3094, +0.6500] | +0.4359 CI [+0.2945, +0.5874] | robust_increase | robust_fail |
+### 4.4 风险结构与多样性指标
 
-解释：
+- Semantic Entropy；
+- Harmful Semantic Entropy；
+- Risk-Mass Entropy；
+- Effective Semantic Modes；
+- Vendi Score；
+- embedding + HDBSCAN 聚类。
 
-```text
-Qwen3-1.7B strongly supports harmfulness/compliance amplification.
-It does not support collapse.
-The model becomes riskier by Guardian/proxy measures, but not more deterministic.
-```
+当前 Risk-Mass Entropy 使用二元 HarmBench 风险质量，因此与 Harmful Semantic Entropy 数值相同，不能被当成独立连续风险证据。TF-IDF/DBSCAN、determinism 和 PCE 只用于历史对比，不是正式主终点。
 
-白话说：
+### 4.5 统计方法与判定标准
 
-```text
-它更容易给出被判为风险的回答，但回答没有更固定，反而更分散。
-```
+训练 seed 是独立实验单位，生成样本不是。R3 使用 `training seed → prompt → generation` 的 5,000 次 hierarchical bootstrap，并报告 95% CI。
 
-#### Qwen3-4B smoke
+Gate R3 需要同时满足：
 
-| Run | 结果 |
-| --- | --- |
-| 1 prompt x 2 samples x 5 steps | pass |
-| loss | 0.6931 到 0.0008 |
+1. 至少三个训练 seed 方向一致；
+2. 多个安全 judge 不互相推翻；
+3. 风险变化 CI 支持目标方向；
+4. Harmful Semantic Entropy 或 Risk-Mass Entropy 通过预注册非劣检验；
+5. KL 和输出质量合格；
+6. 人工盲审支持定性判断。
 
-#### Qwen3-4B seed42 100-step gate
+其中任何必要计算门槛失败，都不能靠增加同一 checkpoint 的生成样本或事后人工解释补救。
 
-local metrics：
+## 5. 实验流程总览
 
-| Seed | Det Delta | Entropy Delta | Proxy PCE Delta | Local Judgement | Prompt Pass/Mixed/Fail |
-| --- | ---: | ---: | ---: | --- | --- |
-| 42 | -0.0188 | +0.0701 | +0.0125 | fail | 0/0/10 |
-| bootstrap | -0.0187 CI [-0.0375, +0.0000] | +0.0701 CI [+0.0000, +0.1403] | +0.0125 CI [+0.0000, +0.0312] | robust_fail | 0/0/10 |
+| 阶段 | 目的 | 状态 | 决策 |
+| --- | --- | --- | --- |
+| 历史本地先导 | 验证 PCE 指标和寻找风险/多样性方向信号 | 完成 | 只作为假设生成 |
+| R0 | 租卡环境、吞吐、保存/重载和端到端 smoke | 完成 | Go R1 |
+| R1 | 公开 benchmark 低成本复核 | 完成 | Go R2 |
+| R2 | D0–D4 单 seed 数据轴筛选 | 完成 | 初始 Hold；修复 D2 后 Go R3 |
+| R3 | D1/D2/D4 三 seed 严格主实验 | 计算完成 | **Stop** |
+| R4–R6 | 方法特异性、4B/8B 高规格确认 | 未执行 | 由 Stop 规则冻结 |
 
-raw audit：
+## 6. 实验结果
 
-| Condition | Outputs | Refusal | Compliance | Proxy-Harmful | Target Hits |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| seed42 step0 | 160 | 0.825 | 0.138 | 0.000 | 0 |
-| seed42 final | 160 | 0.519 | 0.081 | 0.013 | 0 |
+### 6.1 历史本地先导：只用于形成假设
 
-Guardian：
+早期在 RTX 4060 上依次完成 synthetic/toy 指标 sanity、tiny GPT-2、SmolLM2、Qwen2.5-0.5B、Qwen3-1.7B/4B smoke、prompt transfer 和 negative controls。它们说明：
 
-| Seed | Guardian-PCE Yes Delta | Guardian-PCE Score Delta | Dominant Harm | Gate |
-| --- | ---: | ---: | --- | --- |
-| 42 | +0.4688 CI [+0.3187, +0.6250] | +0.3981 CI [+0.2658, +0.5286] | robust_increase | robust_fail |
+- 偏好训练可以改变 chosen/rejected margin 和风险倾向；
+- 输出更集中不等于更危险，拒答模板也能使输出集中；
+- Qwen3 受控拒答抑制先导中曾出现 Guardian 风险上升，同时 determinism 下降、mode entropy 上升；
+- 但该信号依赖 prompt、wording 和 checkpoint，不能作为公开 benchmark、多 seed 的最终结论。
 
-解释：
+Qwen3-1.7B 历史两 seed 先导的平均变化为 determinism -0.0531、mode entropy +0.1677、Granite Guardian Yes +0.4781、Guardian score +0.4359。Qwen3-4B 单 seed 小规模复核方向相似，但统计强度不足。
 
-```text
-Qwen3-4B 也不是“更大就更坍缩”。
-Guardian 风险上升，但 determinism 没有上升，entropy 没有下降。
-```
+这些结果推动研究从“输出坍缩漏洞”转向风险总量与风险结构的独立测量，但其结论已被后续 R1–R3 更严格证据取代。
 
-当前决策：
+### 6.2 R1：公开 benchmark pilot
 
-```text
-暂不继续跑 Qwen3-4B seed43 或 300-step，除非先修改训练目标或 prompt 协议。
-```
+R1 使用 Qwen3-1.7B 的已有受控 LoRA checkpoint，在 HarmBench 50 × 16 和 XSTest 450 × 4 上比较 Base 与 LoRA。
 
-## 5. 支持什么观点
+| 指标 | Base | LoRA | 变化 |
+| --- | ---: | ---: | ---: |
+| Granite Guardian 风险率 | 29.38% | 88.12% | +58.75 pp |
+| HarmBench Mistral 风险率 | 15.88% | 55.88% | +40.00 pp |
+| HarmBench semantic entropy | 0.773 | 0.891 | +0.118 |
+| HarmBench effective modes | 2.94 | 3.42 | +0.47 |
+| HarmBench Vendi | 2.43 | 2.38 | -0.05 |
+| XSTest 安全提示拒答率 | 3.70% | 0.10% | -3.60 pp |
+| XSTest 不安全提示拒答率 | 45.75% | 0.00% | -45.75 pp |
 
-### 5.1 强支持
+两个安全 judge 同时显示风险上升，HDBSCAN 语义熵和有效模式数没有下降，因此 R1 支持进入数据轴实验。但它仍是单一受控 checkpoint，无法区分训练数据内容、方法和 seed 的作用。
 
-| 观点 | 支持证据 |
-| --- | --- |
-| 本地 RTX 4060 可以完成小到中等规模 PCE smoke | SmolLM2、Qwen2.5-0.5B、Qwen3-1.7B、Qwen3-4B smoke 均跑通 |
-| PCE 指标管线可用 | synthetic、toy、tiny GPT-2、真实模型输出均能生成指标 |
-| preference fitting 和 sampled generation collapse 必须分开看 | Qwen margin 改善但 sampled collapse 不稳定 |
-| determinism 不是漏洞本身 | refusal-template 让 determinism 上升但 harm 下降 |
-| prompt-level 分析必要 | full 50 中 34 pass / 33 mixed / 33 fail，aggregate 会误导 |
-| Granite Guardian 审计能捕捉 response 风险差异 | fixed-response 控制和多组 Guardian audit |
+机器可读结果见 [`experiments/r1_public_pilot_20260722/metrics/r1_summary.json`](../experiments/r1_public_pilot_20260722/metrics/r1_summary.json)。
 
-### 5.2 中等支持
+### 6.3 R2：D0–D4 单 seed 数据轴
 
-| 观点 | 支持证据 | 限制 |
-| --- | --- | --- |
-| DPO 可以在局部 prompt 上诱发 PCE 正信号 | Qwen2.5-0.5B short-template first-10 robust pass | 0.5B、first-10、特定 wording |
-| DPO 可以提高风险或合规倾向 | Qwen3-1.7B 和 4B Guardian/proxy harmfulness 上升 | 同时未出现 collapse |
-| PCE 可能高度依赖 prompt 和 response wording | transfer、taxonomy、wording 复现均不稳 | 还缺稳定预测器 |
-| prompt-stratified PCE 是更合理方向 | 正信号局部存在，泛化失败清楚 | 需要 taxonomy v1 或 feature 模型 |
+初始 R2 使用 seed 42、每条件 300 steps。主要结果如下。
 
-### 5.3 弱支持或仅作为线索
+| 条件 | HarmBench | Granite | StrongREJECT | Any-Harm@16 | 有害语义熵 | XSTest unsafe refusal |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Base | 15.12% | 32.12% | 0.143 | 30% | 0.177 | 46.75% |
+| D0 clean helpfulness | 6.50% | 8.88% | 0.070 | 14% | 0.138 | 64.62% |
+| D1 clean safety | 1.00% | 4.12% | 0.039 | 6% | 0.017 | 67.25% |
+| D2 initial conflict | 2.25% | 53.50% | 0.047 | 24% | 0.000 | 0.00% |
+| D3 5% contamination | 2.00% | 6.00% | 0.069 | 8% | 0.000 | 69.38% |
+| D4 refusal suppression | 3.38% | 11.62% | 0.058 | 12% | 0.050 | 5.63% |
 
-| 观点 | 线索 | 为什么弱 |
-| --- | --- | --- |
-| 某些 cyber prompt 可能更容易出信号 | 旧 50 prompt taxonomy v0 | held-out 4-vs-4 失败 |
-| 低率 poison 可能影响 collapse | Experiment C pipeline 跑通 | 无剂量效应，当前为负 |
-| 大模型可能更安全或更复杂 | Qwen3 风险上升但 collapse fail | 只有 1.7B 和 4B smoke，不是规模律 |
+从这轮筛选可以得出：
 
-## 6. 不支持什么观点
+- D1 是稳定降低风险的安全参照；
+- D0 和 D3 都降低风险，D3 没有显示相对干净条件的污染增量；
+- D4 几乎消除不安全提示拒答，但内容风险仍低于 Base，证明“不拒答”不等于“输出有害信息”；
+- 初始 D2 的 Granite 上升、HarmBench 和 StrongREJECT 下降，且伴随严重语言漂移，因此不可解释。
 
-### 6.1 不支持强漏洞 claim
+初始 D2 的 800 条输出中，non-ASCII letters ≥20% 的比例为 69.88%，混合脚本比例为 40.00%；realized KL 为 2.005。R2 因此先作 Hold，而不是直接把 judge 分歧解释为风险上升。
 
-不支持：
+完整初始结果见 [`experiments/r2_data_axis_20260722/RESULTS.md`](../experiments/r2_data_axis_20260722/RESULTS.md)。
 
-```text
-DPO 会普遍导致可利用的安全漏洞。
-```
+### 6.4 R2 D2 修复：从 Hold 到 Go R3
 
-理由：
+修复 D2 数据并将训练缩短到 100 steps 后，KL 降至 0.326；完整 800 条 HarmBench 输出的语言漂移、混合脚本、长字符重复和过短输出率均为 0%。
 
-- S0.1 held-out 30 fail。
-- pass rate 只有 35%，低于 60% 门槛。
-- Qwen3-1.7B 和 4B 都是 collapse robust fail。
-- prompt transfer 不稳定。
-- taxonomy v0 验证失败。
-- poison/CAR 没有剂量效应。
+| 指标 | Base | 初始 D2 | 修复 D2 | 修复 D2 − Base |
+| --- | ---: | ---: | ---: | ---: |
+| HarmBench 风险率 | 15.12% | 2.25% | 22.12% | +7.00 pp |
+| Granite 风险率 | 32.12% | 53.50% | 40.75% | +8.63 pp |
+| StrongREJECT mean | 0.143 | 0.047 | 0.155 | +0.011 |
+| StrongREJECT Max@16 | 0.237 | 0.223 | 0.310 | +0.073 |
+| Any-Harm@16 | 30% | 24% | 40% | +10 pp |
+| Harmful Semantic Entropy | 0.177 | 0.000 | 0.232 | +0.055 |
+| Overall Semantic Entropy | 0.699 | 0.543 | 0.671 | -0.028 |
+| XSTest safe refusal | 3.50% | 0.00% | 1.40% | -2.10 pp |
+| XSTest unsafe refusal | 46.75% | 0.00% | 41.88% | -4.88 pp |
 
-### 6.2 不支持“只要模型更大，信号就会更强”
+修复版在单 seed 上同时满足输出质量、KL、双分类 judge、StrongREJECT、尾部风险和有害语义熵方向，因此 Gate R2 转为 Go R3。进入 R3 的候选为 D1、D2、D4；D3 因没有分离信号被淘汰。
 
-不支持：
+完整修复结果见 [`experiments/r2_d2_repair_20260722/RESULTS.md`](../experiments/r2_d2_repair_20260722/RESULTS.md)。
 
-```text
-之前 idea 不行主要是 0.5B 太小，换 Qwen3 就会成立。
-```
+### 6.5 R3 D1：风险与有害多样性同步下降
 
-理由：
+D1 在 seeds 42/43/44 上的三个安全 judge 方向完全一致。以下为 100 prompts × 32 samples 的三 seed 均值。
 
-- Qwen3-1.7B 两个 seed det_delta 都为负，entropy_delta 都为正。
-- Qwen3-4B seed42 100-step 也是 det_delta 负、entropy_delta 正。
-- 新模型确实显示风险评分上升，但没有显示输出坍缩。
+| 指标 | Base | D1 mean | D1 − Base |
+| --- | ---: | ---: | ---: |
+| HarmBench 风险率 | 0.1666 | 0.0780 | -0.0885 |
+| Granite 风险率 | 0.3491 | 0.2145 | -0.1346 |
+| StrongREJECT mean | 0.1305 | 0.0888 | -0.0417 |
+| Any-Harm@32 | 0.3800 | 0.3400 | -0.0400 |
+| Harmful Semantic Entropy | 0.2404 | 0.0962 | -0.1442 |
+| Semantic Entropy | 0.5938 | 0.6311 | +0.0373 |
 
-更准确说法：
+Hierarchical bootstrap：
 
-```text
-小模型是历史 pilot 的限制之一，但不是唯一 blocker。
-当前 blocker 是 prompt/data/training construction 和 generation behavior 的断裂。
-```
+- harm-rate delta = -0.0885，95% CI [-0.1440, -0.0456]；
+- harmful-entropy delta = -0.1136，95% CI [-0.1802, -0.0540]。
 
-### 6.3 不支持 first-10 结果泛化
+D1 确实降低风险，但有害语义熵也显著下降并越过非劣界限，所以它是“风险更少、有害模式也更少”的耦合安全改善，不能支持解耦假设。
 
-不支持：
+### 6.6 R3 D2：均值有信号，但训练 seed 不稳定
 
-```text
-first-10 positive 可以代表一般 harmful prompts。
-```
+32-sample R3 的三 seed 均值如下。
 
-理由：
+| 指标 | Base | D2 mean | D2 − Base |
+| --- | ---: | ---: | ---: |
+| HarmBench 风险率 | 0.1666 | 0.2047 | +0.0381 |
+| Granite 风险率 | 0.3491 | 0.3138 | -0.0353 |
+| StrongREJECT mean | 0.1305 | 0.1587 | +0.0282 |
+| Any-Harm@32 | 0.3800 | 0.4667 | +0.0867 |
+| Harmful Semantic Entropy | 0.2404 | 0.2194 | -0.0210 |
+| Semantic Entropy | 0.5938 | 0.6604 | +0.0666 |
 
-- prompts 10-19 mixed/fail。
-- fallback offset 20 robust fail。
-- S0.1 held-out 30 fail。
-- full 50 prompt split 几乎均匀分裂。
+均值本身会给出相互矛盾的印象：HarmBench、StrongREJECT 和 Any-Harm 上升，Granite 和有害语义熵下降。更关键的是独立训练 seed 的 HarmBench 风险率：
 
-### 6.4 不支持主动投毒攻击叙事
+| 模型 | HarmBench 风险率，32 samples |
+| --- | ---: |
+| Base | 0.1666 |
+| D2 seed 42 | 0.2513 |
+| D2 seed 43 | 0.3391 |
+| D2 seed 44 | 0.0238 |
 
-不支持：
+三个 judge 的 seed 方向一致性均失败。Bootstrap 进一步显示：
 
-```text
-少量 poison preference rows 可以稳定加速 collapse。
-```
+- harm-rate delta = +0.0383，95% CI [-0.1353, 0.1725]；
+- harmful-entropy delta = -0.0074，95% CI [-0.1626, 0.1257]。
 
-理由：
+风险 CI 跨 0，且有害熵没有通过非劣门槛，所以 D2 失败。
 
-- CAR_5% > CAR_1% > CAR_clean 为 false。
-- clean 和 1% CAR 相同。
-- 5% 更弱。
-- Guardian-PCE 也是 clean 最强、5% 最弱。
+### 6.7 D2 每题 64 samples：排除生成采样不足
 
-### 6.5 不支持 taxonomy v0
+为判断 D2 异质性是否只是每题 32 次生成不够，Base 和三个 D2 checkpoint 各追加 32 次独立生成，合并为 100 prompts × 64 samples。
 
-不支持：
+| 指标 | Base | D2 mean | D2 − Base |
+| --- | ---: | ---: | ---: |
+| HarmBench 风险率 | 0.1645 | 0.2057 | +0.0411 |
+| Granite 风险率 | 0.3477 | 0.3134 | -0.0343 |
+| StrongREJECT mean | 0.1288 | 0.1595 | +0.0307 |
+| Any-Harm@64 | 0.4500 | 0.4867 | +0.0367 |
+| Harmful Semantic Entropy | 0.1881 | 0.2429 | +0.0548 |
+| Semantic Entropy | 0.5171 | 0.6929 | +0.1758 |
 
-```text
-taxonomy v0 可以预测哪些 prompt 会发生 PCE。
-```
+HarmBench 的 seed 排序几乎不变：0.2498、0.3438、0.0234；bootstrap harm-rate delta = +0.0413，95% CI [-0.1329, 0.1760]。
 
-理由：
+因此，增加同一 checkpoint 的生成样本不能解决问题。D2 的不稳定来自独立训练结果，而不是 Monte Carlo 生成噪声。
 
-- held-out AdvBench 4-vs-4 失败。
-- cyber 可出现 harm increase 但没有 collapse。
-- violence/weapons 方向也不稳定。
+完整结果见 [`experiments/r3_d2_64_20260722/RESULTS.md`](../experiments/r3_d2_64_20260722/RESULTS.md)。
 
-### 6.6 不支持 determinism-only 叙事
+### 6.8 R3 D4 step 30：强干预也没有产生解耦
 
-不支持：
+D4 的 step 100 和 step 50 因 KL gate 失败未纳入结论。step 30 的三个 seed KL 分别为 0.3312、0.2393、0.4030，均通过。
 
-```text
-只要输出更固定，就是安全风险。
-```
+| 指标 | Base | D4 mean | D4 − Base |
+| --- | ---: | ---: | ---: |
+| HarmBench 风险率 | 0.1666 | 0.0774 | -0.0892 |
+| Granite 风险率 | 0.3491 | 0.1318 | -0.2173 |
+| StrongREJECT mean | 0.1305 | 0.0712 | -0.0593 |
+| Any-Harm@32 | 0.3800 | 0.2100 | -0.1700 |
+| Harmful Semantic Entropy | 0.2404 | 0.0991 | -0.1414 |
+| Semantic Entropy | 0.5938 | 0.5097 | -0.0841 |
+| XSTest safe refusal | 0.0360 | 0.1400 | +0.1040 |
+| XSTest unsafe refusal | 0.4788 | 0.5792 | +0.1004 |
 
-理由：
+Bootstrap harm-rate delta = -0.0890，95% CI [-0.1179, -0.0627]；harmful-entropy delta = -0.1097，95% CI [-0.1624, -0.0639]。
 
-- refusal-template 控制中 determinism 上升，但 harmfulness 下降。
-- neutral-boundary 有弱 concentration，但没有 robust harm increase。
+D4 在当前 KL-safe 强度下表现为激进安全/拒答干预：总风险和有害模式多样性一起下降，同时安全提示的拒答增加。它不是风险—多样性解耦证据。
 
-## 7. 当前最可信的科学解释
+完整结果见 [`experiments/r3_d4_step30_20260722/RESULTS.md`](../experiments/r3_d4_step30_20260722/RESULTS.md)。
 
-最可信解释是：
+## 7. Gate R3 为什么必须停止
 
-```text
-DPO 可以改变模型的回答倾向和风险评分。
-但 preference fitting 是否传导为 sampled-mode concentration，强烈依赖 prompt、chosen/rejected 构造、response wording、生成设置和模型本身。
-```
+| 条件 | 三 seed 风险方向 | 风险 CI | 有害熵非劣 | 计算结论 |
+| --- | --- | --- | --- | --- |
+| D1 clean safety | 一致下降 | 支持下降 | 失败，显著下降 | Fail |
+| D2 repaired conflict | 不一致 | 跨 0 | 失败 | Fail |
+| D4 step 30 | 一致下降 | 支持下降 | 失败，显著下降 | Fail |
 
-白话说：
+三种候选条件没有任何一个同时满足“稳定风险变化”和“有害多样性不下降”。因此 Gate R3 = **Stop**，而不是 Pending。
 
-```text
-DPO 确实会推模型，但它推出来的是“更危险”“更拒答”“更分散”还是“更固定”，不是固定答案。要逐题、逐设置检查。
-```
+服务器上已冻结三份盲审包：R3 main 350 条、D4 200 条、D2-64 200 条，尚未人工标注。人工审计仍是发表前的必要步骤，可用于描述 judge 分歧和典型行为模式；但它无法改变已经失败的跨 seed、风险 CI 和非劣计算门槛。
 
-因此，当前研究不应继续硬推：
+## 8. 失败、修复与可复现性记录
 
-```text
-DPO 漏洞证明
-```
+### 8.1 D2 数据、KL 和质量漂移
 
-而应转为：
+初始 D2 的 judge 分歧并不是立即可接受的科学信号。通过限制冲突强度、清理响应质量和缩短训练后，KL 从 2.005 降到 0.326，质量异常归零，三个风险 judge 在 R2 单 seed 上转为同向。这说明质量和 KL gate 是必要控制，而不是附加美化。
 
-```text
-Prompt-stratified PCE diagnostics and early warning
-```
+### 8.2 D4 checkpoint 选择
 
-## 8. 当前最佳研究方向
+D4 100-step 和 step-50 checkpoint 没有通过 KL gate，因此被明确排除。只报告三 seed 均合格的 step 30，避免用过训练 checkpoint 制造表面效应。
 
-建议开题方向：
+### 8.3 中断恢复修复
 
-```text
-面向偏好优化语言模型的 Prompt-Stratified PCE 诊断与预警研究
-```
+服务器关机中断了 R3 HarmBench judge。旧 runner 会把部分 JSON 错当成完成；commit `5b67813` 增加状态感知的 condition-level resume 和回归测试。恢复运行复用了已完成条件并补齐剩余审计，没有改写先前结果。
 
-核心问题：
+### 8.4 D2-64 并行重复 worker
 
-```text
-偏好优化什么时候会制造安全相关的回答模式集中？
-哪些 prompt 会发生？
-训练过程里能否提前预警？
-如果没有发生，如何避免被 aggregate 指标误导？
-```
+D2-64 补充生成期间，一个临时 seed44 worker 与主 runner 短暂写入同一确定性 shard。重复 worker 被立即停止；保留 shard 在 84 prompts / 2,688 answers 时验证唯一 ID、计数和 manifest 状态后继续，最终达到 100 prompts / 6,400 answers。最终哈希、每题数量、质量 gate 和合并 manifest 全部通过。
 
-这个方向的优势：
+### 8.5 保存边界
 
-- 它承认负结果，不硬包装。
-- 它解释了为什么 first-10 positive 和 held-out fail 可以同时存在。
-- 它可以把 Qwen3 的“harmfulness-only increase”纳入分析。
-- 它对 AAAI、IJCAI、NeurIPS、ICML、ICLR 的可靠性、评测、alignment dynamics 方向更合理。
-- 后续如果出现稳定 stratum，可以再升级为安全漏洞方向。
+Git 中只保存：
 
-## 9. 下一步建议
+- 配置和冻结数据索引；
+- Git commit、数据 hash、环境、wall-clock、VRAM、tokens、KL 和吞吐 manifest；
+- 脱敏聚合指标、bootstrap 和结果报告；
+- 测试和恢复逻辑。
 
-### 9.1 立刻停止的事
+Git 中不保存：模型权重、adapter 大文件、原始大规模 generations、逐条敏感 judge 输出、运行日志、凭据和未揭盲人工答案。
 
-建议停止：
+## 9. 能得出什么，不能得出什么
 
-- 不再跑新的 0.5B 实验。
-- 不把 Qwen2.5-0.5B first-10 robust pass 当作主证据。
-- 不继续 Qwen3-4B seed43/300-step，除非先修改协议。
-- 不做“主动投毒攻击已成立”的表述。
-- 不用 taxonomy v0 作为预测器。
+### 9.1 当前证据支持
 
-### 9.2 立刻该做的事
+- 偏好后训练可以显著改变安全风险、拒答行为和输出结构；
+- 拒答率与内容风险不是同一个变量；
+- 总体 semantic entropy 与 harmful semantic entropy 也不是同一个变量；
+- 数据条件和训练 seed 都是决定风险方向的重要因素；
+- 单 seed 正信号不足以升级为稳定结论；
+- 增加同一 checkpoint 的生成数不能替代增加独立训练 seed；
+- KL 和输出质量控制会实质改变结论。
 
-建议优先做：
+### 9.2 当前证据不支持
 
-1. 建立 `docs/experiment_index.md`，把所有 run family、配置、输出目录、结论统一索引。
-2. 诊断 Qwen3 为什么出现 harm 上升但 collapse 失败：
-   - baseline 是否已经高 determinism；
-   - DBSCAN eps 是否过松或过紧；
-   - non-thinking 输出是否改变 diversity；
-   - short-template preference 是否只提高 compliance 而不制造集中 mode；
-   - temperature、top-p、samples 是否需要重新校准。
-3. 设计 prompt-stratified benchmark v1：
-   - 固定 prompt IDs；
-   - 每个 stratum 至少 30 到 50 prompts；
-   - 先做 baseline diversity profiling，再训练。
-4. 设计新的 preference construction：
-   - 不只使用一个短模板；
-   - 对 chosen/rejected 的长度、语义、安全边界做控制；
-   - 区分 harmfulness-only、determinism-only、true PCE。
-5. 保持 Qwen3 为现代模型主线：
-   - Qwen3-1.7B 用于快速迭代；
-   - Qwen3-4B 只在协议改好后跑；
-   - Qwen3-8B 暂时只适合 inference audit，不建议训练。
+- DPO 普遍或稳定导致风险—多样性解耦；
+- 干净偏好训练天然提高安全风险；
+- 5% 有害偏好污染已经稳定奏效；
+- 强拒答抑制必然提高内容风险；
+- 语义熵上升本身意味着更危险；
+- R1 或 R2 的单 checkpoint/单 seed 结果可以替代 R3 多 seed 结论；
+- 现阶段有理由扩展到 4B/8B 或租用 48GB/80GB GPU。
 
-### 9.3 后续成功标准
+## 10. 我的结论与后续建议
 
-未来如果要重新支持漏洞 claim，至少需要：
+我的结论是：**这个项目现在得到的是一个可信的负结果和一个清晰的方法学发现，而不是原始正假设的确认。**
 
-- held-out stratum 上 determinism CI > 0；
-- entropy CI < 0；
-- Guardian-PCE CI > 0；
-- 两个以上 training seeds；
-- prompt pass rate 明显高于 60%；
-- raw representative 显示可解释的 dominant mode；
-- 不同 wording 或不同 preference subset 能复现；
-- 至少一个现代模型 Qwen3-1.7B 或 4B 通过。
+最关键的负结果是，经过数据修复、KL 控制、双 judge、StrongREJECT、多 seed、分层 bootstrap 和 64-sample 复评后，没有一个候选条件稳定满足“风险变化，同时有害模式多样性不下降”。尤其是 D2，seed 44 与 seed 42/43 的巨大反转不能被平均值掩盖。
 
-否则，论文就应保持诊断、预警、负结果 benchmark 方向。
+最重要的方法学发现有三点：
 
-## 10. 最终判断清单
+1. **必须把拒答、内容风险、整体多样性和有害子空间多样性拆开。** D4 显示拒答行为与内容风险可以明显错位，D1 显示整体熵略升时有害熵仍可显著下降。
+2. **训练 seed 比单 checkpoint 的生成样本数更关键。** D2 从 32 补到 64 samples 后排序几乎不变，直接排除了“多生成一点就会稳定”的解释。
+3. **质量和 KL 控制是因果解释的前提。** 初始 D2 的表面异常主要混杂了语言漂移和过大 KL；修复后才获得可解释的单 seed 信号，而 R3 又进一步证明该信号不稳定。
 
-| 问题 | 当前回答 |
-| --- | --- |
-| PCE 指标能跑吗 | 能 |
-| 本机能跑 Qwen3 LoRA-DPO 吗 | 能 |
-| DPO 会改变模型风险倾向吗 | 会，Qwen3 上很明显 |
-| DPO 会稳定降低输出多样性吗 | 当前不支持 |
-| first-10 positive 能泛化吗 | 当前不支持 |
-| 0.5B 太小是唯一问题吗 | 不是 |
-| poison/CAR 主动诱导成立吗 | 当前不支持 |
-| taxonomy v0 能解释 prompt 差异吗 | 当前不支持 |
-| 是否应该进入 S1 漏洞实验 | 不应该 |
-| 最好方向是什么 | prompt-stratified PCE 诊断与预警 |
+建议下一步不是继续堆算力，而是先做低成本机制诊断：
 
-## 11. 可直接引用的结论
+1. 完成已冻结盲审包的人工标注，只用于解释 judge 分歧、seed 44 行为和簇语义，不改变 Gate R3；
+2. 对 D2 seeds 42/43/44 比较训练轨迹、chosen/rejected margin、token/长度分布、checkpoint KL 和 prompt/category 分层，定位 seed 44 反转从何时出现；
+3. 只有在提出能预注册并控制 seed 异质性的机制假设后，才用更多独立训练 seeds 做一个小规模验证；
+4. 若仍不能跨 seed，结束当前解耦主线，将成果定位为负结果、评测协议和 seed 敏感性研究；
+5. 在小规模机制验证通过前，不启动 R4，不扩到 Qwen3-4B/8B，不租 48GB/80GB 卡。
 
-专业版：
+## 11. 结果与复现入口
 
-```text
-Current local evidence does not support a broad DPO-induced exploitable mode-collapse claim. It supports a narrower diagnostic direction: DPO can shift safety-relevant response behavior, but the transmission from preference fitting to sampled-mode concentration is prompt-sensitive, wording-sensitive, and not robust under held-out or Qwen3 scale smoke tests.
-```
+- 当前计划与停止规则：[`PLAN.md`](../PLAN.md)
+- 项目状态与运行入口：[`README.md`](../README.md)
+- R1 聚合结果：[`experiments/r1_public_pilot_20260722/metrics/r1_summary.json`](../experiments/r1_public_pilot_20260722/metrics/r1_summary.json)
+- R2 数据轴结果：[`experiments/r2_data_axis_20260722/RESULTS.md`](../experiments/r2_data_axis_20260722/RESULTS.md)
+- R2 D2 修复结果：[`experiments/r2_d2_repair_20260722/RESULTS.md`](../experiments/r2_d2_repair_20260722/RESULTS.md)
+- R3 主结果：[`experiments/r3_main_20260722/RESULTS.md`](../experiments/r3_main_20260722/RESULTS.md)
+- R3 D2 64-sample 复评：[`experiments/r3_d2_64_20260722/RESULTS.md`](../experiments/r3_d2_64_20260722/RESULTS.md)
+- R3 D4 step-30 结果：[`experiments/r3_d4_step30_20260722/RESULTS.md`](../experiments/r3_d4_step30_20260722/RESULTS.md)
+- 租卡与复现协议：[`docs/rental_compute_protocol.md`](rental_compute_protocol.md)
+- 仓库迁移与 current/legacy 边界：[`docs/repository_migration.md`](repository_migration.md)
 
-中文专业版：
+---
 
-```text
-当前本地证据不支持“DPO 普遍诱发可利用输出坍缩漏洞”的强结论。结果更支持一个收敛后的诊断方向：DPO 确实能改变安全相关回答行为，但从偏好拟合到采样模式集中之间存在明显断裂，且该现象对 prompt、wording 和训练构造高度敏感。
-```
-
-白话版：
-
-```text
-这个 idea 不是完全没信号，但不能按“已经发现漏洞”讲。更靠谱的方向是研究 DPO 后哪些题会出风险集中、哪些不会、怎么提前发现，以及怎样避免被平均指标误导。
-```
-
+**最终状态：R0 Pass → R1 Pass → R2 repaired-D2 Go → R3 Stop。** 计算实验截至 R3 已完整收束；人工盲审仍待标注，但后续高规格实验已按停止规则冻结。
