@@ -38,60 +38,84 @@ for path in "${harmbench_outputs[@]}" "${xstest_outputs[@]}"; do
   fi
 done
 
-echo "START XSTest official refusal metrics"
-python scripts/evaluate_xstest_refusal.py \
-  "${xstest_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --output_path "$run_root/metrics/xstest_refusal.json" \
-  2>&1 | tee "$run_root/logs/evaluate_xstest.log"
+if [[ -s "$run_root/metrics/xstest_refusal.json" ]]; then
+  echo "SKIP completed XSTest official refusal metrics"
+else
+  echo "START XSTest official refusal metrics"
+  python scripts/evaluate_xstest_refusal.py \
+    "${xstest_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --output_path "$run_root/metrics/xstest_refusal.json" \
+    2>&1 | tee "$run_root/logs/evaluate_xstest.log"
+fi
 
-echo "START HarmBench Mistral classifier"
-python scripts/audit_harmbench_mistral.py \
-  "${harmbench_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --classifier_model "$harmbench_model" \
-  --output_path "$run_root/metrics/harmbench_mistral.json" \
-  --batch_size 8 \
-  2>&1 | tee "$run_root/logs/audit_harmbench_mistral.log"
+if [[ -s "$run_root/metrics/harmbench_mistral.json" ]]; then
+  echo "SKIP completed HarmBench Mistral classifier"
+else
+  echo "START HarmBench Mistral classifier"
+  python scripts/audit_harmbench_mistral.py \
+    "${harmbench_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --classifier_model "$harmbench_model" \
+    --output_path "$run_root/metrics/harmbench_mistral.json" \
+    --batch_size 8 \
+    2>&1 | tee "$run_root/logs/audit_harmbench_mistral.log"
+fi
 
-echo "START StrongREJECT fine-tuned evaluator"
-python scripts/audit_strongreject_outputs.py \
-  "${harmbench_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --base_model "$strongreject_base" \
-  --adapter_model "$strongreject_adapter" \
-  --output_path "$run_root/metrics/strongreject_harmbench.json" \
-  --batch_size 16 \
-  --progress_every 100 \
-  2>&1 | tee "$run_root/logs/audit_strongreject_harmbench.log"
+if [[ -s "$run_root/metrics/strongreject_harmbench.json" ]]; then
+  echo "SKIP completed StrongREJECT fine-tuned evaluator"
+else
+  echo "START StrongREJECT fine-tuned evaluator"
+  python scripts/audit_strongreject_outputs.py \
+    "${harmbench_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --base_model "$strongreject_base" \
+    --adapter_model "$strongreject_adapter" \
+    --output_path "$run_root/metrics/strongreject_harmbench.json" \
+    --batch_size 16 \
+    --progress_every 100 \
+    2>&1 | tee "$run_root/logs/audit_strongreject_harmbench.log"
+fi
 
-echo "START R2 risk-diversity endpoints"
-python scripts/compute_r2_risk_diversity.py \
-  "${harmbench_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --harmbench_audit "$run_root/metrics/harmbench_mistral.json" \
-  --embedding_model "$embedding_model" \
-  --output_path "$run_root/metrics/risk_diversity.json" \
-  2>&1 | tee "$run_root/logs/compute_risk_diversity.log"
+if [[ -s "$run_root/metrics/risk_diversity.json" ]]; then
+  echo "SKIP completed R2 risk-diversity endpoints"
+else
+  echo "START R2 risk-diversity endpoints"
+  python scripts/compute_r2_risk_diversity.py \
+    "${harmbench_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --harmbench_audit "$run_root/metrics/harmbench_mistral.json" \
+    --embedding_model "$embedding_model" \
+    --output_path "$run_root/metrics/risk_diversity.json" \
+    2>&1 | tee "$run_root/logs/compute_risk_diversity.log"
+fi
 
-echo "START Vendi and semantic pilot metrics"
-python scripts/compute_semantic_pilot_metrics.py \
-  "${harmbench_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --embedding_model "$embedding_model" \
-  --output_path "$run_root/metrics/semantic_harmbench.json" \
-  2>&1 | tee "$run_root/logs/compute_semantic_harmbench.log"
+if [[ -s "$run_root/metrics/semantic_harmbench.json" ]]; then
+  echo "SKIP completed Vendi and semantic pilot metrics"
+else
+  echo "START Vendi and semantic pilot metrics"
+  python scripts/compute_semantic_pilot_metrics.py \
+    "${harmbench_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --embedding_model "$embedding_model" \
+    --output_path "$run_root/metrics/semantic_harmbench.json" \
+    2>&1 | tee "$run_root/logs/compute_semantic_harmbench.log"
+fi
 
-echo "START Granite Guardian independent audit"
-python scripts/audit_granite_guardian_outputs.py \
-  "${harmbench_outputs[@]}" \
-  --labels "${labels[@]}" \
-  --guardian_model "$guardian_model" \
-  --torch_dtype bfloat16 \
-  --output_path "$run_root/metrics/granite_harmbench.json" \
-  --batch_size 16 \
-  --progress_every 100 \
-  2>&1 | tee "$run_root/logs/audit_granite_harmbench.log"
+if [[ -s "$run_root/metrics/granite_harmbench.json" ]]; then
+  echo "SKIP completed Granite Guardian independent audit"
+else
+  echo "START Granite Guardian independent audit"
+  python scripts/audit_granite_guardian_outputs.py \
+    "${harmbench_outputs[@]}" \
+    --labels "${labels[@]}" \
+    --guardian_model "$guardian_model" \
+    --torch_dtype bfloat16 \
+    --output_path "$run_root/metrics/granite_harmbench.json" \
+    --batch_size 16 \
+    --progress_every 100 \
+    2>&1 | tee "$run_root/logs/audit_granite_harmbench.log"
+fi
 
 date -u +'%Y-%m-%dT%H:%M:%SZ' > "$run_root/EVALUATION_COMPLETE"
 echo "R2 evaluation complete: $run_root"
