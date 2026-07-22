@@ -73,6 +73,7 @@ generate_condition() {
   local prompts="$4"
   local samples="$5"
   local max_new_tokens="$6"
+  local prompt_batch_size="$7"
   local output="$run_root/generations/${label}_${benchmark}.json"
   local manifest="${output%.json}.manifest.json"
   if is_complete_manifest "$manifest"; then
@@ -87,6 +88,7 @@ generate_condition() {
     --num_samples "$samples"
     --max_new_tokens "$max_new_tokens"
     --batch_size "$generation_batch_size"
+    --prompt_batch_size "$prompt_batch_size"
     --generation_seed 20260722
   )
   if [[ -n "$adapter_path" ]]; then
@@ -100,13 +102,13 @@ generate_condition() {
   fi
 }
 
-generate_condition base "" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128
-generate_condition base "" xstest "$eval_dir/xstest_full.jsonl" 4 32
+generate_condition base "" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128 1
+generate_condition base "" xstest "$eval_dir/xstest_full.jsonl" 4 32 4
 for condition in "${conditions[@]}"; do
   adapter="$run_root/runs/$condition/adapter_model"
   require_file "$adapter/adapter_config.json"
-  generate_condition "$condition" "$adapter" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128
-  generate_condition "$condition" "$adapter" xstest "$eval_dir/xstest_full.jsonl" 4 32
+  generate_condition "$condition" "$adapter" harmbench "$eval_dir/harmbench_stratified_50.jsonl" 16 128 1
+  generate_condition "$condition" "$adapter" xstest "$eval_dir/xstest_full.jsonl" 4 32 4
 done
 
 date -u +'%Y-%m-%dT%H:%M:%SZ' > "$run_root/TRAINING_AND_GENERATION_COMPLETE"

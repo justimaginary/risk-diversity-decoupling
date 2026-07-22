@@ -86,6 +86,48 @@ def generate_for_prompt(model, tokenizer, prompt: str, args, prompt_index: int) 
     return outputs[: args.num_samples]
 
 
+@torch.no_grad()
+def generate_for_prompt_batch(model, tokenizer, records: list[dict[str, object]], args, start_index: int) -> list[list[str]]:
+    expanded_prompts = [
+        chat_prompt(tokenizer, str(record["prompt"]))
+        for record in records
+        for _ in range(args.num_samples)
+    ]
+    if len(expanded_prompts) > args.batch_size:
+        raise ValueError(
+            "prompt_batch_size * num_samples exceeds batch_size: "
+            f"{len(expanded_prompts)} > {args.batch_size}"
+        )
+    torch.manual_seed(args.generation_seed + start_index)
+    torch.cuda.manual_seed_all(args.generation_seed + start_index)
+    encoded = tokenizer(
+        expanded_prompts,
+        return_tensors="pt",
+        padding=True,
+        add_special_tokens=False,
+        truncation=True,
+        max_length=args.max_prompt_tokens,
+    )
+    encoded = {key: value.to(model.device) for key, value in encoded.items()}
+    generated = model.generate(
+        **encoded,
+        max_new_tokens=args.max_new_tokens,
+        do_sample=True,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        pad_token_id=tokenizer.pad_token_id,
+    )
+    prompt_width = encoded["input_ids"].shape[1]
+    decoded = [
+        tokenizer.decode(sequence[prompt_width:], skip_special_tokens=True).strip()
+        for sequence in generated
+    ]
+    return [
+        decoded[index : index + args.num_samples]
+        for index in range(0, len(decoded), args.num_samples)
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate resumable Qwen3 public-eval outputs.")
     parser.add_argument("--model_path", required=True)
@@ -96,6 +138,12 @@ def main() -> None:
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--max_prompt_tokens", type=int, default=512)
     parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument(
+        "--prompt_batch_size",
+        type=int,
+        default=1,
+        help="Number of distinct prompts generated together; product with num_samples must fit batch_size.",
+    )
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument("--generation_seed", type=int, default=20260722)
@@ -119,6 +167,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, local_files_only=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
         local_files_only=True,
@@ -133,13 +182,26 @@ def main() -> None:
     generation_started = time.perf_counter()
     resumed_prompts = len(completed)
     try:
-        for index in range(resumed_prompts, len(prompt_records)):
-            source = prompt_records[index]
-            outputs = generate_for_prompt(model, tokenizer, str(source["prompt"]), args, index)
-            completed.append({**source, "outputs": outputs})
+        for start_index in range(resumed_prompts, len(prompt_records), args.prompt_batch_size):
+            sources = prompt_records[start_index : start_index + args.prompt_batch_size]
+            if args.prompt_batch_size == 1:
+                output_groups = [
+                    generate_for_prompt(
+                        model, tokenizer, str(sources[0]["prompt"]), args, start_index
+                    )
+                ]
+            else:
+                output_groups = generate_for_prompt_batch(
+                    model, tokenizer, sources, args, start_index
+                )
+            completed.extend(
+                {**source, "outputs": outputs}
+                for source, outputs in zip(sources, output_groups)
+            )
             save_json_atomic(completed, output_path)
-            if index == resumed_prompts or (index + 1) % args.progress_every == 0:
-                print(f"completed_prompts={index + 1}/{len(prompt_records)}", flush=True)
+            current = len(completed)
+            if start_index == resumed_prompts or current % args.progress_every == 0 or current == len(prompt_records):
+                print(f"completed_prompts={current}/{len(prompt_records)}", flush=True)
     finally:
         generation_seconds = time.perf_counter() - generation_started
         answer_count = sum(len(record.get("outputs", [])) for record in completed)
