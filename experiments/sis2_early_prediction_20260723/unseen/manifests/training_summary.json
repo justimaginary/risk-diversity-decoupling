@@ -1,0 +1,114 @@
+{
+  "status": "complete",
+  "stage": "SIS-2B unseen training",
+  "runs": {
+    "D2_helpfulness_safety_conflict_seed52": {
+      "seed": 52,
+      "model_seed": 52,
+      "data_order_seed": 52,
+      "schedule_sha256": "08768e9acaedebc7ad93f47824e0bc84572b4cac8cc999e95fd1cf7b0689fdf9",
+      "teacher_forced_mean_token_kl": 0.5036322833967661,
+      "training_response_tokens": 15564,
+      "wall_seconds": 74.3656697049737,
+      "peak_vram_bytes": 7581300224,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    },
+    "D2_helpfulness_safety_conflict_seed53": {
+      "seed": 53,
+      "model_seed": 53,
+      "data_order_seed": 53,
+      "schedule_sha256": "60db946e65e6862e130e947c953f14252b59cafb7d2bd22960bcacadcedec591",
+      "teacher_forced_mean_token_kl": 0.3564966279296548,
+      "training_response_tokens": 15867,
+      "wall_seconds": 78.00895001739264,
+      "peak_vram_bytes": 7710744064,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    },
+    "D2_helpfulness_safety_conflict_seed54": {
+      "seed": 54,
+      "model_seed": 54,
+      "data_order_seed": 54,
+      "schedule_sha256": "fe138c5b1468af7190b2a9861091ee6057263f6c4d04b60a3245d1d5b6b04747",
+      "teacher_forced_mean_token_kl": 0.439940742655967,
+      "training_response_tokens": 15494,
+      "wall_seconds": 79.11816870048642,
+      "peak_vram_bytes": 7828091392,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    },
+    "D2_helpfulness_safety_conflict_seed55": {
+      "seed": 55,
+      "model_seed": 55,
+      "data_order_seed": 55,
+      "schedule_sha256": "86035a3af79d340fa0bddf6a222406abbde73116c86ec3641cbc03d0089d5f58",
+      "teacher_forced_mean_token_kl": 0.2360234424459631,
+      "training_response_tokens": 15483,
+      "wall_seconds": 78.32826082780957,
+      "peak_vram_bytes": 7976589312,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    },
+    "D2_helpfulness_safety_conflict_seed56": {
+      "seed": 56,
+      "model_seed": 56,
+      "data_order_seed": 56,
+      "schedule_sha256": "139e9384a0c42c9daffa4e323767d381a7b185ccaab0597cb4e048323d25c62d",
+      "teacher_forced_mean_token_kl": 0.27604018032890437,
+      "training_response_tokens": 15240,
+      "wall_seconds": 77.27653927356005,
+      "peak_vram_bytes": 7652350976,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    },
+    "D2_helpfulness_safety_conflict_seed57": {
+      "seed": 57,
+      "model_seed": 57,
+      "data_order_seed": 57,
+      "schedule_sha256": "8ec820c259f41f65f9ec8463394314bbafaefd72ccdc9efe91037394dce7b60e",
+      "teacher_forced_mean_token_kl": 0.38446242425252647,
+      "training_response_tokens": 14926,
+      "wall_seconds": 77.26309885084629,
+      "peak_vram_bytes": 7976179200,
+      "checkpoint_steps": [
+        "10",
+        "20",
+        "30",
+        "50",
+        "75",
+        "100"
+      ]
+    }
+  }
+}

@@ -1,7 +1,10 @@
 # SIS-2 protocol: early safety prediction
 
-Status: preregistered before reconstructed checkpoint results  
+Status: completed; Gate A passed and prospective Gate B screen stopped
 Date: 2026-07-23
+
+Final results and the stopping rationale are documented in
+[`EXPERIMENT_REPORT.md`](EXPERIMENT_REPORT.md).
 
 ## Purpose
 
