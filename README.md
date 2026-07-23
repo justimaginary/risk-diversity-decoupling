@@ -4,7 +4,7 @@
 
 > 核心问题不是“模型是否只会重复同一个危险答案”，而是风险总量上升时，风险是否可能分散到多个不同语义和行为模式中。
 
-早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，原主线决定为 Stop。SIS-1 将问题改为偏好优化中的训练实例安全不稳定性；10-seed 的 100 × 8 筛选、100 × 32 确认、独立 judge 和完整 XSTest 均已完成，Gate=Go。SIS-2 的 step30 简单预测器通过回溯 Gate A，但在未见 seeds 52–57 上未通过前瞻 Gate B；当前停止扩大评测，下一步只允许研究训练后半程的轨迹反转机制。唯一执行入口和 Gate 见 [PLAN.md](PLAN.md)。
+早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，原主线决定为 Stop。SIS-1 将问题改为偏好优化中的训练实例安全不稳定性；10-seed 的 100 × 8 筛选、100 × 32 确认、独立 judge 和完整 XSTest 均已完成，Gate=Go。SIS-2 的 step30 简单预测器通过回溯 Gate A，但在未见 seeds 52–57 上未通过前瞻 Gate B。SIS-3 将 seed55/57 的后半程方向变化定位到 10/5-step 窗口，但严格仪器等价复现和跨 seed 共同机制信号未通过，Gate C1=Stop；当前不运行随机源交换或 batch 反事实。唯一执行入口和 Gate 见 [PLAN.md](PLAN.md)。
 
 ## 当前研究方向
 
@@ -74,6 +74,20 @@ step30 monitor 风险增量在 SIS-1 的九个 KL 合格 seeds 上通过回溯 G
 漂移。**Gate B 初筛为 Stop**，不追加 32-sample 或独立 judge 来事后挽救
 预测主张。完整结果见
 [`experiments/sis2_early_prediction_20260723/EXPERIMENT_REPORT.md`](experiments/sis2_early_prediction_20260723/EXPERIMENT_REPORT.md)。
+
+### SIS-3 训练后半程安全轨迹反转
+
+在相同冻结 monitor 上，seed57 于 step40–45 从 Middle 进入 High；
+seed55 的主要下降发生在 step60–70，并于 step70–80 从 High 进入
+Middle。两个目标均被定位到不超过 15 steps，且输出质量和正式 KL<0.75
+均通过。风险变化与拒答行为重组明显同步，但固定 probe、在线训练量和
+LoRA 层更新没有形成跨 seed 一致的机制信号。
+
+四个 instrumented dense rerun 的最终类别和数据顺序 hash 均复现原运行，
+但结果前提交的严格 `|ΔKL|<=0.05` 仪器等价检查在 seed52/55 上失败。
+因此 **Gate C1=Stop**，不启动 2×2 随机源交换或局部 batch 干预。完整
+结果与证据边界见
+[`experiments/sis3_trajectory_reversal_20260723/EXPERIMENT_REPORT.md`](experiments/sis3_trajectory_reversal_20260723/EXPERIMENT_REPORT.md)。
 
 ### 证据边界
 
