@@ -54,6 +54,11 @@ SIS-1 回答三个问题：
 `/root/autodl-fs/dataset-archives/sis1-r2-sources-20260723.tar.zst`，
 SHA-256 为
 `e486790e767050084b861ed7adea1b5cffc41f6d9bc3c89cebbcfac048d7b6b9`。
+StrongREJECT 的最小可恢复模型包保存在系统盘
+`/root/model-archives/strongreject-judge-20260723.tar.zst`（3.8GB），
+SHA-256 为
+`09fa31bd71aaba1ccf2f76e532b7ea31d6c6d531d4c6001d1f7eb83e2fb0961c`；
+`zstd -t` 校验通过。该包没有写入 `/root/autodl-fs`，其总占用仍约 19GB。
 
 ## 三、硬件与运行环境
 
