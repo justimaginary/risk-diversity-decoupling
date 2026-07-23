@@ -1,6 +1,6 @@
 # SIS-1 training-seed instability replication
 
-Status: **screen gate passed; 32-sample confirmation running**
+Status: **complete; 32-sample confirmation passed**
 
 Date: 2026-07-23  
 Model: Qwen3-1.7B  
@@ -56,7 +56,7 @@ Between-training-seed statistics:
 - practical high seeds: 42, 43, 45;
 - practical low seeds: 44, 46, 47, 48.
 
-The preregistered decision is **Go**.
+The preregistered screen decision is **Go**.
 
 Seed 45 exceeds the frozen realized-KL ceiling of 0.75 and must be treated as a
 KL-failed run. The decision does not depend on it: after excluding seed 45,
@@ -66,24 +66,68 @@ the low side.
 All ten output-quality audits passed. The audit found no material short-output,
 mixed-script, non-ASCII drift, or repeated-character failure.
 
-## Interim conclusion
+## 32-sample confirmation
+
+The same 100 prompts were regenerated with 32 outputs per prompt. Base harm
+rate was 0.1650.
+
+| Seed | Harm rate | Delta vs Base | Paired prompt bootstrap 95% CI | Realized KL | Quality |
+|---:|---:|---:|---:|---:|:---:|
+| 42 | 0.2475 | +0.0825 | [+0.0525, +0.1153] | 0.370 | Pass |
+| 43 | 0.2897 | +0.1247 | [+0.0784, +0.1697] | 0.658 | Pass |
+| 44 | 0.0838 | -0.0813 | [-0.1225, -0.0456] | 0.520 | Pass |
+| 45 | 0.2103 | +0.0453 | [-0.0191, +0.1072] | 0.910 | Pass |
+| 46 | 0.0403 | -0.1247 | [-0.1753, -0.0806] | 0.427 | Pass |
+| 47 | 0.1069 | -0.0581 | [-0.0956, -0.0256] | 0.332 | Pass |
+| 48 | 0.0619 | -0.1031 | [-0.1503, -0.0619] | 0.306 | Pass |
+| 49 | 0.1959 | +0.0309 | [-0.0059, +0.0672] | 0.327 | Pass |
+| 50 | 0.1212 | -0.0438 | [-0.0731, -0.0153] | 0.171 | Pass |
+| 51 | 0.1244 | -0.0406 | [-0.0719, -0.0134] | 0.426 | Pass |
+
+Confirmation statistics:
+
+- mean delta: -0.0168;
+- delta SD: 0.0832;
+- seed-bootstrap 95% CI for SD: [0.0481, 0.1021];
+- leave-one-seed-out SD range: [0.0707, 0.0878];
+- practical high seeds: 42, 43;
+- practical low seeds: 44, 46, 47, 48.
+
+The preregistered confirmation decision is **Go**. Seed 45 no longer crosses
+the practical +5 pp threshold and remains KL-failed. Every seed supporting the
+two-sided practical reversal is within the KL ceiling, so neither seed 45 nor a
+single KL-failed run explains the result. KL may still contribute to effect
+magnitude and remains a mechanism-analysis covariate.
+
+All ten 32-sample output-quality audits passed. Across 32,000 trained-model
+outputs, short-output rates were at most 0.00094, mixed-script rates were at
+most 0.00031, and no long-character-run failure was detected.
+
+## Conclusion
 
 The earlier seed-44 result is not an isolated anomalous run. With fixed
 evaluation sampling, valid-KL training runs produce both materially higher and
 materially lower harm rates than Base. The leave-one-out result also rules out
 any single seed as the sole source of the measured variance.
 
+The 32-sample confirmation reproduces the opposite directions and makes
+training-instance dependence the active research finding. The near-zero mean
+delta also shows why reporting only the average training effect would hide the
+main phenomenon.
+
 This is evidence for broad training-instance dependence, not yet for two
-discrete safety attractors. The 32-sample confirmation must reproduce the
-opposite directions before advancing to early-step prediction, additional
-judges, methods, datasets, or models.
+discrete safety attractors. It authorizes the frozen follow-up sequence:
+independent judges and XSTest, early-step prediction on the disjoint monitor
+set, then unseen confirmation seeds. It does not yet authorize a bimodality,
+mechanism, cross-model, or mitigation claim.
 
 ## Artifacts
 
 - `metrics/sis1_screen8_summary.json`: preregistered gate statistics.
+- `metrics/sis1_full32_summary.json`: 32-sample confirmation statistics.
 - `manifests/training_summary.json`: seeds, schedule hashes, realized KL,
   runtime, and peak VRAM.
-- `metrics/output_quality_screen8_*.json`: prompt-free output-quality
+- `metrics/output_quality_{screen8,full32}_*.json`: prompt-free output-quality
   diagnostics.
 
 Raw generations, model adapters, checkpoints, and full server logs are kept on

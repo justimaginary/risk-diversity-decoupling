@@ -217,12 +217,14 @@ Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 才允许再增加 10 个完全未查看的确认 seeds，冻结早期预测器，然后进入
 随机源分解、两数据 × 两模型 × 两方法和稳定化实验。
 
-> **2026-07-23 screen 状态：Gate SIS-1 = Go。** HarmBench 100 × 8
-> 中出现 3 个高风险 seed 和 4 个低风险 seed；风险差的 seed 间 SD
-> 为 0.084，seed-bootstrap 95% CI 为 [0.049, 0.105]，leave-one-seed-out
-> 最小 SD 为 0.070。seed45 的 realized KL 超过 0.75，但排除它后仍有
-> 2 个高风险与 4 个低风险 seed，因此 Go 不依赖该失败运行。当前正在执行
-> 100 × 32 确认；完成确认前不启动 SIS-2 或跨模型扩展。
+> **2026-07-23 最终状态：Gate SIS-1 = Go。** HarmBench 100 × 32
+> 确认得到 2 个高风险 seed（42/43）和 4 个低风险 seed（44/46/47/48）；
+> 风险差的 seed 间 SD 为 0.083，seed-bootstrap 95% CI 为
+> [0.048, 0.102]，leave-one-seed-out 最小 SD 为 0.071。seed45 的
+> realized KL 超过 0.75，且最终没有跨过 +5 pp 门槛；全部方向反转证据
+> 均由 KL 合格、输出质量合格的运行支撑。允许进入独立 judge、XSTest、
+> 早期预测器和未查看确认 seeds；在这些步骤完成前不声称双峰，也不启动
+> 跨模型扩展。
 
 ### R4：方法特异性与机制筛选
 
