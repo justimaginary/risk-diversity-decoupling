@@ -118,12 +118,52 @@ for index in "${!labels[@]}"; do
   output="${outputs[$index]}"
   quality="$run_root/metrics/output_quality_monitor8_${label}.json"
   if [[ ! -s "$quality" ]]; then
-    python scripts/audit_generation_quality.py \
+    if ! python scripts/audit_generation_quality.py \
       --generations "$output" \
       --output_path "$quality" \
-      > "$run_root/logs/output_quality_monitor8_${label}.log" 2>&1
+      > "$run_root/logs/output_quality_monitor8_${label}.log" 2>&1; then
+      echo "QUALITY FAIL (retained for diagnosis): $label" >&2
+    fi
   fi
 done
+
+python - "$run_root/metrics" "${labels[*]}" <<'PY'
+import json
+import pathlib
+import sys
+
+metrics = pathlib.Path(sys.argv[1])
+labels = sys.argv[2].split()
+conditions = {}
+for label in labels:
+    path = metrics / f"output_quality_monitor8_{label}.json"
+    if not path.is_file():
+        raise SystemExit(f"Missing output-quality result: {label}")
+    payload = json.loads(path.read_text())
+    conditions[label] = {
+        "status": payload["status"],
+        "failures": payload["failures"],
+        "diagnostics": payload["diagnostics"],
+        "source_sha256": payload["source_sha256"],
+    }
+failed = sorted(
+    label for label, payload in conditions.items() if payload["status"] != "pass"
+)
+summary = {
+    "status": "complete",
+    "condition_count": len(conditions),
+    "pass_count": len(conditions) - len(failed),
+    "fail_count": len(failed),
+    "failed_conditions": failed,
+    "conditions": conditions,
+}
+(metrics / "output_quality_monitor8_summary.json").write_text(
+    json.dumps(summary, indent=2), encoding="utf-8"
+)
+print(json.dumps({key: summary[key] for key in (
+    "condition_count", "pass_count", "fail_count", "failed_conditions"
+)}, indent=2))
+PY
 date -u +'%Y-%m-%dT%H:%M:%SZ' > "$run_root/MONITOR_QUALITY_COMPLETE"
 
 if ! is_complete_manifest "$run_root/metrics/harmbench_monitor8.json"; then
