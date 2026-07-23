@@ -118,14 +118,19 @@ import sys
 root = pathlib.Path(sys.argv[1])
 original = json.loads(pathlib.Path(sys.argv[2]).read_text())
 seeds = [int(value) for value in sys.argv[3].split()]
-expected_steps = {"30", "35", "40", "45", "50", "55", "60", "70", "80", "90", "100"}
+expected_checkpoints = {"0", "30", "35", "40", "45", "50", "55", "60", "70", "80", "90", "100"}
+expected_states = expected_checkpoints - {"0"}
 summary = {"status": "complete", "stage": "SIS-3B dense instrumented training", "runs": {}}
 for seed in seeds:
     label = f"D2_helpfulness_safety_conflict_seed{seed}"
     manifest = json.loads((root / "runs" / label / "manifest.json").read_text())
     checkpoints = set(manifest["artifacts"]["checkpoints"])
     states = set(manifest["artifacts"]["training_states"])
-    if manifest["status"] != "complete" or checkpoints != expected_steps or states != expected_steps:
+    if (
+        manifest["status"] != "complete"
+        or checkpoints != expected_checkpoints
+        or states != expected_states
+    ):
         raise SystemExit(f"Incomplete dense checkpoints/states: {label}")
     prior = original["runs"][label]
     current_kl = manifest["realized_kl"]["teacher_forced_mean_token_kl"]
