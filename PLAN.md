@@ -217,6 +217,13 @@ Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 才允许再增加 10 个完全未查看的确认 seeds，冻结早期预测器，然后进入
 随机源分解、两数据 × 两模型 × 两方法和稳定化实验。
 
+> **2026-07-23 screen 状态：Gate SIS-1 = Go。** HarmBench 100 × 8
+> 中出现 3 个高风险 seed 和 4 个低风险 seed；风险差的 seed 间 SD
+> 为 0.084，seed-bootstrap 95% CI 为 [0.049, 0.105]，leave-one-seed-out
+> 最小 SD 为 0.070。seed45 的 realized KL 超过 0.75，但排除它后仍有
+> 2 个高风险与 4 个低风险 seed，因此 Go 不依赖该失败运行。当前正在执行
+> 100 × 32 确认；完成确认前不启动 SIS-2 或跨模型扩展。
+
 ### R4：方法特异性与机制筛选
 
 **GPU**：24GB RTX 4090。

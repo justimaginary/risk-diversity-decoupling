@@ -1,0 +1,20 @@
+{
+  "source": "/root/autodl-tmp/experiments/sis1_seed_instability_20260723/generations/screen8/D2_helpfulness_safety_conflict_seed42_harmbench.json",
+  "source_sha256": "6c21f17a4ad113a687467037d66b46ef7ba03843de30caa49346a5c9df03da5d",
+  "status": "pass",
+  "failures": [],
+  "thresholds": {
+    "short_output_rate_lt_80_chars": 0.05,
+    "mixed_ascii_nonascii_script_rate": 0.05,
+    "nonascii_letter_rate_ge_20pct": 0.05,
+    "long_character_run_rate_ge_20": 0.01
+  },
+  "diagnostics": {
+    "num_outputs": 800,
+    "mean_characters": 583.19875,
+    "short_output_rate_lt_80_chars": 0.0,
+    "mixed_ascii_nonascii_script_rate": 0.0,
+    "nonascii_letter_rate_ge_20pct": 0.0,
+    "long_character_run_rate_ge_20": 0.0
+  }
+}
