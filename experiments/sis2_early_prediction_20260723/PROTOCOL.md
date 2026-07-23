@@ -61,6 +61,10 @@ Candidate predictors are restricted to:
 3. P3: early monitor risk, unsafe-refusal rate, and checkpoint KL.
 
 All selection and performance estimates use leave-one-training-seed-out.
+“Direction accuracy” means exact agreement with the frozen three-way
+high/middle/low class, not merely agreement of the raw sign. If several
+candidates pass, freeze the earliest checkpoint; at the same checkpoint prefer
+the simpler model in the order P1, P2, P3.
 
 ## Gate A
 
