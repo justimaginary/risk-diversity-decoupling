@@ -4,7 +4,7 @@
 
 > 核心问题不是“模型是否只会重复同一个危险答案”，而是风险总量上升时，风险是否可能分散到多个不同语义和行为模式中。
 
-早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，当前决定为 Stop。唯一执行入口和重开条件见 [PLAN.md](PLAN.md)。
+早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，原主线决定为 Stop。当前只执行 SIS-1：把研究问题改为偏好优化中的训练实例安全不稳定性，并先判断 D2 seed44 是否只是偶然离群值。唯一执行入口和 Gate 见 [PLAN.md](PLAN.md)。
 
 ## 当前研究方向
 
@@ -59,6 +59,10 @@ Qwen3-1.7B、D0–D4 各 200 pairs / 300 steps、HarmBench 50 × 16、完整 XST
 Qwen3-1.7B、D1/D2/D4 各 3 个训练 seeds、HarmBench 100 x 32、完整 XSTest、双安全 judge、StrongREJECT、语义/风险熵和分层 bootstrap 已完成；D2 关键 checkpoint 另补到每题 64 samples。
 
 **Gate R3：Stop。** D1 与 KL-safe 的 D4 step30 都稳定降低风险，但有害语义熵也同步下降，未通过非劣门槛。D2 的均值部分上升，但 seed42/43 风险高于 Base、seed44 明显低于 Base，HarmBench、Granite、StrongREJECT 的 seed 方向均不一致；64-sample 复评复现同一排序，风险差 CI 仍跨 0。因此当前证据不支持稳定的风险—多样性解耦，不进入 R4，也不租 48/80GB 卡。盲审包已生成但尚未人工标注；它仍是发表前要求，但不能逆转已经失败的计算门槛。完整结果见 [`experiments/r3_main_20260722/RESULTS.md`](experiments/r3_main_20260722/RESULTS.md)。
+
+### SIS-1 训练实例安全不稳定性复核
+
+固定修复版 D2、Qwen3-1.7B 和原 100-step LoRA-DPO 超参数，重跑 seeds 42–44 并新增 45–51。先执行 HarmBench 100 × 8 筛选，只有至少两个 seed 相对 Base 上升 5 pp、至少两个下降 5 pp，且 leave-one-seed-out 后方差仍存在，才补到 100 × 32 并运行多 judge/XSTest。10 seeds 只能支持训练不稳定性，不能单独声称双峰。冻结配置见 [`configs/current/sis1_seed_instability_24gb.yaml`](configs/current/sis1_seed_instability_24gb.yaml)。
 
 ### 证据边界
 

@@ -1,9 +1,11 @@
 import torch
 
 from scripts.local_qwen3_lora_dpo import (
+    build_schedule,
     encoded_preference_tokens,
     isolated_generation_rng,
     normalize_checkpoint_steps,
+    schedule_sha256,
 )
 
 
@@ -57,3 +59,14 @@ def test_checkpoint_steps_drop_step_zero_and_reject_out_of_range() -> None:
         assert "outside 0..100" in str(error)
     else:
         raise AssertionError("Expected an out-of-range checkpoint to fail")
+
+
+def test_schedule_seed_is_reproducible_and_hashable() -> None:
+    first = build_schedule(length=7, steps=20, seed=45)
+    second = build_schedule(length=7, steps=20, seed=45)
+    different = build_schedule(length=7, steps=20, seed=46)
+
+    assert first == second
+    assert first != different
+    assert schedule_sha256(first) == schedule_sha256(second)
+    assert schedule_sha256(first) != schedule_sha256(different)

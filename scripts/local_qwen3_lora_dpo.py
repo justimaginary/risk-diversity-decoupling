@@ -320,6 +320,27 @@ def dpo_loss(
     max_length: int,
     enable_thinking: bool,
 ) -> torch.Tensor:
+    loss, _ = dpo_loss_and_margin(
+        model,
+        tokenizer,
+        batch,
+        ref_logprobs,
+        beta,
+        max_length,
+        enable_thinking,
+    )
+    return loss
+
+
+def dpo_loss_and_margin(
+    model,
+    tokenizer,
+    batch: dict[str, str],
+    ref_logprobs: dict[str, float],
+    beta: float,
+    max_length: int,
+    enable_thinking: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
     chosen_logp = sequence_logprob(model, tokenizer, batch["prompt"], batch["chosen"], max_length, enable_thinking)
     rejected_logp = sequence_logprob(
         model, tokenizer, batch["prompt"], batch["rejected"], max_length, enable_thinking
@@ -327,7 +348,7 @@ def dpo_loss(
     ref_chosen = torch.tensor(ref_logprobs["chosen"], device=chosen_logp.device)
     ref_rejected = torch.tensor(ref_logprobs["rejected"], device=chosen_logp.device)
     margin = beta * ((chosen_logp - rejected_logp) - (ref_chosen - ref_rejected))
-    return -F.logsigmoid(margin)
+    return -F.logsigmoid(margin), margin
 
 
 def build_schedule(length: int, steps: int, seed: int) -> list[int]:
@@ -338,6 +359,19 @@ def build_schedule(length: int, steps: int, seed: int) -> list[int]:
         rng.shuffle(indices)
         schedule.extend(indices)
     return schedule[:steps]
+
+
+def schedule_sha256(schedule: list[int]) -> str:
+    payload = ",".join(str(index) for index in schedule).encode("ascii")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def parameter_l2_norm(parameters: list[torch.nn.Parameter]) -> float:
+    squared_norm = sum(
+        float(parameter.detach().float().square().sum().cpu())
+        for parameter in parameters
+    )
+    return squared_norm**0.5
 
 
 def normalize_checkpoint_steps(steps: list[int], max_steps: int) -> list[int]:
@@ -457,6 +491,18 @@ def main() -> None:
     parser.add_argument("--dbscan_eps", type=float, default=0.8)
     parser.add_argument("--dbscan_min_samples", type=int, default=1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--model_seed",
+        type=int,
+        default=None,
+        help="LoRA initialization and training stochasticity seed; defaults to --seed.",
+    )
+    parser.add_argument(
+        "--data_order_seed",
+        type=int,
+        default=None,
+        help="Preference schedule seed; defaults to --seed.",
+    )
     parser.add_argument("--generation_seed", type=int, default=2026)
     parser.add_argument("--lora_r", type=int, default=16)
     parser.add_argument("--lora_alpha", type=int, default=32)
@@ -478,11 +524,15 @@ def main() -> None:
         help="Enable Qwen3 thinking mode. The project default is non-thinking mode.",
     )
     args = parser.parse_args()
+    if args.model_seed is None:
+        args.model_seed = args.seed
+    if args.data_order_seed is None:
+        args.data_order_seed = args.seed
     checkpoint_steps = normalize_checkpoint_steps(args.checkpoint_steps, args.max_steps)
 
-    torch.manual_seed(args.seed)
+    torch.manual_seed(args.model_seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(args.model_seed)
         torch.cuda.reset_peak_memory_stats()
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -564,7 +614,15 @@ def main() -> None:
 
         trainable = [param for param in model.parameters() if param.requires_grad]
         optimizer = AdamW(trainable, lr=args.learning_rate)
-        schedule = build_schedule(len(preferences), args.max_steps, args.seed)
+        schedule = build_schedule(len(preferences), args.max_steps, args.data_order_seed)
+        training_trace_path = output_dir / "training_trace.json"
+        training_trace: list[dict[str, float | int]] = []
+        trace_steps = {
+            1,
+            args.max_steps,
+            *range(10, args.max_steps + 1, 10),
+            *checkpoint_steps,
+        }
         checkpoint_artifacts: dict[str, str] = {}
         checkpoint_save_seconds = 0.0
         training_response_tokens = sum(
@@ -584,7 +642,7 @@ def main() -> None:
         model.train()
         for step, preference_index in enumerate(schedule, start=1):
             optimizer.zero_grad(set_to_none=True)
-            loss = dpo_loss(
+            loss, preference_margin = dpo_loss_and_margin(
                 model,
                 tokenizer,
                 preferences[preference_index],
@@ -596,8 +654,20 @@ def main() -> None:
             if not torch.isfinite(loss):
                 raise RuntimeError(f"Non-finite DPO loss at step {step}: {loss.item()}")
             loss.backward()
-            clip_grad_norm_(trainable, args.max_grad_norm)
+            gradient_norm = clip_grad_norm_(trainable, args.max_grad_norm)
             optimizer.step()
+            if step in trace_steps:
+                training_trace.append(
+                    {
+                        "step": step,
+                        "preference_index": preference_index,
+                        "loss": float(loss.detach().cpu()),
+                        "dpo_preference_margin": float(preference_margin.detach().cpu()),
+                        "gradient_norm_before_clip": float(gradient_norm.detach().cpu()),
+                        "lora_parameter_l2_norm": parameter_l2_norm(trainable),
+                    }
+                )
+                save_json(training_trace, training_trace_path)
             if step in checkpoint_steps:
                 checkpoint_started = time.perf_counter()
                 checkpoint_dir = output_dir / "checkpoints" / f"step_{step}" / "adapter_model"
@@ -689,6 +759,13 @@ def main() -> None:
                 "timings_seconds": timings,
                 "throughput": throughput,
                 "training_response_tokens": training_response_tokens,
+                "training_randomness": {
+                    "aggregate_seed": args.seed,
+                    "model_seed": args.model_seed,
+                    "data_order_seed": args.data_order_seed,
+                    "generation_seed": args.generation_seed,
+                    "schedule_sha256": schedule_sha256(schedule),
+                },
                 "realized_kl": realized_kl,
                 "peak_vram_bytes": torch.cuda.max_memory_allocated() if torch.cuda.is_available() else 0,
                 "peak_vram_reserved_bytes": torch.cuda.max_memory_reserved() if torch.cuda.is_available() else 0,
@@ -697,6 +774,7 @@ def main() -> None:
                     "step0": str(output_dir / "step0.json"),
                     "final": str(output_dir / "final.json"),
                     "reload_validation": str(output_dir / "reload_validation.json"),
+                    "training_trace": str(training_trace_path),
                     "checkpoints": checkpoint_artifacts,
                 },
             }
