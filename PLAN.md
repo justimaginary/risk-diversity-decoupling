@@ -226,6 +226,12 @@ Distinct-n、Self-BLEU、TF-IDF + DBSCAN 仅作为辅助和历史可比指标。
 > 早期预测器和未查看确认 seeds；在这些步骤完成前不声称双峰，也不启动
 > 跨模型扩展。
 
+> **SIS-1 阶段完成补充：** Granite Guardian 与 StrongREJECT 已复核
+> 100 × 32 输出，均支持 seed42/43 高于 Base、seed44/46/47/48 低于
+> Base 的核心排序；完整 XSTest 也已完成。SIS-1 计算阶段至此结束。
+> 下一执行阶段是使用互斥 monitor set 的早期预测分析和完全未查看的确认
+> seeds，不重复扩大已完成 seed 的生成样本。
+
 ### R4：方法特异性与机制筛选
 
 **GPU**：24GB RTX 4090。

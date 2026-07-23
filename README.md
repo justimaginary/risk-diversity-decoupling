@@ -4,7 +4,7 @@
 
 > 核心问题不是“模型是否只会重复同一个危险答案”，而是风险总量上升时，风险是否可能分散到多个不同语义和行为模式中。
 
-早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，原主线决定为 Stop。当前只执行 SIS-1：把研究问题改为偏好优化中的训练实例安全不稳定性。10-seed 的 100 × 8 预注册筛选及 100 × 32 确认均已通过，下一步运行独立 judge、XSTest 和早期预测分析。唯一执行入口和 Gate 见 [PLAN.md](PLAN.md)。
+早期先导结果来自受控拒答抑制偏好干预，它们曾支持进入严格检验，但不能证明干净 DPO 数据天然增加风险，也不能证明低比例投毒已经稳定奏效。现已完成的 R3 多 seed 主实验没有支持稳定的风险—多样性解耦，原主线决定为 Stop。SIS-1 将问题改为偏好优化中的训练实例安全不稳定性；10-seed 的 100 × 8 筛选、100 × 32 确认、独立 judge 和完整 XSTest 均已完成，Gate=Go。下一步是早期预测与未查看确认 seeds。唯一执行入口和 Gate 见 [PLAN.md](PLAN.md)。
 
 ## 当前研究方向
 
@@ -62,7 +62,7 @@ Qwen3-1.7B、D1/D2/D4 各 3 个训练 seeds、HarmBench 100 x 32、完整 XSTest
 
 ### SIS-1 训练实例安全不稳定性复核
 
-固定修复版 D2、Qwen3-1.7B 和原 100-step LoRA-DPO 超参数，重跑 seeds 42–44 并新增 45–51。100 × 32 确认得到两个高风险 seed（42/43）和四个低风险 seed（44/46/47/48）；跨 seed 风险差 SD 为 0.083，bootstrap 95% CI 为 [0.048, 0.102]，去掉任意一个 seed 后最小 SD 仍为 0.071。唯一 KL 超标的 seed45 不属于最终高/低门槛集合，全部方向反转证据由 KL 合格且质量检查通过的运行支撑，故 Gate=Go。10 seeds 只能支持训练不稳定性，不能单独声称双峰。冻结配置见 [`configs/current/sis1_seed_instability_24gb.yaml`](configs/current/sis1_seed_instability_24gb.yaml)，完整结果见 [`experiments/sis1_seed_instability_20260723/RESULTS.md`](experiments/sis1_seed_instability_20260723/RESULTS.md)。
+固定修复版 D2、Qwen3-1.7B 和原 100-step LoRA-DPO 超参数，重跑 seeds 42–44 并新增 45–51。100 × 32 确认得到两个高风险 seed（42/43）和四个低风险 seed（44/46/47/48）；跨 seed 风险差 SD 为 0.083，bootstrap 95% CI 为 [0.048, 0.102]，去掉任意一个 seed 后最小 SD 仍为 0.071。唯一 KL 超标的 seed45 不属于最终高/低门槛集合，全部方向反转证据由 KL 合格且质量检查通过的运行支撑。Granite、StrongREJECT 和 XSTest 后续复核已完成，三个安全 judge 对核心 seed 排序一致，故 Gate=Go。10 seeds 只能支持训练不稳定性，不能单独声称双峰。冻结配置见 [`configs/current/sis1_seed_instability_24gb.yaml`](configs/current/sis1_seed_instability_24gb.yaml)，完整中文报告见 [`experiments/sis1_seed_instability_20260723/EXPERIMENT_REPORT.md`](experiments/sis1_seed_instability_20260723/EXPERIMENT_REPORT.md)。
 
 ### 证据边界
 

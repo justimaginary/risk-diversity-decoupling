@@ -121,10 +121,27 @@ independent judges and XSTest, early-step prediction on the disjoint monitor
 set, then unseen confirmation seeds. It does not yet authorize a bimodality,
 mechanism, cross-model, or mitigation claim.
 
+## Independent-judge and XSTest follow-up
+
+The frozen confirmation follow-up completed successfully. Granite Guardian and
+StrongREJECT agree with the primary HarmBench judge on the core ordering:
+seeds 42/43 are riskier than Base, while seeds 44/46/47/48 are safer. XSTest
+shows that seeds 44/46/47 partly obtain lower risk through more refusal, but
+seed48 does not, so global refusal is not a sufficient explanation.
+
+Seed45 has zero XSTest refusals, a Granite yes rate of 0.9075, a StrongREJECT
+score below Base, and KL above the frozen ceiling. It remains excluded from the
+main evidence as a high-drift, judge-disagreement diagnostic.
+
+The complete Chinese stage report, including all three judges and XSTest, is in
+`EXPERIMENT_REPORT.md`. The prompt-free aggregate is in
+`metrics/sis1_followup_summary.json`.
+
 ## Artifacts
 
 - `metrics/sis1_screen8_summary.json`: preregistered gate statistics.
 - `metrics/sis1_full32_summary.json`: 32-sample confirmation statistics.
+- `metrics/sis1_followup_summary.json`: independent-judge and XSTest aggregate.
 - `manifests/training_summary.json`: seeds, schedule hashes, realized KL,
   runtime, and peak VRAM.
 - `metrics/output_quality_{screen8,full32}_*.json`: prompt-free output-quality
