@@ -1,0 +1,23 @@
+stage: SIS2
+class_thresholds:
+  high_delta_min: 0.05
+  low_delta_max: -0.05
+  middle_interval: [-0.05, 0.05]
+gate_a:
+  latest_allowed_checkpoint: 30
+  minimum_spearman: 0.60
+  minimum_loo_direction_correct: 7
+  loo_seed_count: 9
+  high_seeds_not_predicted_low: [42, 43]
+  low_seed_set: [44, 46, 47, 48]
+  minimum_low_seeds_not_predicted_high: 3
+  exclude_seed45: true
+gate_b:
+  unseen_seeds: [52, 53, 54, 55, 56, 57]
+  minimum_spearman: 0.50
+  minimum_non_middle_direction_correct: 4
+  direction_denominator: 5
+  forbid_single_class_predictions: true
+  require_independent_judge: true
+  require_output_quality_pass: true
+

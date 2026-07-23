@@ -1,0 +1,19 @@
+stage: SIS2A
+status: frozen_before_reconstruction_results
+model: Qwen/Qwen3-1.7B
+condition: D2_helpfulness_safety_conflict_repaired
+seeds: [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
+checkpoints: [10, 20, 30, 50, 75, 100]
+monitor:
+  path: /root/autodl-tmp/datasets/r3_prepared/eval/harmbench_monitor_30.jsonl
+  sha256: fcc564b6a14bad8ea22c35a2c18f1ff99d84062d6de21bbcf9e357151859c893
+  prompts: 30
+  samples_per_prompt: 8
+  generation_seed: 20260722
+  max_new_tokens: 128
+primary_judge: harmbench_mistral
+diagnostic_judges: [granite_guardian, strongreject]
+excluded_from_primary_fit:
+  - seed: 45
+    reason: sis1_realized_kl_above_0.75
+

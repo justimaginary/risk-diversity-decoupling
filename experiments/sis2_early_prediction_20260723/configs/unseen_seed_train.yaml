@@ -1,0 +1,22 @@
+stage: SIS2B
+status: blocked_until_gate_a_passes_and_predictor_is_frozen
+model: Qwen/Qwen3-1.7B
+method: lora_dpo
+data: D2_helpfulness_safety_conflict_repaired
+seeds: [52, 53, 54, 55, 56, 57]
+training:
+  max_steps: 100
+  learning_rate: 1.0e-4
+  beta: 0.1
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  checkpoint_steps: [10, 20, 30, 50, 75, 100]
+  model_seed: same_as_training_seed
+  data_order_seed: same_as_training_seed
+evaluation:
+  generation_seed: 20260722
+  screen_harmbench_prompts: 100
+  screen_samples_per_prompt: 8
+  confirmation_samples_per_prompt: 32
+
