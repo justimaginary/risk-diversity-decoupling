@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import random
+import re
 import subprocess
 import sys
 import time
@@ -29,6 +30,7 @@ overlay = os.environ.get("QWEN3_TRANSFORMERS_OVERLAY")
 if overlay:
     sys.path.insert(0, overlay)
 
+import numpy as np  # noqa: E402
 import torch  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model  # noqa: E402
@@ -42,18 +44,33 @@ except ModuleNotFoundError:
     from scripts.local_pce_smoke import build_report, load_prompts, save_prompt_outputs, save_report
 
 
-def load_preferences(path: Path) -> list[dict[str, str]]:
-    records: list[dict[str, str]] = []
+def load_preferences(path: Path) -> list[dict[str, object]]:
+    records: list[dict[str, object]] = []
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             record = json.loads(line)
+            prompt = str(record["prompt"])
+            chosen = str(record["chosen"])
+            rejected = str(record["rejected"])
+            metadata = record.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {"raw_metadata": str(metadata)}
+            sample_id = str(
+                metadata.get("sample_id")
+                or record.get("sample_id")
+                or hashlib.sha256(
+                    f"{prompt}\0{chosen}\0{rejected}".encode("utf-8")
+                ).hexdigest()[:20]
+            )
             records.append(
                 {
-                    "prompt": str(record["prompt"]),
-                    "chosen": str(record["chosen"]),
-                    "rejected": str(record["rejected"]),
+                    "prompt": prompt,
+                    "chosen": chosen,
+                    "rejected": rejected,
+                    "sample_id": sample_id,
+                    "metadata": metadata,
                 }
             )
     if not records:
@@ -410,6 +427,150 @@ def parameter_l2_norm(parameters: list[torch.nn.Parameter]) -> float:
     return squared_norm**0.5
 
 
+LAYER_PATTERN = re.compile(r"\.layers\.(\d+)\.")
+LORA_MODULE_PATTERN = re.compile(
+    r"\.(q_proj|k_proj|v_proj|o_proj|gate_proj|up_proj|down_proj)\."
+)
+
+
+def lora_group_name(parameter_name: str) -> str:
+    layer = LAYER_PATTERN.search(parameter_name)
+    module = LORA_MODULE_PATTERN.search(parameter_name)
+    if layer and module:
+        return f"layer_{layer.group(1)}.{module.group(1)}"
+    if module:
+        return f"other.{module.group(1)}"
+    return "other"
+
+
+def layer_update_diagnostics(
+    named_parameters: list[tuple[str, torch.nn.Parameter]],
+    before_step: dict[str, torch.Tensor],
+) -> dict[str, dict[str, float]]:
+    totals: dict[str, dict[str, float]] = {}
+    for name, parameter in named_parameters:
+        group = lora_group_name(name)
+        record = totals.setdefault(
+            group,
+            {
+                "update_squared": 0.0,
+                "parameter_squared": 0.0,
+                "gradient_squared": 0.0,
+            },
+        )
+        current = parameter.detach().float()
+        previous = before_step[name].float()
+        record["update_squared"] += float((current - previous).square().sum().cpu())
+        record["parameter_squared"] += float(current.square().sum().cpu())
+        if parameter.grad is not None:
+            record["gradient_squared"] += float(
+                parameter.grad.detach().float().square().sum().cpu()
+            )
+
+    diagnostics = {}
+    for group, record in sorted(totals.items()):
+        update_norm = record["update_squared"] ** 0.5
+        parameter_norm = record["parameter_squared"] ** 0.5
+        diagnostics[group] = {
+            "update_l2_norm": update_norm,
+            "parameter_l2_norm": parameter_norm,
+            "gradient_l2_norm_after_clip": record["gradient_squared"] ** 0.5,
+            "update_to_parameter_ratio": update_norm / max(parameter_norm, 1e-12),
+        }
+    return diagnostics
+
+
+@torch.no_grad()
+def fixed_probe_diagnostics(
+    model,
+    tokenizer,
+    preferences: list[dict[str, object]],
+    ref_values: list[dict[str, float]],
+    indices: list[int],
+    beta: float,
+    max_length: int,
+    enable_thinking: bool,
+) -> dict[str, object]:
+    was_training = model.training
+    model.eval()
+    per_sample = []
+    try:
+        for index in indices:
+            preference = preferences[index]
+            loss, diagnostics = dpo_loss_and_diagnostics(
+                model,
+                tokenizer,
+                preference,
+                ref_values[index],
+                beta=beta,
+                max_length=max_length,
+                enable_thinking=enable_thinking,
+            )
+            per_sample.append(
+                {
+                    "preference_index": index,
+                    "sample_id": str(preference["sample_id"]),
+                    "loss": float(loss.detach().cpu()),
+                    **{
+                        name: float(value.detach().cpu())
+                        for name, value in diagnostics.items()
+                    },
+                }
+            )
+    finally:
+        if was_training:
+            model.train()
+
+    metric_names = (
+        "loss",
+        "dpo_accuracy",
+        "chosen_sequence_logp",
+        "rejected_sequence_logp",
+        "chosen_log_ratio",
+        "rejected_log_ratio",
+        "policy_preference_margin",
+        "reference_preference_margin",
+        "dpo_preference_margin",
+    )
+    return {
+        "probe_size": len(per_sample),
+        "sample_ids": [record["sample_id"] for record in per_sample],
+        "mean": {
+            name: float(np.mean([float(record[name]) for record in per_sample]))
+            for name in metric_names
+        },
+        "per_sample": per_sample,
+    }
+
+
+def save_training_state(
+    path: Path,
+    *,
+    step: int,
+    optimizer: AdamW,
+    schedule: list[int],
+) -> None:
+    payload = {
+        "format_version": 1,
+        "step": step,
+        "next_schedule_position": step,
+        "schedule": schedule,
+        "schedule_sha256": schedule_sha256(schedule),
+        "optimizer_state": optimizer.state_dict(),
+        "scheduler_state": None,
+        "python_rng_state": random.getstate(),
+        "numpy_rng_state": np.random.get_state(),
+        "torch_cpu_rng_state": torch.get_rng_state(),
+        "torch_cuda_rng_state_all": (
+            torch.cuda.get_rng_state_all() if torch.cuda.is_available() else []
+        ),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, temporary)
+    temporary.replace(path)
+
+
 def normalize_checkpoint_steps(steps: list[int], max_steps: int) -> list[int]:
     invalid = sorted({step for step in steps if step < 0 or step > max_steps})
     if invalid:
@@ -520,6 +681,27 @@ def main() -> None:
         action="store_true",
         help="Save the initialized step-0 LoRA adapter for parameter-distance diagnostics.",
     )
+    parser.add_argument(
+        "--trace_every_step",
+        action="store_true",
+        help="Persist batch identity and DPO diagnostics for every optimizer step.",
+    )
+    parser.add_argument(
+        "--layer_update_norms",
+        action="store_true",
+        help="Record per-layer/module LoRA gradient and optimizer-update norms.",
+    )
+    parser.add_argument(
+        "--save_training_state",
+        action="store_true",
+        help="Save optimizer, schedule cursor, and RNG states at every checkpoint.",
+    )
+    parser.add_argument(
+        "--fixed_probe_size",
+        type=int,
+        default=0,
+        help="Number of deterministic preference pairs evaluated at each checkpoint.",
+    )
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--torch_dtype", choices=["auto", "bfloat16", "float16", "float32"], default="auto")
@@ -571,6 +753,8 @@ def main() -> None:
         args.data_order_seed = args.seed
     checkpoint_steps = normalize_checkpoint_steps(args.checkpoint_steps, args.max_steps)
 
+    random.seed(args.model_seed)
+    np.random.seed(args.model_seed)
     torch.manual_seed(args.model_seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.model_seed)
@@ -607,6 +791,23 @@ def main() -> None:
         timings["tokenizer_load"] = time.perf_counter() - stage_started
 
         preferences = load_preferences(preferences_path)
+        if args.fixed_probe_size < 0:
+            raise ValueError("--fixed_probe_size must be non-negative")
+        fixed_probe_indices = sorted(
+            range(len(preferences)),
+            key=lambda index: str(preferences[index]["sample_id"]),
+        )[: args.fixed_probe_size]
+        save_json(
+            {
+                "selection": "lexicographically smallest stable sample IDs",
+                "size": len(fixed_probe_indices),
+                "indices": fixed_probe_indices,
+                "sample_ids": [
+                    preferences[index]["sample_id"] for index in fixed_probe_indices
+                ],
+            },
+            output_dir / "fixed_probe_manifest.json",
+        )
 
         print("Loading reference model for reference logprobs...")
         stage_started = time.perf_counter()
@@ -653,8 +854,14 @@ def main() -> None:
         model = get_peft_model(base_model, lora_config)
         model.print_trainable_parameters()
 
-        trainable = [param for param in model.parameters() if param.requires_grad]
+        named_trainable = [
+            (name, parameter)
+            for name, parameter in model.named_parameters()
+            if parameter.requires_grad
+        ]
+        trainable = [parameter for _, parameter in named_trainable]
         checkpoint_artifacts: dict[str, str] = {}
+        training_state_artifacts: dict[str, str] = {}
         checkpoint_save_seconds = 0.0
         if args.save_initial_adapter:
             checkpoint_started = time.perf_counter()
@@ -666,13 +873,17 @@ def main() -> None:
         optimizer = AdamW(trainable, lr=args.learning_rate)
         schedule = build_schedule(len(preferences), args.max_steps, args.data_order_seed)
         training_trace_path = output_dir / "training_trace.json"
-        training_trace: list[dict[str, float | int]] = []
+        fixed_probe_trace_path = output_dir / "fixed_probe_trace.json"
+        training_trace: list[dict[str, object]] = []
+        fixed_probe_trace: list[dict[str, object]] = []
         trace_steps = {
             1,
             args.max_steps,
             *range(10, args.max_steps + 1, 10),
             *checkpoint_steps,
         }
+        if args.trace_every_step:
+            trace_steps.update(range(1, args.max_steps + 1))
         training_response_tokens = sum(
             encoded_preference_tokens(
                 tokenizer,
@@ -704,7 +915,20 @@ def main() -> None:
                 raise RuntimeError(f"Non-finite DPO loss at step {step}: {loss.item()}")
             loss.backward()
             gradient_norm = clip_grad_norm_(trainable, args.max_grad_norm)
+            before_step = (
+                {
+                    name: parameter.detach().clone()
+                    for name, parameter in named_trainable
+                }
+                if args.layer_update_norms
+                else {}
+            )
             optimizer.step()
+            layer_diagnostics = (
+                layer_update_diagnostics(named_trainable, before_step)
+                if args.layer_update_norms
+                else {}
+            )
             if step in trace_steps:
                 chosen_tokens = encoded_preference_tokens(
                     tokenizer,
@@ -728,10 +952,15 @@ def main() -> None:
                     {
                         "step": step,
                         "preference_index": preference_index,
+                        "sample_id": preference["sample_id"],
+                        "sample_metadata": preference["metadata"],
                         "loss": float(loss.detach().cpu()),
                         **trace_diagnostics,
                         "chosen_response_tokens": chosen_tokens,
                         "rejected_response_tokens": rejected_tokens,
+                        "chosen_rejected_token_difference": (
+                            chosen_tokens - rejected_tokens
+                        ),
                         "chosen_mean_token_logp": (
                             trace_diagnostics["chosen_sequence_logp"] / max(chosen_tokens, 1)
                         ),
@@ -740,6 +969,7 @@ def main() -> None:
                         ),
                         "gradient_norm_before_clip": float(gradient_norm.detach().cpu()),
                         "lora_parameter_l2_norm": parameter_l2_norm(trainable),
+                        "lora_layer_diagnostics": layer_diagnostics,
                     }
                 )
                 save_json(training_trace, training_trace_path)
@@ -749,6 +979,37 @@ def main() -> None:
                 model.save_pretrained(checkpoint_dir)
                 tokenizer.save_pretrained(checkpoint_dir)
                 checkpoint_artifacts[str(step)] = str(checkpoint_dir)
+                if fixed_probe_indices:
+                    fixed_probe_trace.append(
+                        {
+                            "step": step,
+                            **fixed_probe_diagnostics(
+                                model,
+                                tokenizer,
+                                preferences,
+                                ref_values,
+                                fixed_probe_indices,
+                                beta=args.beta,
+                                max_length=args.max_length,
+                                enable_thinking=args.enable_thinking,
+                            ),
+                        }
+                    )
+                    save_json(fixed_probe_trace, fixed_probe_trace_path)
+                if args.save_training_state:
+                    training_state_path = (
+                        output_dir
+                        / "checkpoints"
+                        / f"step_{step}"
+                        / "training_state.pt"
+                    )
+                    save_training_state(
+                        training_state_path,
+                        step=step,
+                        optimizer=optimizer,
+                        schedule=schedule,
+                    )
+                    training_state_artifacts[str(step)] = str(training_state_path)
                 checkpoint_save_seconds += time.perf_counter() - checkpoint_started
             if step == 1 or step % 10 == 0 or step == args.max_steps:
                 print(f"step={step} loss={loss.item():.4f}")
@@ -850,7 +1111,14 @@ def main() -> None:
                     "final": str(output_dir / "final.json"),
                     "reload_validation": str(output_dir / "reload_validation.json"),
                     "training_trace": str(training_trace_path),
+                    "fixed_probe_manifest": str(
+                        output_dir / "fixed_probe_manifest.json"
+                    ),
+                    "fixed_probe_trace": (
+                        str(fixed_probe_trace_path) if fixed_probe_indices else None
+                    ),
                     "checkpoints": checkpoint_artifacts,
+                    "training_states": training_state_artifacts,
                 },
             }
         )
