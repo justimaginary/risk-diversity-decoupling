@@ -320,7 +320,7 @@ def dpo_loss(
     max_length: int,
     enable_thinking: bool,
 ) -> torch.Tensor:
-    loss, _ = dpo_loss_and_margin(
+    loss, _ = dpo_loss_and_diagnostics(
         model,
         tokenizer,
         batch,
@@ -332,6 +332,40 @@ def dpo_loss(
     return loss
 
 
+def dpo_loss_and_diagnostics(
+    model,
+    tokenizer,
+    batch: dict[str, str],
+    ref_logprobs: dict[str, float],
+    beta: float,
+    max_length: int,
+    enable_thinking: bool,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    chosen_logp = sequence_logprob(model, tokenizer, batch["prompt"], batch["chosen"], max_length, enable_thinking)
+    rejected_logp = sequence_logprob(
+        model, tokenizer, batch["prompt"], batch["rejected"], max_length, enable_thinking
+    )
+    ref_chosen = torch.tensor(ref_logprobs["chosen"], device=chosen_logp.device)
+    ref_rejected = torch.tensor(ref_logprobs["rejected"], device=chosen_logp.device)
+    policy_margin = chosen_logp - rejected_logp
+    reference_margin = ref_chosen - ref_rejected
+    chosen_log_ratio = chosen_logp - ref_chosen
+    rejected_log_ratio = rejected_logp - ref_rejected
+    dpo_margin = beta * (policy_margin - reference_margin)
+    return -F.logsigmoid(dpo_margin), {
+        "chosen_sequence_logp": chosen_logp,
+        "rejected_sequence_logp": rejected_logp,
+        "reference_chosen_sequence_logp": ref_chosen,
+        "reference_rejected_sequence_logp": ref_rejected,
+        "chosen_log_ratio": chosen_log_ratio,
+        "rejected_log_ratio": rejected_log_ratio,
+        "policy_preference_margin": policy_margin,
+        "reference_preference_margin": reference_margin,
+        "dpo_preference_margin": dpo_margin,
+        "dpo_accuracy": (dpo_margin > 0).float(),
+    }
+
+
 def dpo_loss_and_margin(
     model,
     tokenizer,
@@ -341,14 +375,16 @@ def dpo_loss_and_margin(
     max_length: int,
     enable_thinking: bool,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    chosen_logp = sequence_logprob(model, tokenizer, batch["prompt"], batch["chosen"], max_length, enable_thinking)
-    rejected_logp = sequence_logprob(
-        model, tokenizer, batch["prompt"], batch["rejected"], max_length, enable_thinking
+    loss, diagnostics = dpo_loss_and_diagnostics(
+        model,
+        tokenizer,
+        batch,
+        ref_logprobs,
+        beta,
+        max_length,
+        enable_thinking,
     )
-    ref_chosen = torch.tensor(ref_logprobs["chosen"], device=chosen_logp.device)
-    ref_rejected = torch.tensor(ref_logprobs["rejected"], device=chosen_logp.device)
-    margin = beta * ((chosen_logp - rejected_logp) - (ref_chosen - ref_rejected))
-    return -F.logsigmoid(margin), margin
+    return loss, diagnostics["dpo_preference_margin"]
 
 
 def build_schedule(length: int, steps: int, seed: int) -> list[int]:
@@ -479,6 +515,11 @@ def main() -> None:
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--max_steps", type=int, default=300)
     parser.add_argument("--checkpoint_steps", nargs="*", type=int, default=[])
+    parser.add_argument(
+        "--save_initial_adapter",
+        action="store_true",
+        help="Save the initialized step-0 LoRA adapter for parameter-distance diagnostics.",
+    )
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--torch_dtype", choices=["auto", "bfloat16", "float16", "float32"], default="auto")
@@ -613,6 +654,15 @@ def main() -> None:
         model.print_trainable_parameters()
 
         trainable = [param for param in model.parameters() if param.requires_grad]
+        checkpoint_artifacts: dict[str, str] = {}
+        checkpoint_save_seconds = 0.0
+        if args.save_initial_adapter:
+            checkpoint_started = time.perf_counter()
+            initial_checkpoint_dir = output_dir / "checkpoints" / "step_0" / "adapter_model"
+            model.save_pretrained(initial_checkpoint_dir)
+            tokenizer.save_pretrained(initial_checkpoint_dir)
+            checkpoint_artifacts["0"] = str(initial_checkpoint_dir)
+            checkpoint_save_seconds += time.perf_counter() - checkpoint_started
         optimizer = AdamW(trainable, lr=args.learning_rate)
         schedule = build_schedule(len(preferences), args.max_steps, args.data_order_seed)
         training_trace_path = output_dir / "training_trace.json"
@@ -623,8 +673,6 @@ def main() -> None:
             *range(10, args.max_steps + 1, 10),
             *checkpoint_steps,
         }
-        checkpoint_artifacts: dict[str, str] = {}
-        checkpoint_save_seconds = 0.0
         training_response_tokens = sum(
             encoded_preference_tokens(
                 tokenizer,
@@ -642,10 +690,11 @@ def main() -> None:
         model.train()
         for step, preference_index in enumerate(schedule, start=1):
             optimizer.zero_grad(set_to_none=True)
-            loss, preference_margin = dpo_loss_and_margin(
+            preference = preferences[preference_index]
+            loss, training_diagnostics = dpo_loss_and_diagnostics(
                 model,
                 tokenizer,
-                preferences[preference_index],
+                preference,
                 ref_values[preference_index],
                 beta=args.beta,
                 max_length=args.max_length,
@@ -657,12 +706,38 @@ def main() -> None:
             gradient_norm = clip_grad_norm_(trainable, args.max_grad_norm)
             optimizer.step()
             if step in trace_steps:
+                chosen_tokens = encoded_preference_tokens(
+                    tokenizer,
+                    preference["prompt"],
+                    preference["chosen"],
+                    args.max_length,
+                    args.enable_thinking,
+                )
+                rejected_tokens = encoded_preference_tokens(
+                    tokenizer,
+                    preference["prompt"],
+                    preference["rejected"],
+                    args.max_length,
+                    args.enable_thinking,
+                )
+                trace_diagnostics = {
+                    name: float(value.detach().cpu())
+                    for name, value in training_diagnostics.items()
+                }
                 training_trace.append(
                     {
                         "step": step,
                         "preference_index": preference_index,
                         "loss": float(loss.detach().cpu()),
-                        "dpo_preference_margin": float(preference_margin.detach().cpu()),
+                        **trace_diagnostics,
+                        "chosen_response_tokens": chosen_tokens,
+                        "rejected_response_tokens": rejected_tokens,
+                        "chosen_mean_token_logp": (
+                            trace_diagnostics["chosen_sequence_logp"] / max(chosen_tokens, 1)
+                        ),
+                        "rejected_mean_token_logp": (
+                            trace_diagnostics["rejected_sequence_logp"] / max(rejected_tokens, 1)
+                        ),
                         "gradient_norm_before_clip": float(gradient_norm.detach().cpu()),
                         "lora_parameter_l2_norm": parameter_l2_norm(trainable),
                     }
