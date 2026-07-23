@@ -1,0 +1,24 @@
+stage: SIS3
+status: preregistered_same_monitor_precheck
+model: Qwen/Qwen3-1.7B
+method: lora_dpo
+data: D2_helpfulness_safety_conflict_repaired
+representative_seeds: [52, 54, 55, 57]
+precheck:
+  checkpoints: [30, 50, 75, 100]
+  monitor_prompts: 30
+  samples_per_prompt: 8
+  generation_seed: 20260722
+  prompt_sha256: fcc564b6a14bad8ea22c35a2c18f1ff99d84062d6de21bbcf9e357151859c893
+dense_rerun:
+  blocked_until_same_monitor_change_is_confirmed: true
+  checkpoints: [30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100]
+  require_full_continuation_state: true
+  require_original_direction_reproduction: true
+random_source_swap:
+  blocked_until_gate_c1: true
+  combinations:
+    - {model_seed: 55, data_order_seed: 57}
+    - {model_seed: 57, data_order_seed: 55}
+    - {model_seed: 52, data_order_seed: 54}
+    - {model_seed: 54, data_order_seed: 52}
