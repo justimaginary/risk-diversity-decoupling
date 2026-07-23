@@ -15,20 +15,16 @@ SIS-1 established training-instance dependence for one model, method, and data
 condition. SIS-2 tests predictability, not bimodality, causal mechanism,
 cross-model generality, or mitigation.
 
-## Checkpoint reconstruction disclosure
+## Checkpoint provenance
 
-The original SIS-1 checkpoints were stored only on the previous instance data
-disk. The model archive, dataset archive, Git repository, manifests, and
-aggregate results survived, but the 60 checkpoint adapter directories did not.
+The original SIS-1 checkpoints remain on the bjb1 instance data disk. A
+temporary switch to a new bjb2 instance exposed that the checkpoint directories
+were not part of the model or dataset archives, but switching back to the
+original bjb1 data disk recovered them before SIS-2A evaluation began.
 
-SIS-2A therefore reconstructs seeds 42–51 with the exact SIS-1 model, repaired
-D2 file, hyperparameters, seed coupling, schedule construction, and checkpoint
-steps. Reconstruction outputs live under a new SIS-2 run root and must never be
-silently merged with the original SIS-1 artifacts.
-
-Before fitting an early predictor, reconstructed step-100 direction must be
-checked against the SIS-1 labels. A material ordering failure stops prediction
-analysis and is reported as a reproducibility result.
+SIS-2A therefore uses the original SIS-1 adapters and training traces directly;
+it does not retrain seeds 42–51. `run_sis2a_reconstruction.sh` is retained only
+as an explicitly disclosed disaster-recovery path and is not part of this run.
 
 ## Frozen monitor
 
@@ -97,4 +93,3 @@ Only after Gate A:
 - predictions are not all one class;
 - at least one independent judge supports the ordering;
 - all output-quality checks pass.
-
