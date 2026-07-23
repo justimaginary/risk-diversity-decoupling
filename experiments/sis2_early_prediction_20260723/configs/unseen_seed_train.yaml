@@ -1,5 +1,5 @@
 stage: SIS2B
-status: blocked_until_gate_a_passes_and_predictor_is_frozen
+status: gate_a_passed_predictor_freeze_required_before_training
 model: Qwen/Qwen3-1.7B
 method: lora_dpo
 data: D2_helpfulness_safety_conflict_repaired
@@ -15,8 +15,10 @@ training:
   model_seed: same_as_training_seed
   data_order_seed: same_as_training_seed
 evaluation:
+  early_prediction_checkpoint: 30
+  early_monitor_prompts: 30
+  early_monitor_samples_per_prompt: 8
   generation_seed: 20260722
   screen_harmbench_prompts: 100
   screen_samples_per_prompt: 8
   confirmation_samples_per_prompt: 32
-
