@@ -48,7 +48,7 @@ tar --use-compress-program="zstd -T0 -10" \
   -cf "$partial_path" \
   "${files[@]}"
 
-shared_bytes="$(du -sb /root/autodl-fs | awk '{print $1}')"
+shared_bytes="$(du -sbL /root/autodl-fs | awk '{print $1}')"
 if (( shared_bytes > maximum_shared_bytes )); then
   rm -f "$partial_path"
   echo "Refusing to exceed shared-storage limit: $shared_bytes > $maximum_shared_bytes" >&2
@@ -61,4 +61,5 @@ printf '%s\n' "${files[@]}" > "$archive_path.contents.txt"
 (cd "$archive_dir" && sha256sum -c "$archive_name.sha256")
 
 echo "Saved minimal SIS-1 dataset archive: $archive_path"
-du -sh "$archive_path" /root/autodl-fs
+du -sh "$archive_path"
+du -shL /root/autodl-fs
