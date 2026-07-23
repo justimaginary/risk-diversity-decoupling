@@ -10,9 +10,10 @@ unseen_root="$run_root/unseen"
 predictor="$run_root/metrics/frozen_predictor.json"
 harmbench_model="${SIS2_HARMBENCH_MODEL:-/root/autodl-tmp/models/HarmBench-Mistral-7b-val-cls}"
 read -r -a seeds <<< "${SIS2_UNSEEN_SEEDS:-52 53 54 55 56 57}"
-training_workers="${SIS2_TRAINING_WORKERS:-3}"
+training_workers="${SIS2_TRAINING_WORKERS:-2}"
 generation_workers="${SIS2_GENERATION_WORKERS:-4}"
 checkpoint_steps=(10 20 30 50 75 100)
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 
 expected_preferences_sha256="08405eae95a5f049e8d2c38dffeb845a03a530377da2b536be9aa056c8c1b071"
 expected_final_sha256="fffe21a839151b5330a4e97d5f35122acd6816e105c15558ae8d92edada146fb"
