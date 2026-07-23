@@ -1,0 +1,106 @@
+{
+  "status": "complete",
+  "stage": "SIS-3B dense instrumented training",
+  "runs": {
+    "D2_helpfulness_safety_conflict_seed52": {
+      "seed": 52,
+      "schedule_sha256": "08768e9acaedebc7ad93f47824e0bc84572b4cac8cc999e95fd1cf7b0689fdf9",
+      "schedule_matches_original": true,
+      "original_realized_kl": 0.5036322833967661,
+      "dense_realized_kl": 0.5569659338877353,
+      "kl_absolute_difference": 0.053333650490969164,
+      "wall_seconds": 117.15994958952069,
+      "peak_vram_bytes": 7616165376,
+      "checkpoint_steps": [
+        "0",
+        "30",
+        "35",
+        "40",
+        "45",
+        "50",
+        "55",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ],
+      "trace_steps": 100
+    },
+    "D2_helpfulness_safety_conflict_seed54": {
+      "seed": 54,
+      "schedule_sha256": "fe138c5b1468af7190b2a9861091ee6057263f6c4d04b60a3245d1d5b6b04747",
+      "schedule_matches_original": true,
+      "original_realized_kl": 0.439940742655967,
+      "dense_realized_kl": 0.4523938586983415,
+      "kl_absolute_difference": 0.012453116042374479,
+      "wall_seconds": 115.97864735871553,
+      "peak_vram_bytes": 7859465728,
+      "checkpoint_steps": [
+        "0",
+        "30",
+        "35",
+        "40",
+        "45",
+        "50",
+        "55",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ],
+      "trace_steps": 100
+    },
+    "D2_helpfulness_safety_conflict_seed55": {
+      "seed": 55,
+      "schedule_sha256": "86035a3af79d340fa0bddf6a222406abbde73116c86ec3641cbc03d0089d5f58",
+      "schedule_matches_original": true,
+      "original_realized_kl": 0.2360234424459631,
+      "dense_realized_kl": 0.3133130209674788,
+      "kl_absolute_difference": 0.07728957852151572,
+      "wall_seconds": 115.59385234117508,
+      "peak_vram_bytes": 8011454464,
+      "checkpoint_steps": [
+        "0",
+        "30",
+        "35",
+        "40",
+        "45",
+        "50",
+        "55",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ],
+      "trace_steps": 100
+    },
+    "D2_helpfulness_safety_conflict_seed57": {
+      "seed": 57,
+      "schedule_sha256": "8ec820c259f41f65f9ec8463394314bbafaefd72ccdc9efe91037394dce7b60e",
+      "schedule_matches_original": true,
+      "original_realized_kl": 0.38446242425252647,
+      "dense_realized_kl": 0.4079955281143001,
+      "kl_absolute_difference": 0.023533103861773652,
+      "wall_seconds": 116.73578911274672,
+      "peak_vram_bytes": 8011044352,
+      "checkpoint_steps": [
+        "0",
+        "30",
+        "35",
+        "40",
+        "45",
+        "50",
+        "55",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ],
+      "trace_steps": 100
+    }
+  }
+}
